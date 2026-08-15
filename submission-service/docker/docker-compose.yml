@@ -1,0 +1,26 @@
+services:
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: submission-rustfs
+    command: server /data --console-address :9001
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      RUSTFS_ROOT_USER: minioadmin
+      RUSTFS_ROOT_PASSWORD: minioadmin
+      RUSTFS_ACCESS_KEY: minioadmin
+      RUSTFS_SECRET_KEY: minioadmin
+      RUSTFS_NOTIFY_ENABLE: "on"
+      RUSTFS_NOTIFY_WEBHOOK_ENABLE_PRIMARY: "on"
+      RUSTFS_NOTIFY_WEBHOOK_ENDPOINT_PRIMARY: "http://host.docker.internal:8082/api/v1/submissions/webhook/upload-complete"
+      RUSTFS_NOTIFY_WEBHOOK_QUEUE_DIR_PRIMARY: "/tmp/rustfs-events"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./rustfs-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/minio/health/cluster"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

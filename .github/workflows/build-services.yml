@@ -1,0 +1,87 @@
+name: Build and Test Services
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - "**/feat/**"
+    paths:
+      - "submission-service/**"
+      - "executor-service/**"
+      - "api-gateway/**"
+      - "result-service/**"
+      - "assignment-service/**"
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.filter.outputs.changes }}
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed services
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            submission-service:
+              - 'submission-service/**'
+            executor-service:
+              - 'executor-service/**'
+            api-gateway:
+              - 'api-gateway/**'
+            result-service:
+              - 'result-service/**'
+            assignment-service:
+              - 'assignment-service/**'
+
+      - name: Set matrix
+        id: set-matrix
+        run: |
+          SERVICES='${{ steps.filter.outputs.changes }}'
+          echo "Changed services: $SERVICES"
+          echo "matrix={\"service\":$SERVICES}" >> $GITHUB_OUTPUT
+          echo "{\"service\":$SERVICES}" > /tmp/changed-services.json
+
+      - name: Upload changed services list
+        uses: actions/upload-artifact@v4
+        with:
+          name: changed-services
+          path: /tmp/changed-services.json
+          retention-days: 1
+
+  build:
+    name: Build ${{ matrix.service }}
+    needs: detect-changes
+    if: needs.detect-changes.outputs.matrix != '{"service":[]}'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: maven
+
+      - name: Build with Maven
+        run: |
+          cd ${{ matrix.service }}
+          mvn clean package -DskipTests -U

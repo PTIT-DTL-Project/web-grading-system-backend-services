@@ -1,0 +1,44 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: executor-service
+
+executor:
+  temp-dir: ${EXECUTOR_TEMP_DIR:/tmp/grading}
+  container:
+    startup-timeout-ms: ${EXECUTOR_STARTUP_TIMEOUT_MS:60000}
+    max-execution-time-ms: ${EXECUTOR_MAX_EXECUTION_MS:300000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTLP_TRACES_ENDPOINT:http://alloy.observability.svc.cluster.local:4318/v1/traces}
+  otlp:
+    metrics:
+      export:
+        url: ${OTLP_METRICS_ENDPOINT:http://alloy.observability.svc.cluster.local:4318/v1/metrics}
+        step: 30s
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{trace_id:-},%X{span_id:-}]"
+
+# Pyroscope continuous profiling
+pyroscope:
+  enabled: true
+  endpoint: ${PYROSCOPE_ENDPOINT:http://pyroscope.observability.svc.cluster.local:4100}
+  application-name: ${spring.application.name}
+  labels:
+    region: ${REGION:dev}
+    cluster: ${CLUSTER:dev}

@@ -1,0 +1,51 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: result-service
+  datasource:
+    url: ${JDBC_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:result_db}}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTLP_TRACES_ENDPOINT:http://alloy.observability.svc.cluster.local:4318/v1/traces}
+  otlp:
+    metrics:
+      export:
+        url: ${OTLP_METRICS_ENDPOINT:http://alloy.observability.svc.cluster.local:4318/v1/metrics}
+        step: 30s
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{trace_id:-},%X{span_id:-}]"
+
+# Pyroscope continuous profiling
+pyroscope:
+  enabled: true
+  endpoint: ${PYROSCOPE_ENDPOINT:http://pyroscope.observability.svc.cluster.local:4100}
+  application-name: ${spring.application.name}
+  labels:
+    region: ${REGION:dev}
+    cluster: ${CLUSTER:dev}

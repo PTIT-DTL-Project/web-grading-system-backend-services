@@ -1,0 +1,53 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: assignment-service
+          uri: ${ASSIGNMENT_SERVICE_URI:http://assignment-service:8081}
+          predicates:
+            - Path=/api/v1/assignments/**,/api/v1/docker-images/**
+        - id: submission-service
+          uri: ${SUBMISSION_SERVICE_URI:http://submission-service:8082}
+          predicates:
+            - Path=/api/v1/submissions/**
+        - id: result-service
+          uri: ${RESULT_SERVICE_URI:http://result-service:8084}
+          predicates:
+            - Path=/api/v1/results/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTLP_TRACES_ENDPOINT:http://alloy.observability.svc.cluster.local:4318/v1/traces}
+  otlp:
+    metrics:
+      export:
+        url: ${OTLP_METRICS_ENDPOINT:http://alloy.observability.svc.cluster.local:4318/v1/metrics}
+        step: 30s
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{trace_id:-},%X{span_id:-}]"
+
+# Pyroscope continuous profiling
+pyroscope:
+  enabled: true
+  endpoint: ${PYROSCOPE_ENDPOINT:http://pyroscope.observability.svc.cluster.local:4100}
+  application-name: ${spring.application.name}
+  labels:
+    region: ${REGION:dev}
+    cluster: ${CLUSTER:dev}
