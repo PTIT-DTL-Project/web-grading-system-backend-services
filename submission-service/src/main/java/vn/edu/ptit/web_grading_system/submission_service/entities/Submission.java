@@ -22,6 +22,9 @@ public class Submission extends BaseEntity {
     @Column(name = "student_id", nullable = false)
     private UUID studentId;
 
+    @Column(name = "plan_id")
+    private UUID planId;
+
     @Column(name = "rustfs_path", nullable = false)
     private String rustfsPath;
 
