@@ -55,6 +55,11 @@ public class HttpLogFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(request, response);
         } finally {
+            try {
+                ((CappedContentCachingResponseWrapper) response).copyBodyToResponse();
+            } catch (Exception e) {
+                log.warn("Could not copy response body: {}", e.getMessage());
+            }
             saveLog((ContentCachingRequestWrapper) request, (CappedContentCachingResponseWrapper) response, start);
         }
     }
@@ -69,8 +74,8 @@ public class HttpLogFilter extends OncePerRequestFilter {
                     .serviceName(serviceName)
                     .direction(HttpLogDirection.INBOUND)
                     .method(request.getMethod())
-                    .url(request.getRequestURI()
-                            + (request.getQueryString() != null ? "?" + request.getQueryString() : ""))
+                    .url(httpLogService.sanitizeUrl(request.getRequestURI()
+                            + (request.getQueryString() != null ? "?" + request.getQueryString() : "")))
                     .port(request.getLocalPort())
                     .requestHeaders(httpLogService.headersToJson(collectRequestHeaders(request)))
                     .requestBody(httpLogService.truncate(request.getContentAsByteArray()))

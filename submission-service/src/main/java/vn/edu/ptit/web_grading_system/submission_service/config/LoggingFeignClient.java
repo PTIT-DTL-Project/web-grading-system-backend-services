@@ -30,10 +30,11 @@ public class LoggingFeignClient implements Client {
         long start = System.currentTimeMillis();
         try {
             Response response = delegate.execute(request, options);
-            byte[] responseBody = response.body() == null ? null : response.body().asInputStream().readAllBytes();
-            if (!isFileCall(request, response)) {
-                saveLog(request, response.status(), responseBody, System.currentTimeMillis() - start);
+            if (isFileCall(request, response)) {
+                return response;
             }
+            byte[] responseBody = response.body() == null ? null : response.body().asInputStream().readAllBytes();
+            saveLog(request, response.status(), responseBody, System.currentTimeMillis() - start);
             return response.toBuilder().body(responseBody).build();
         } catch (IOException e) {
             saveLog(request, null, null, System.currentTimeMillis() - start);
@@ -47,8 +48,13 @@ public class LoggingFeignClient implements Client {
     }
 
     private String firstHeader(Map<String, Collection<String>> headers, String name) {
-        Collection<String> values = headers.get(name);
-        return values == null || values.isEmpty() ? null : values.iterator().next();
+        for (Map.Entry<String, Collection<String>> entry : headers.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(name)) {
+                Collection<String> values = entry.getValue();
+                return values == null || values.isEmpty() ? null : values.iterator().next();
+            }
+        }
+        return null;
     }
 
     private void saveLog(Request request, Integer statusCode, byte[] responseBody, long durationMs) {
@@ -57,7 +63,7 @@ public class LoggingFeignClient implements Client {
                     .serviceName(serviceName)
                     .direction(HttpLogDirection.OUTBOUND)
                     .method(request.httpMethod().name())
-                    .url(request.url())
+                    .url(httpLogService.sanitizeUrl(request.url()))
                     .port(portOf(request.url()))
                     .requestHeaders(httpLogService.headersToJson(request.headers()))
                     .requestBody(httpLogService.truncate(request.body()))

@@ -115,4 +115,12 @@ public class CappedContentCachingResponseWrapper extends HttpServletResponseWrap
     public byte[] getContentAsByteArray() {
         return cache.toByteArray();
     }
+
+    public void copyBodyToResponse() throws IOException {
+        if (cache.size() > 0) {
+            getResponse().getOutputStream().write(cache.toByteArray());
+            cache.reset();
+        }
+        getResponse().flushBuffer();
+    }
 }
