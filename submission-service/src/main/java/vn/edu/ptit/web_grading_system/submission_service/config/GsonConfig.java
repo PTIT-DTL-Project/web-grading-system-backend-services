@@ -1,8 +1,9 @@
 package vn.edu.ptit.web_grading_system.submission_service.config;
 
-import com.google.gson.Gson;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import com.google.gson.Gson;
 
 @Configuration
 public class GsonConfig {

@@ -10,9 +10,9 @@
     <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="unknown"/>
     <springProperty scope="context" name="APP_ENV" source="spring.profiles.active" defaultValue="local"/>
 
-    <!-- Console: structured JSON for Loki -->
+    <!-- Console: structured JSON for Loki (pretty + real newlines outside prod) -->
     <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+        <encoder class="vn.edu.ptit.web_grading_system.result_service.config.ReadableLogstashEncoder">
             <includeMdcKeyName>trace_id</includeMdcKeyName>
             <includeMdcKeyName>span_id</includeMdcKeyName>
             <includeMdcKeyName>trace_flags</includeMdcKeyName>
