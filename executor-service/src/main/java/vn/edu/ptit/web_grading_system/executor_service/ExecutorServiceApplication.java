@@ -14,15 +14,10 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @EnableFeignClients
 public class ExecutorServiceApplication {
 
-	private static final Logger log = LoggerFactory.getLogger(ExecutorServiceApplication.class);
 
 	public static void main(String[] args) {
 		SpringApplication.run(ExecutorServiceApplication.class, args);
 	}
 
-	@Bean
-	public CommandLineRunner startupInfo() {
-		return args -> log.info("🚀 Executor Service started successfully");
-	}
 
 }

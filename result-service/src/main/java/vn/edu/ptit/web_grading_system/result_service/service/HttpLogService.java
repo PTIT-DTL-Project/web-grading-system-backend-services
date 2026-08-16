@@ -5,7 +5,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
@@ -34,9 +33,6 @@ public class HttpLogService {
 
     public void save(HttpLog httpLog) {
         try {
-            if (httpLog.getId() == null) {
-                httpLog.setId(UUID.randomUUID());
-            }
             httpLogRepository.save(httpLog);
         } catch (Exception e) {
             log.warn("Could not save http log", e);
