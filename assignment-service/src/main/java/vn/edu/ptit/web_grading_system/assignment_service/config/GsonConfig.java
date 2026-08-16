@@ -1,4 +1,4 @@
-package vn.edu.ptit.web_grading_system.submission_service.config;
+package vn.edu.ptit.web_grading_system.assignment_service.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
