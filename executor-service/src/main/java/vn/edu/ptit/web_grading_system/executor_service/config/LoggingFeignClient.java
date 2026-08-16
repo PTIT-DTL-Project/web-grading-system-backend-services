@@ -18,11 +18,12 @@ public class LoggingFeignClient implements Client {
 
     private final HttpLogService httpLogService;
     private final String serviceName;
-    private final Client delegate = new Client.Default(null, null);
+    private final Client delegate;
 
-    public LoggingFeignClient(HttpLogService httpLogService, String serviceName) {
+    public LoggingFeignClient(HttpLogService httpLogService, String serviceName, Client delegate) {
         this.httpLogService = httpLogService;
         this.serviceName = serviceName;
+        this.delegate = delegate;
     }
 
     @Override
