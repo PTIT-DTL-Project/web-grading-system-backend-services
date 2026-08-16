@@ -30,7 +30,7 @@ public class HttpLogService {
                     + "|x-amz-signature|signature)=)[^&\\s\"']*");
 
     private final HttpLogRepository httpLogRepository;
-    private final Gson gson = new Gson();
+    private final Gson gson;
 
     public void save(HttpLog httpLog) {
         try {
