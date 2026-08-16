@@ -1,6 +1,5 @@
 package vn.edu.ptit.web_grading_system.executor_service.config;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -15,8 +14,7 @@ import jakarta.servlet.http.HttpServletResponseWrapper;
 public class CappedContentCachingResponseWrapper extends HttpServletResponseWrapper {
 
     private final int maxCacheBytes;
-    private final ByteArrayOutputStream cache = new ByteArrayOutputStream();
-    private boolean overflow;
+    private final java.io.ByteArrayOutputStream cache = new java.io.ByteArrayOutputStream();
     private ServletOutputStream outputStream;
     private PrintWriter writer;
 
@@ -34,30 +32,19 @@ public class CappedContentCachingResponseWrapper extends HttpServletResponseWrap
             outputStream = new ServletOutputStream() {
                 @Override
                 public void write(int b) throws IOException {
-                    if (overflow || cache.size() >= maxCacheBytes) {
-                        overflow = true;
-                        getResponse().getOutputStream().write(b);
-                    } else {
+                    if (cache.size() < maxCacheBytes) {
                         cache.write(b);
                     }
+                    getResponse().getOutputStream().write(b);
                 }
 
                 @Override
                 public void write(byte[] b, int off, int len) throws IOException {
-                    if (overflow) {
-                        getResponse().getOutputStream().write(b, off, len);
-                        return;
-                    }
                     int remaining = maxCacheBytes - cache.size();
-                    if (len <= remaining) {
-                        cache.write(b, off, len);
-                    } else {
-                        if (remaining > 0) {
-                            cache.write(b, off, remaining);
-                        }
-                        overflow = true;
-                        getResponse().getOutputStream().write(b, off + remaining, len - remaining);
+                    if (remaining > 0) {
+                        cache.write(b, off, Math.min(len, remaining));
                     }
+                    getResponse().getOutputStream().write(b, off, len);
                 }
 
                 @Override
@@ -82,30 +69,19 @@ public class CappedContentCachingResponseWrapper extends HttpServletResponseWrap
             writer = new PrintWriter(new OutputStreamWriter(new OutputStream() {
                 @Override
                 public void write(int b) throws IOException {
-                    if (overflow || cache.size() >= maxCacheBytes) {
-                        overflow = true;
-                        getResponse().getOutputStream().write(b);
-                    } else {
+                    if (cache.size() < maxCacheBytes) {
                         cache.write(b);
                     }
+                    getResponse().getOutputStream().write(b);
                 }
 
                 @Override
                 public void write(byte[] b, int off, int len) throws IOException {
-                    if (overflow) {
-                        getResponse().getOutputStream().write(b, off, len);
-                        return;
-                    }
                     int remaining = maxCacheBytes - cache.size();
-                    if (len <= remaining) {
-                        cache.write(b, off, len);
-                    } else {
-                        if (remaining > 0) {
-                            cache.write(b, off, remaining);
-                        }
-                        overflow = true;
-                        getResponse().getOutputStream().write(b, off + remaining, len - remaining);
+                    if (remaining > 0) {
+                        cache.write(b, off, Math.min(len, remaining));
                     }
+                    getResponse().getOutputStream().write(b, off, len);
                 }
             }, StandardCharsets.UTF_8));
         }
@@ -116,10 +92,9 @@ public class CappedContentCachingResponseWrapper extends HttpServletResponseWrap
         return cache.toByteArray();
     }
 
-    public void copyBodyToResponse() throws IOException {
-        if (cache.size() > 0) {
-            getResponse().getOutputStream().write(cache.toByteArray());
-            cache.reset();
+    public void flushToResponse() throws IOException {
+        if (writer != null) {
+            writer.flush();
         }
         getResponse().flushBuffer();
     }

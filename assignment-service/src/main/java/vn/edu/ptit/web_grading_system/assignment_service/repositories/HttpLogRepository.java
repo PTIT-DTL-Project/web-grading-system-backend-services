@@ -9,4 +9,5 @@ import vn.edu.ptit.web_grading_system.assignment_service.entities.HttpLog;
 
 @Repository
 public interface HttpLogRepository extends JpaRepository<HttpLog, UUID> {
+
 }

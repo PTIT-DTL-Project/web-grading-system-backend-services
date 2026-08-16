@@ -34,9 +34,6 @@ public class HttpLogService {
 
     public void save(HttpLog httpLog) {
         try {
-            if (httpLog.getId() == null) {
-                httpLog.setId(UUID.randomUUID());
-            }
             httpLogRepository.save(httpLog);
         } catch (Exception e) {
             log.warn("Could not save http log", e);

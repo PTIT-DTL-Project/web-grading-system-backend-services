@@ -8,9 +8,14 @@ import net.logstash.logback.encoder.LogstashEncoder;
 
 public class ReadableLogstashEncoder extends LogstashEncoder {
 
+    private boolean isReadable() {
+        String env = getContext() != null ? getContext().getProperty("APP_ENV") : "local";
+        return env == null || env.isBlank() || "local".equals(env) || "default".equals(env);
+    }
+
     @Override
     public void start() {
-        if (!"prod".equals(getContext() != null ? getContext().getProperty("APP_ENV") : "local")) {
+        if (isReadable()) {
             setJsonGeneratorDecorator(new PrettyPrintingJsonGeneratorDecorator());
         }
         super.start();
@@ -19,7 +24,7 @@ public class ReadableLogstashEncoder extends LogstashEncoder {
     @Override
     public byte[] encode(ILoggingEvent event) {
         byte[] json = super.encode(event);
-        if ("prod".equals(getContext() != null ? getContext().getProperty("APP_ENV") : "local")) {
+        if (!isReadable()) {
             return json;
         }
         String readable = new String(json, StandardCharsets.UTF_8)

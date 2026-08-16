@@ -56,9 +56,9 @@ public class HttpLogFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } finally {
             try {
-                ((CappedContentCachingResponseWrapper) response).copyBodyToResponse();
+                ((CappedContentCachingResponseWrapper) response).flushToResponse();
             } catch (Exception e) {
-                log.warn("Could not copy response body: {}", e.getMessage());
+                log.warn("Could not flush response: {}", e.getMessage());
             }
             saveLog((ContentCachingRequestWrapper) request, (CappedContentCachingResponseWrapper) response, start);
         }
