@@ -2,7 +2,6 @@ package vn.edu.ptit.web_grading_system.submission_service.service;
 
 import io.minio.*;
 import io.minio.http.Method;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,12 +20,15 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class RustFSService {
+
+    public RustFSService(MinioClient minioClient, @Qualifier("publicMinioClient") MinioClient publicMinioClient) {
+        this.minioClient = minioClient;
+        this.publicMinioClient = publicMinioClient;
+    }
 
     private final MinioClient minioClient;
 
-    @Qualifier("publicMinioClient")
     private final MinioClient publicMinioClient;
 
     @Value("${rustfs.endpoint}")
