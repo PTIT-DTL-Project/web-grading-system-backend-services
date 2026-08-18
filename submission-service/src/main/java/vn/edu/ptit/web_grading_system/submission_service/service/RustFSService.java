@@ -4,6 +4,7 @@ import io.minio.*;
 import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -24,6 +25,9 @@ import java.util.concurrent.TimeUnit;
 public class RustFSService {
 
     private final MinioClient minioClient;
+
+    @Qualifier("publicMinioClient")
+    private final MinioClient publicMinioClient;
 
     @Value("${rustfs.endpoint}")
     private String rustfsEndpoint;
@@ -46,7 +50,10 @@ public class RustFSService {
                     BucketExistsArgs.builder().bucket(bucketName).build());
             if (!exists) {
                 minioClient.makeBucket(
-                        MakeBucketArgs.builder().bucket(bucketName).build());
+                        MakeBucketArgs.builder()
+                                .bucket(bucketName)
+                                .objectLock(true)
+                                .build());
                 log.info("Created bucket: {}", bucketName);
                 registerWebhookNotification();
             }
@@ -59,7 +66,7 @@ public class RustFSService {
     public String generatePresignedUploadUrl(String objectName) {
         try {
             ensureBucketExists();
-            return minioClient.getPresignedObjectUrl(
+            return publicMinioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.PUT)
                             .bucket(bucketName)
@@ -74,7 +81,7 @@ public class RustFSService {
 
     public String generatePresignedDownloadUrl(String objectName) {
         try {
-            return minioClient.getPresignedObjectUrl(
+            return publicMinioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.GET)
                             .bucket(bucketName)

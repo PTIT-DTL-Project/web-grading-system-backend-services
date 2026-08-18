@@ -22,6 +22,7 @@ spring:
 
 rustfs:
   endpoint: ${RUSTFS_ENDPOINT:http://localhost:9000}
+  public-endpoint: ${RUSTFS_PUBLIC_ENDPOINT:http://localhost:9000}
   access-key: ${RUSTFS_ACCESS_KEY:minioadmin}
   secret-key: ${RUSTFS_SECRET_KEY:minioadmin}
   bucket-name: ${RUSTFS_BUCKET_NAME:submission-files}
@@ -38,6 +39,9 @@ management:
     enabled: true
     sampling:
       probability: 1.0
+    # OTLP push disabled — set to true to re-enable
+    export:
+      enabled: false
   opentelemetry:
     tracing:
       export:
@@ -45,7 +49,9 @@ management:
           endpoint: ${OTLP_TRACES_ENDPOINT:http://alloy.observability.svc.cluster.local:4318/v1/traces}
   otlp:
     metrics:
+      # OTLP metrics push disabled — set to true to re-enable
       export:
+        enabled: false
         url: ${OTLP_METRICS_ENDPOINT:http://alloy.observability.svc.cluster.local:4318/v1/metrics}
         step: 30s
 
