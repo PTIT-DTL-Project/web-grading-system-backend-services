@@ -20,8 +20,9 @@ public class ResultInternalController {
     @PostMapping("/average")
     public ResponseEntity<Map<String, BigDecimal>> average(
             @RequestBody AverageRequest request) {
-        return ResponseEntity.ok(Map.of(
-                "average", resultService.averageBand10(request.assignmentIds(), request.studentId())));
+        BigDecimal average = resultService.averageBand10(request.assignmentIds(), request.studentId());
+        // average is null when the student has no results — Map.of would NPE
+        return ResponseEntity.ok(java.util.Collections.singletonMap("average", average));
     }
 
     public record AverageRequest(List<UUID> assignmentIds, UUID studentId) {

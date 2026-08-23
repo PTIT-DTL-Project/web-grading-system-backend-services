@@ -77,7 +77,7 @@ public class ClassService {
     @Transactional
     public ImportResult importStudents(UUID classId, UUID ownerId, MultipartFile file) {
         findOwned(classId, ownerId)
-                .orElseThrow(() -> new IllegalArgumentException("Class not found: " + classId));
+                .orElseThrow(() -> new ResourceNotFoundException("Class not found: " + classId));
         if (file == null || file.isEmpty()) {
             throw new BadRequestException("CSV file is empty");
         }
@@ -125,7 +125,7 @@ public class ClassService {
 
     public Page<ClassStudentResponse> listStudents(UUID classId, UUID ownerId, Pageable pageable) {
         findOwned(classId, ownerId)
-                .orElseThrow(() -> new IllegalArgumentException("Class not found: " + classId));
+                .orElseThrow(() -> new ResourceNotFoundException("Class not found: " + classId));
         return classStudentRepository.findAllByClassId(classId, pageable)
                 .map(classStudentMapper::toResponse);
     }

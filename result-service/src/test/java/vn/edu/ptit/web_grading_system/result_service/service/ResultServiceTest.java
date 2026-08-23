@@ -20,7 +20,7 @@ class ResultServiceTest {
         UUID student = UUID.randomUUID();
         ResultRepository repo = Mockito.mock(ResultRepository.class);
         ResultService service = new ResultService(repo);
-        Mockito.when(repo.findByAssignmentIdInAndStudentIdAndIsLatestTrue(Mockito.any(), Mockito.eq(student)))
+        Mockito.when(repo.findByAssignmentIdInAndStudentIdAndLatestTrue(Mockito.any(), Mockito.eq(student)))
                 .thenReturn(List.of(
                         result(student, "8.00", "10.00"),
                         result(student, "5.00", "10.00")));
@@ -32,7 +32,7 @@ class ResultServiceTest {
     void averageBand10_nullWhenNoResults() {
         UUID student = UUID.randomUUID();
         ResultRepository repo = Mockito.mock(ResultRepository.class);
-        Mockito.when(repo.findByAssignmentIdInAndStudentIdAndIsLatestTrue(Mockito.any(), Mockito.eq(student)))
+        Mockito.when(repo.findByAssignmentIdInAndStudentIdAndLatestTrue(Mockito.any(), Mockito.eq(student)))
                 .thenReturn(List.of());
         assertNull(new ResultService(repo).averageBand10(List.of(UUID.randomUUID()), student));
     }

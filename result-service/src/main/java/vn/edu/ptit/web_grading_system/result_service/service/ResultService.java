@@ -21,7 +21,7 @@ public class ResultService {
      * one per assignment. Null when the student has no results.
      */
     public BigDecimal averageBand10(List<UUID> assignmentIds, UUID studentId) {
-        List<Result> results = resultRepository.findByAssignmentIdInAndStudentIdAndIsLatestTrue(assignmentIds, studentId);
+        List<Result> results = resultRepository.findByAssignmentIdInAndStudentIdAndLatestTrue(assignmentIds, studentId);
         if (results.isEmpty()) {
             return null;
         }

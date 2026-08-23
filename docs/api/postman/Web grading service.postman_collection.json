@@ -55,10 +55,10 @@
 						"method": "PUT",
 						"header": [],
 						"url": {
-							"raw": "https://web-dev1-rustfs.vucongtuanduong.dpdns.org/submission-files/submissions/37beedad-7432-4b47-8f27-1df6d62b40d0.zip?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20260818%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260818T021119Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature=c9670f03297b5aa4e9c3aa11504019686c32cbeb1f3d63ce6083006eeed96256",
+							"raw": "https://{{rustfsPublicHost}}/submission-files/submissions/{{objectName}}.zip?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential={{accessKey}}&X-Amz-Date={{amzDate}}&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature={{signature}}",
 							"protocol": "https",
 							"host": [
-								"web-dev1-rustfs",
+								"{{rustfsPublicHost}}",
 								"vucongtuanduong",
 								"dpdns",
 								"org"
@@ -75,7 +75,7 @@
 								},
 								{
 									"key": "X-Amz-Credential",
-									"value": "minioadmin%2F20260818%2Fus-east-1%2Fs3%2Faws4_request"
+									"value": "{{accessKey}}%2F{{amzDate}}%2Fus-east-1%2Fs3%2Faws4_request"
 								},
 								{
 									"key": "X-Amz-Date",

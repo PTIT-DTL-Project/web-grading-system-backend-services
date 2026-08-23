@@ -186,8 +186,16 @@ public class ScoreService {
         if (assignmentIds.isEmpty()) {
             return null;
         }
-        return resultServiceClient.average(new ResultServiceClient.AverageRequest(assignmentIds, studentUserId))
-                .get("average");
+        try {
+            return resultServiceClient.average(new ResultServiceClient.AverageRequest(assignmentIds, studentUserId))
+                    .get("average");
+        } catch (Exception e) {
+            // grading data unavailable (service down, no results yet) — degrade to null,
+            // never fail scores/transcript because of it
+            log.warn("Exercise score unavailable for student {} in class {}: {}",
+                    studentCode, classId, e.toString());
+            return null;
+        }
     }
 
     private LetterGrade evaluateGrade(BigDecimal finalTotal, List<StudentScoreEntryResponse> entries) {

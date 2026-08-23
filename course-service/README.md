@@ -1,1 +1,1 @@
-assignment-service
+course-service

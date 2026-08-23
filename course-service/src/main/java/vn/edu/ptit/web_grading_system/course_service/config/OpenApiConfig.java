@@ -15,8 +15,8 @@ public class OpenApiConfig {
     @Bean
     public OpenAPI openAPI() {
         return new OpenAPI().info(new Info()
-                .title("Assignment Service API")
+                .title("Course Service API")
                 .version("v1")
-                .description("Classes, students, assignments, score components"));
+                .description("Classes, students, assignments, score components, transcripts"));
     }
 }

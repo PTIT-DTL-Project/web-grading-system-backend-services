@@ -11,5 +11,5 @@ import java.util.UUID;
 @Repository
 public interface ResultRepository extends JpaRepository<Result, UUID> {
 
-    List<Result> findByAssignmentIdInAndStudentIdAndIsLatestTrue(Collection<UUID> assignmentIds, UUID studentId);
+    List<Result> findByAssignmentIdInAndStudentIdAndLatestTrue(Collection<UUID> assignmentIds, UUID studentId);
 }
