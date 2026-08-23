@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "f95c04b4-2da4-44e0-9670-3aa4f3e1fbdd",
+		"_postman_id": "fc1a4a1c-da64-4ae6-8d04-003a921cfa53",
 		"name": "Web grading service",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
@@ -43,55 +43,6 @@
 								{
 									"key": "zipFileName",
 									"value": "kpdll.zip"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "upload files after getting the presigned url",
-					"request": {
-						"method": "PUT",
-						"header": [],
-						"url": {
-							"raw": "https://{{rustfsPublicHost}}/submission-files/submissions/{{objectName}}.zip?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential={{accessKey}}&X-Amz-Date={{amzDate}}&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature={{signature}}",
-							"protocol": "https",
-							"host": [
-								"{{rustfsPublicHost}}",
-								"vucongtuanduong",
-								"dpdns",
-								"org"
-							],
-							"path": [
-								"submission-files",
-								"submissions",
-								"37beedad-7432-4b47-8f27-1df6d62b40d0.zip"
-							],
-							"query": [
-								{
-									"key": "X-Amz-Algorithm",
-									"value": "AWS4-HMAC-SHA256"
-								},
-								{
-									"key": "X-Amz-Credential",
-									"value": "{{accessKey}}%2F{{amzDate}}%2Fus-east-1%2Fs3%2Faws4_request"
-								},
-								{
-									"key": "X-Amz-Date",
-									"value": "20260818T021119Z"
-								},
-								{
-									"key": "X-Amz-Expires",
-									"value": "900"
-								},
-								{
-									"key": "X-Amz-SignedHeaders",
-									"value": "host"
-								},
-								{
-									"key": "X-Amz-Signature",
-									"value": "c9670f03297b5aa4e9c3aa11504019686c32cbeb1f3d63ce6083006eeed96256"
 								}
 							]
 						}
