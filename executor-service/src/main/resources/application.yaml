@@ -50,6 +50,8 @@ management:
         step: 30s
 
 logging:
+  level:
+    vn.edu.ptit.web_grading_system: INFO
   pattern:
     level: "%5p [${spring.application.name:},%X{trace_id:-},%X{span_id:-}]"
 

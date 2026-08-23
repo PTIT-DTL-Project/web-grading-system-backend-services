@@ -2,6 +2,7 @@ package vn.edu.ptit.web_grading_system.result_service.entities;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import org.hibernate.annotations.SQLRestriction;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -12,6 +13,7 @@ import lombok.experimental.SuperBuilder;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+@SQLRestriction("deleted_at IS NULL")
 @Entity
 @Table(name = "manual_scores")
 @Getter

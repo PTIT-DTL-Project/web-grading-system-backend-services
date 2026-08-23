@@ -1,0 +1,2500 @@
+{
+	"info": {
+		"_postman_id": "f95c04b4-2da4-44e0-9670-3aa4f3e1fbdd",
+		"name": "Web grading service",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Submission service",
+			"item": [
+				{
+					"name": "Get presigned url for a document",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "file",
+							"file": {
+								"src": "/home/duongvct/Documents/workspace/test.zip"
+							},
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{submission-service}}/api/v1/submissions/presigned-url?assignmentId=769cbcb8-fffa-4b54-a54b-01c796e26ddc&zipFileName=kpdll.zip",
+							"host": [
+								"{{submission-service}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"submissions",
+								"presigned-url"
+							],
+							"query": [
+								{
+									"key": "assignmentId",
+									"value": "769cbcb8-fffa-4b54-a54b-01c796e26ddc"
+								},
+								{
+									"key": "zipFileName",
+									"value": "kpdll.zip"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "upload files after getting the presigned url",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "https://web-dev1-rustfs.vucongtuanduong.dpdns.org/submission-files/submissions/37beedad-7432-4b47-8f27-1df6d62b40d0.zip?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20260818%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260818T021119Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature=c9670f03297b5aa4e9c3aa11504019686c32cbeb1f3d63ce6083006eeed96256",
+							"protocol": "https",
+							"host": [
+								"web-dev1-rustfs",
+								"vucongtuanduong",
+								"dpdns",
+								"org"
+							],
+							"path": [
+								"submission-files",
+								"submissions",
+								"37beedad-7432-4b47-8f27-1df6d62b40d0.zip"
+							],
+							"query": [
+								{
+									"key": "X-Amz-Algorithm",
+									"value": "AWS4-HMAC-SHA256"
+								},
+								{
+									"key": "X-Amz-Credential",
+									"value": "minioadmin%2F20260818%2Fus-east-1%2Fs3%2Faws4_request"
+								},
+								{
+									"key": "X-Amz-Date",
+									"value": "20260818T021119Z"
+								},
+								{
+									"key": "X-Amz-Expires",
+									"value": "900"
+								},
+								{
+									"key": "X-Amz-SignedHeaders",
+									"value": "host"
+								},
+								{
+									"key": "X-Amz-Signature",
+									"value": "c9670f03297b5aa4e9c3aa11504019686c32cbeb1f3d63ce6083006eeed96256"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Assignment service",
+			"item": [
+				{
+					"name": "classes",
+					"item": [
+						{
+							"name": "get list mine classes paging",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/classes",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"classes"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0",
+											"disabled": true
+										},
+										{
+											"key": "size",
+											"value": "20",
+											"disabled": true
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200 success",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 08:22:50 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Success\",\n    \"data\": {\n        \"meta\": {\n            \"page\": 0,\n            \"pageSize\": 20,\n            \"pages\": 1,\n            \"total\": 1\n        },\n        \"result\": [\n            {\n                \"id\": \"19825639-710a-49c6-9072-789f0205aa86\",\n                \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n                \"name\": \"test\",\n                \"semester\": \"20261\",\n                \"status\": \"ACTIVE\",\n                \"createdAt\": \"2026-08-23T08:22:44.148434Z\"\n            }\n        ]\n    }\n}"
+								}
+							]
+						},
+						{
+							"name": "create class",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"test\",\n    \"semester\": \"20261\"\n}\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{course-service}}/api/v1/classes",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"classes"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0",
+											"disabled": true
+										},
+										{
+											"key": "size",
+											"value": "20",
+											"disabled": true
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "201 success",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"name\": \"test\",\n    \"semester\": \"20261\"\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "Created",
+									"code": 201,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 08:22:44 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 201,\n    \"message\": \"Class created\",\n    \"data\": {\n        \"id\": \"19825639-710a-49c6-9072-789f0205aa86\",\n        \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n        \"name\": \"test\",\n        \"semester\": \"20261\",\n        \"status\": \"ACTIVE\",\n        \"createdAt\": null\n    }\n}"
+								},
+								{
+									"name": "400 class already exists in semester",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"name\": \"test\",\n    \"semester\": \"20261\"\n}\n",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 08:35:51 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "close"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 400,\n    \"message\": \"Class 'test' already exists in semester 20261\"\n}"
+								}
+							]
+						},
+						{
+							"name": "Archieve the course",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/classes/:id/archive",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"classes",
+										":id",
+										"archive"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0",
+											"disabled": true
+										},
+										{
+											"key": "size",
+											"value": "20",
+											"disabled": true
+										}
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "19825639-710a-49c6-9072-789f0205aa86"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200 archived success",
+									"originalRequest": {
+										"method": "PUT",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:id/archive",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":id",
+												"archive"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 08:23:45 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Class archived\",\n    \"data\": {\n        \"id\": \"19825639-710a-49c6-9072-789f0205aa86\",\n        \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n        \"name\": \"test\",\n        \"semester\": \"20261\",\n        \"status\": \"ARCHIVED\",\n        \"createdAt\": \"2026-08-23T08:22:44.148434Z\"\n    }\n}"
+								}
+							]
+						},
+						{
+							"name": "Import student list",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "file",
+											"type": "file",
+											"src": "/home/duongvct/Documents/workspace/PTIT/web-grading-system-deploy/docs/samples/students-import.csv"
+										}
+									],
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{course-service}}/api/v1/classes/:id/students/import",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"classes",
+										":id",
+										"students",
+										"import"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0",
+											"disabled": true
+										},
+										{
+											"key": "size",
+											"value": "20",
+											"disabled": true
+										}
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "19825639-710a-49c6-9072-789f0205aa86"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "400 malformed multipart request",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "file",
+											"file": {
+												"src": "/home/duongvct/Documents/workspace/PTIT/web-grading-system-deploy/docs/samples/students-import.csv"
+											},
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:id/students/import",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":id",
+												"students",
+												"import"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 08:37:48 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "close"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 400,\n    \"message\": \"Malformed multipart request\"\n}"
+								},
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "formdata",
+											"formdata": [
+												{
+													"key": "file",
+													"type": "file",
+													"src": "/home/duongvct/Documents/workspace/PTIT/web-grading-system-deploy/docs/samples/students-import.csv"
+												}
+											],
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:id/students/import",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":id",
+												"students",
+												"import"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 08:41:37 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Students imported\",\n    \"data\": {\n        \"imported\": 6,\n        \"skipped\": 0\n    }\n}"
+								},
+								{
+									"name": "200 skip duplicate student",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "formdata",
+											"formdata": [
+												{
+													"key": "file",
+													"type": "file",
+													"src": "/home/duongvct/Documents/workspace/PTIT/web-grading-system-deploy/docs/samples/students-import.csv"
+												}
+											],
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:id/students/import",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":id",
+												"students",
+												"import"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 08:42:36 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Students imported\",\n    \"data\": {\n        \"imported\": 0,\n        \"skipped\": 6\n    }\n}"
+								}
+							]
+						},
+						{
+							"name": "get detail class",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/classes/:id",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"classes",
+										":id"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0",
+											"disabled": true
+										},
+										{
+											"key": "size",
+											"value": "20",
+											"disabled": true
+										}
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "19825639-710a-49c6-9072-789f0205aa86"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:id",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":id"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 08:36:51 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Success\",\n    \"data\": {\n        \"id\": \"19825639-710a-49c6-9072-789f0205aa86\",\n        \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n        \"name\": \"test\",\n        \"semester\": \"20261\",\n        \"status\": \"ARCHIVED\",\n        \"createdAt\": \"2026-08-23T08:22:44.148434Z\"\n    }\n}"
+								}
+							]
+						},
+						{
+							"name": "get list paging student of classes",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/classes/:id/students",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"classes",
+										":id",
+										"students"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0",
+											"disabled": true
+										},
+										{
+											"key": "size",
+											"value": "20",
+											"disabled": true
+										}
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "19825639-710a-49c6-9072-789f0205aa86"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:id/students",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":id",
+												"students"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 08:42:15 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Success\",\n    \"data\": {\n        \"meta\": {\n            \"page\": 0,\n            \"pageSize\": 20,\n            \"pages\": 1,\n            \"total\": 6\n        },\n        \"result\": [\n            {\n                \"id\": \"a2d19e2b-27b0-4d7f-b99b-2a1224da77f0\",\n                \"studentCode\": \"B22DCCN001\",\n                \"studentName\": \"Nguyen Van An\",\n                \"email\": \"b22dccn001@ptit.edu.vn\"\n            },\n            {\n                \"id\": \"f43c06c6-4ad2-42a1-b664-4fe0d1a39e0f\",\n                \"studentCode\": \"B22DCCN002\",\n                \"studentName\": \"Tran Thi Bich\",\n                \"email\": \"b22dccn002@ptit.edu.vn\"\n            },\n            {\n                \"id\": \"b4027f4d-8fb5-4bd1-85c6-04ca5915c63f\",\n                \"studentCode\": \"B22DCCN003\",\n                \"studentName\": \"Le Van Cuong\",\n                \"email\": \"\"\n            },\n            {\n                \"id\": \"da2e552d-89bd-4d7e-8964-7fb7a96d33fd\",\n                \"studentCode\": \"B22DCCN004\",\n                \"studentName\": \"Pham Duy Dung\",\n                \"email\": \"b22dccn004@ptit.edu.vn\"\n            },\n            {\n                \"id\": \"99ab7f28-ca71-4ba0-abdf-1b80439fab7c\",\n                \"studentCode\": \"B22DCCN005\",\n                \"studentName\": \"Vo Thi Em\",\n                \"email\": \"b22dccn005@ptit.edu.vn\"\n            },\n            {\n                \"id\": \"d8c87f9c-3db3-41fe-b312-92056974d4e7\",\n                \"studentCode\": \"B22DCCN006\",\n                \"studentName\": \"Dang Quang Huy\",\n                \"email\": \"b22dccn006@ptit.edu.vn\"\n            }\n        ]\n    }\n}"
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "scores",
+					"item": [
+						{
+							"name": "config class score components",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "[\n    {\n        \"type\": \"ATTENDANCE\",\n        \"weight\": 0.10\n    },\n    {\n        \"type\": \"EXERCISE\",\n        \"weight\": 0.20\n    },\n    {\n        \"type\": \"ASSIGNMENT\",\n        \"weight\": 0.20\n    },\n    {\n        \"type\": \"FINAL_EXAM\",\n        \"weight\": 0.50\n    }\n]",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{course-service}}/api/v1/classes/:classId/score-components",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"classes",
+										":classId",
+										"score-components"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0",
+											"disabled": true
+										},
+										{
+											"key": "size",
+											"value": "20",
+											"disabled": true
+										}
+									],
+									"variable": [
+										{
+											"key": "classId",
+											"value": "19825639-710a-49c6-9072-789f0205aa86"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "400 missing final-exam component",
+									"originalRequest": {
+										"method": "PUT",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "[\n    {\n        \"type\": \"ATTENDANCE\",\n        \"weight\": 0.10\n    },\n    {\n        \"type\": \"EXERCISE\",\n        \"weight\": 0.90\n    }\n]",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:classId/score-components",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":classId",
+												"score-components"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "classId",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 09:44:28 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "close"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 400,\n    \"message\": \"FINAL_EXAM component is required\"\n}"
+								},
+								{
+									"name": "400 final-exam component weight must >= 0.4",
+									"originalRequest": {
+										"method": "PUT",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "[\n    {\n        \"type\": \"ATTENDANCE\",\n        \"weight\": 0.10\n    },\n    {\n        \"type\": \"EXERCISE\",\n        \"weight\": 0.60\n    },\n    {\n        \"type\": \"FINAL_EXAM\",\n        \"weight\": 0.30\n    }\n]",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:classId/score-components",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":classId",
+												"score-components"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "classId",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 09:46:01 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "close"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 400,\n    \"message\": \"FINAL_EXAM weight must be >= 0.40\"\n}"
+								},
+								{
+									"name": "400 duplicate component",
+									"originalRequest": {
+										"method": "PUT",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "[\n    {\n        \"type\": \"ATTENDANCE\",\n        \"weight\": 0.10\n    },\n    {\n        \"type\": \"EXERCISE\",\n        \"weight\": 0.20\n    },\n    {\n        \"type\": \"EXERCISE\",\n        \"weight\": 0.20\n    },\n    {\n        \"type\": \"FINAL_EXAM\",\n        \"weight\": 0.70\n    }\n]",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:classId/score-components",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":classId",
+												"score-components"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "classId",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 09:46:56 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "close"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 400,\n    \"message\": \"Duplicate component type: EXERCISE\"\n}"
+								},
+								{
+									"name": "400 weights add up to 1",
+									"originalRequest": {
+										"method": "PUT",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "[\n    {\n        \"type\": \"ATTENDANCE\",\n        \"weight\": 0.10\n    },\n    {\n        \"type\": \"EXERCISE\",\n        \"weight\": 0.20\n    },\n    {\n        \"type\": \"ASSIGNMENT\",\n        \"weight\": 0.20\n    },\n    {\n        \"type\": \"FINAL_EXAM\",\n        \"weight\": 0.70\n    }\n]",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:classId/score-components",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":classId",
+												"score-components"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "classId",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 09:54:16 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "close"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 400,\n    \"message\": \"Weights must sum to 1.000, got 1.20\"\n}"
+								},
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "PUT",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "[\n    {\n        \"type\": \"ATTENDANCE\",\n        \"weight\": 0.10\n    },\n    {\n        \"type\": \"EXERCISE\",\n        \"weight\": 0.20\n    },\n    {\n        \"type\": \"ASSIGNMENT\",\n        \"weight\": 0.20\n    },\n    {\n        \"type\": \"FINAL_EXAM\",\n        \"weight\": 0.50\n    }\n]",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:classId/score-components",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":classId",
+												"score-components"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "classId",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 10:01:05 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Score components updated\",\n    \"data\": [\n        {\n            \"type\": \"ASSIGNMENT\",\n            \"weight\": 0.2\n        },\n        {\n            \"type\": \"ATTENDANCE\",\n            \"weight\": 0.1\n        },\n        {\n            \"type\": \"EXERCISE\",\n            \"weight\": 0.2\n        },\n        {\n            \"type\": \"FINAL_EXAM\",\n            \"weight\": 0.5\n        }\n    ]\n}"
+								}
+							]
+						},
+						{
+							"name": "Enter manual scores per student",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "[\n    {\n        \"componentType\": \"ATTENDANCE\",\n        \"score\": 0\n    },\n    {\n        \"componentType\": \"ASSIGNMENT\",\n        \"score\": 7\n    }\n\n]",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{course-service}}/api/v1/classes/:classId/students/:studentCode/scores",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"classes",
+										":classId",
+										"students",
+										":studentCode",
+										"scores"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0",
+											"disabled": true
+										},
+										{
+											"key": "size",
+											"value": "20",
+											"disabled": true
+										}
+									],
+									"variable": [
+										{
+											"key": "classId",
+											"value": "19825639-710a-49c6-9072-789f0205aa86"
+										},
+										{
+											"key": "studentCode",
+											"value": "B22DCCN002"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "400 score < 0",
+									"originalRequest": {
+										"method": "PUT",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "[\n    {\n        \"componentType\": \"ATTENDANCE\",\n        \"score\": -1\n    },\n    {\n        \"componentType\": \"ASSIGNMENT\",\n        \"score\": 7\n    }\n\n]",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:classId/students/:studentCode/scores",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":classId",
+												"students",
+												":studentCode",
+												"scores"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "classId",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												},
+												{
+													"key": "studentCode",
+													"value": "B22DCCN002"
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 11:05:59 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "close"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 400,\n    \"message\": \"Validation failed\",\n    \"error\": \"score: must be greater than or equal to 0.00\"\n}"
+								},
+								{
+									"name": "400 score > 10",
+									"originalRequest": {
+										"method": "PUT",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "[\n    {\n        \"componentType\": \"ATTENDANCE\",\n        \"score\": 11\n    },\n    {\n        \"componentType\": \"ASSIGNMENT\",\n        \"score\": 7\n    }\n\n]",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:classId/students/:studentCode/scores",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":classId",
+												"students",
+												":studentCode",
+												"scores"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "classId",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												},
+												{
+													"key": "studentCode",
+													"value": "B22DCCN002"
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 11:06:27 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "close"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 400,\n    \"message\": \"Validation failed\",\n    \"error\": \"score: must be less than or equal to 10.00\"\n}"
+								},
+								{
+									"name": "400 cannot set manual exercise score",
+									"originalRequest": {
+										"method": "PUT",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "[\n    {\n        \"componentType\": \"EXERCISE\",\n        \"score\": 1\n    },\n    {\n        \"componentType\": \"ASSIGNMENT\",\n        \"score\": 7\n    }\n\n]",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:classId/students/:studentCode/scores",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":classId",
+												"students",
+												":studentCode",
+												"scores"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "classId",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												},
+												{
+													"key": "studentCode",
+													"value": "B22DCCN002"
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 11:06:55 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "close"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 400,\n    \"message\": \"EXERCISE is auto-graded from results, cannot set manually\"\n}"
+								},
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "PUT",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "[\n    {\n        \"componentType\": \"ATTENDANCE\",\n        \"score\": 0\n    },\n    {\n        \"componentType\": \"ASSIGNMENT\",\n        \"score\": 7\n    }\n\n]",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:classId/students/:studentCode/scores",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":classId",
+												"students",
+												":studentCode",
+												"scores"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "classId",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												},
+												{
+													"key": "studentCode",
+													"value": "B22DCCN002"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 11:41:38 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Student scores updated\"\n}"
+								}
+							]
+						},
+						{
+							"name": "get detail score components of the class",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/classes/:classId/score-components",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"classes",
+										":classId",
+										"score-components"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0",
+											"disabled": true
+										},
+										{
+											"key": "size",
+											"value": "20",
+											"disabled": true
+										}
+									],
+									"variable": [
+										{
+											"key": "classId",
+											"value": "19825639-710a-49c6-9072-789f0205aa86"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "Enter manual scores per student Copy",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:classId/score-components",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":classId",
+												"score-components"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "classId",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 10:04:27 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Success\",\n    \"data\": [\n        {\n            \"type\": \"ASSIGNMENT\",\n            \"weight\": 0.2\n        },\n        {\n            \"type\": \"ATTENDANCE\",\n            \"weight\": 0.1\n        },\n        {\n            \"type\": \"EXERCISE\",\n            \"weight\": 0.2\n        },\n        {\n            \"type\": \"FINAL_EXAM\",\n            \"weight\": 0.5\n        }\n    ]\n}"
+								}
+							]
+						},
+						{
+							"name": "get transcript of the students in the class",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/classes/:classId/transcript",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"classes",
+										":classId",
+										"transcript"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0",
+											"disabled": true
+										},
+										{
+											"key": "size",
+											"value": "20",
+											"disabled": true
+										}
+									],
+									"variable": [
+										{
+											"key": "classId",
+											"value": "19825639-710a-49c6-9072-789f0205aa86"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "404 class not found",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:classId/transcript",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":classId",
+												"transcript"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "classId",
+													"value": "29825639-710a-49c6-9072-789f0205aa86"
+												}
+											]
+										}
+									},
+									"status": "Not Found",
+									"code": 404,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 10:31:29 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 404,\n    \"message\": \"Class not found: 29825639-710a-49c6-9072-789f0205aa86\"\n}"
+								},
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:classId/transcript",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":classId",
+												"transcript"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "classId",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 11:39:24 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Success\",\n    \"data\": [\n        {\n            \"studentCode\": \"B22DCCN001\",\n            \"studentName\": \"Nguyen Van An\",\n            \"entries\": [\n                {\n                    \"type\": \"ATTENDANCE\",\n                    \"weight\": 0.1,\n                    \"score\": null\n                },\n                {\n                    \"type\": \"EXERCISE\",\n                    \"weight\": 0.2,\n                    \"score\": null\n                },\n                {\n                    \"type\": \"FINAL_EXAM\",\n                    \"weight\": 0.7,\n                    \"score\": null\n                }\n            ],\n            \"total\": null,\n            \"letterGrade\": null,\n            \"gpa\": null\n        },\n        {\n            \"studentCode\": \"B22DCCN002\",\n            \"studentName\": \"Tran Thi Bich\",\n            \"entries\": [\n                {\n                    \"type\": \"ATTENDANCE\",\n                    \"weight\": 0.1,\n                    \"score\": null\n                },\n                {\n                    \"type\": \"EXERCISE\",\n                    \"weight\": 0.2,\n                    \"score\": null\n                },\n                {\n                    \"type\": \"FINAL_EXAM\",\n                    \"weight\": 0.7,\n                    \"score\": null\n                }\n            ],\n            \"total\": null,\n            \"letterGrade\": null,\n            \"gpa\": null\n        },\n        {\n            \"studentCode\": \"B22DCCN003\",\n            \"studentName\": \"Le Van Cuong\",\n            \"entries\": [\n                {\n                    \"type\": \"ATTENDANCE\",\n                    \"weight\": 0.1,\n                    \"score\": null\n                },\n                {\n                    \"type\": \"EXERCISE\",\n                    \"weight\": 0.2,\n                    \"score\": null\n                },\n                {\n                    \"type\": \"FINAL_EXAM\",\n                    \"weight\": 0.7,\n                    \"score\": null\n                }\n            ],\n            \"total\": null,\n            \"letterGrade\": null,\n            \"gpa\": null\n        },\n        {\n            \"studentCode\": \"B22DCCN004\",\n            \"studentName\": \"Pham Duy Dung\",\n            \"entries\": [\n                {\n                    \"type\": \"ATTENDANCE\",\n                    \"weight\": 0.1,\n                    \"score\": null\n                },\n                {\n                    \"type\": \"EXERCISE\",\n                    \"weight\": 0.2,\n                    \"score\": null\n                },\n                {\n                    \"type\": \"FINAL_EXAM\",\n                    \"weight\": 0.7,\n                    \"score\": null\n                }\n            ],\n            \"total\": null,\n            \"letterGrade\": null,\n            \"gpa\": null\n        },\n        {\n            \"studentCode\": \"B22DCCN005\",\n            \"studentName\": \"Vo Thi Em\",\n            \"entries\": [\n                {\n                    \"type\": \"ATTENDANCE\",\n                    \"weight\": 0.1,\n                    \"score\": null\n                },\n                {\n                    \"type\": \"EXERCISE\",\n                    \"weight\": 0.2,\n                    \"score\": null\n                },\n                {\n                    \"type\": \"FINAL_EXAM\",\n                    \"weight\": 0.7,\n                    \"score\": null\n                }\n            ],\n            \"total\": null,\n            \"letterGrade\": null,\n            \"gpa\": null\n        },\n        {\n            \"studentCode\": \"B22DCCN006\",\n            \"studentName\": \"Dang Quang Huy\",\n            \"entries\": [\n                {\n                    \"type\": \"ATTENDANCE\",\n                    \"weight\": 0.1,\n                    \"score\": null\n                },\n                {\n                    \"type\": \"EXERCISE\",\n                    \"weight\": 0.2,\n                    \"score\": null\n                },\n                {\n                    \"type\": \"FINAL_EXAM\",\n                    \"weight\": 0.7,\n                    \"score\": null\n                }\n            ],\n            \"total\": null,\n            \"letterGrade\": null,\n            \"gpa\": null\n        }\n    ]\n}"
+								}
+							]
+						},
+						{
+							"name": "get detail score of a student",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/classes/:id/students/:studentCode/scores",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"classes",
+										":id",
+										"students",
+										":studentCode",
+										"scores"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0",
+											"disabled": true
+										},
+										{
+											"key": "size",
+											"value": "20",
+											"disabled": true
+										}
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "19825639-710a-49c6-9072-789f0205aa86"
+										},
+										{
+											"key": "studentCode",
+											"value": "B22DCCN002"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "404 invalid student",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:id/students/:studentCode/scores",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":id",
+												"students",
+												":studentCode",
+												"scores"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												},
+												{
+													"key": "studentCode",
+													"value": "B22DCCN502"
+												}
+											]
+										}
+									},
+									"status": "Not Found",
+									"code": 404,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 10:56:46 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 404,\n    \"message\": \"Student 'B22DCCN502' not found in class 19825639-710a-49c6-9072-789f0205aa86\"\n}"
+								},
+								{
+									"name": "404 class not found",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:id/students/:studentCode/scores",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":id",
+												"students",
+												":studentCode",
+												"scores"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "29825639-710a-49c6-9072-789f0205aa86"
+												},
+												{
+													"key": "studentCode",
+													"value": "B22DCCN002"
+												}
+											]
+										}
+									},
+									"status": "Not Found",
+									"code": 404,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 11:05:36 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 404,\n    \"message\": \"Class not found: 29825639-710a-49c6-9072-789f0205aa86\"\n}"
+								},
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/classes/:id/students/:studentCode/scores",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"classes",
+												":id",
+												"students",
+												":studentCode",
+												"scores"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "19825639-710a-49c6-9072-789f0205aa86"
+												},
+												{
+													"key": "studentCode",
+													"value": "B22DCCN002"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 23 Aug 2026 11:39:07 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Success\",\n    \"data\": {\n        \"studentCode\": \"B22DCCN002\",\n        \"entries\": [\n            {\n                \"type\": \"ATTENDANCE\",\n                \"weight\": 0.1,\n                \"score\": null\n            },\n            {\n                \"type\": \"EXERCISE\",\n                \"weight\": 0.2,\n                \"score\": null\n            },\n            {\n                \"type\": \"FINAL_EXAM\",\n                \"weight\": 0.7,\n                \"score\": null\n            }\n        ],\n        \"total\": null,\n        \"letterGrade\": null,\n        \"gpa\": null\n    }\n}"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Result service",
+			"item": [
+				{
+					"name": "internal",
+					"item": []
+				}
+			]
+		}
+	]
+}

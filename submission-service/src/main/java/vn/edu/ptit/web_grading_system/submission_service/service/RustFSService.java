@@ -4,8 +4,9 @@ import io.minio.*;
 import io.minio.http.Method;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import vn.edu.ptit.web_grading_system.submission_service.config.RustFsProperties;
+import vn.edu.ptit.web_grading_system.submission_service.config.SubmissionProperties;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
@@ -22,45 +23,39 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class RustFSService {
 
-    public RustFSService(MinioClient minioClient, @Qualifier("publicMinioClient") MinioClient publicMinioClient) {
+    public RustFSService(MinioClient minioClient,
+                         @Qualifier("publicMinioClient") MinioClient publicMinioClient,
+                         RustFsProperties rustFsProperties,
+                         SubmissionProperties submissionProperties) {
         this.minioClient = minioClient;
         this.publicMinioClient = publicMinioClient;
+        this.rustFsProperties = rustFsProperties;
+        this.submissionProperties = submissionProperties;
     }
 
     private final MinioClient minioClient;
 
     private final MinioClient publicMinioClient;
 
-    @Value("${rustfs.endpoint}")
-    private String rustfsEndpoint;
+    private final RustFsProperties rustFsProperties;
 
-    @Value("${rustfs.access-key}")
-    private String accessKey;
-
-    @Value("${rustfs.secret-key}")
-    private String secretKey;
-
-    @Value("${rustfs.bucket-name}")
-    private String bucketName;
-
-    @Value("${submission.presigned-url-expiry-minutes}")
-    private long presignedUrlExpiryMinutes;
+    private final SubmissionProperties submissionProperties;
 
     public void ensureBucketExists() {
         try {
             boolean exists = minioClient.bucketExists(
-                    BucketExistsArgs.builder().bucket(bucketName).build());
+                    BucketExistsArgs.builder().bucket(rustFsProperties.bucketName()).build());
             if (!exists) {
                 minioClient.makeBucket(
                         MakeBucketArgs.builder()
-                                .bucket(bucketName)
+                                .bucket(rustFsProperties.bucketName())
                                 .objectLock(true)
                                 .build());
-                log.info("Created bucket: {}", bucketName);
+                log.info("Created bucket: {}", rustFsProperties.bucketName());
                 registerWebhookNotification();
             }
         } catch (Exception e) {
-            log.error("Failed to ensure bucket exists: {}", bucketName, e);
+            log.error("Failed to ensure bucket exists: {}", rustFsProperties.bucketName(), e);
             throw new RuntimeException("Failed to ensure bucket exists", e);
         }
     }
@@ -71,9 +66,9 @@ public class RustFSService {
             return publicMinioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.PUT)
-                            .bucket(bucketName)
+                            .bucket(rustFsProperties.bucketName())
                             .object(objectName)
-                            .expiry((int) presignedUrlExpiryMinutes, TimeUnit.MINUTES)
+                            .expiry((int) submissionProperties.presignedUrlExpiryMinutes(), TimeUnit.MINUTES)
                             .build());
         } catch (Exception e) {
             log.error("Failed to generate presigned upload URL for {}", objectName, e);
@@ -86,7 +81,7 @@ public class RustFSService {
             return publicMinioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.GET)
-                            .bucket(bucketName)
+                            .bucket(rustFsProperties.bucketName())
                             .object(objectName)
                             .expiry(1, TimeUnit.HOURS)
                             .build());
@@ -100,10 +95,10 @@ public class RustFSService {
         try {
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
-                            .bucket(bucketName)
+                            .bucket(rustFsProperties.bucketName())
                             .object(objectName)
                             .build());
-            log.info("Deleted file from RustFS: {}/{}", bucketName, objectName);
+            log.info("Deleted file from RustFS: {}/{}", rustFsProperties.bucketName(), objectName);
         } catch (Exception e) {
             log.error("Failed to delete file from RustFS: {}", objectName, e);
         }
@@ -113,7 +108,7 @@ public class RustFSService {
         try {
             return minioClient.getObject(
                     GetObjectArgs.builder()
-                            .bucket(bucketName)
+                            .bucket(rustFsProperties.bucketName())
                             .object(objectName)
                             .build());
         } catch (Exception e) {
@@ -129,10 +124,10 @@ public class RustFSService {
     private void registerWebhookNotification() {
         try {
             S3Client s3Client = S3Client.builder()
-                    .endpointOverride(URI.create(rustfsEndpoint))
+                    .endpointOverride(URI.create(rustFsProperties.endpoint()))
                     .region(Region.US_EAST_1)
                     .credentialsProvider(StaticCredentialsProvider.create(
-                            AwsBasicCredentials.create(accessKey, secretKey)))
+                            AwsBasicCredentials.create(rustFsProperties.accessKey(), rustFsProperties.secretKey())))
                     .forcePathStyle(true)
                     .build();
 
@@ -152,11 +147,11 @@ public class RustFSService {
 
             s3Client.putBucketNotificationConfiguration(
                     PutBucketNotificationConfigurationRequest.builder()
-                            .bucket(bucketName)
+                            .bucket(rustFsProperties.bucketName())
                             .notificationConfiguration(notificationConfig)
                             .build());
 
-            log.info("RustFS webhook notification registered: bucket={}, arn=arn:rustfs:sqs::primary:webhook", bucketName);
+            log.info("RustFS webhook notification registered: bucket={}, arn=arn:rustfs:sqs::primary:webhook", rustFsProperties.bucketName());
             s3Client.close();
         } catch (Exception e) {
             log.error("Failed to register RustFS webhook notification: {}", e.getMessage());

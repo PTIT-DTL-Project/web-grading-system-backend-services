@@ -15,8 +15,8 @@ import vn.edu.ptit.web_grading_system.submission_service.dto.request.UpdateStatu
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.PresignedUrlResponse;
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.SubmissionResponse;
 import vn.edu.ptit.web_grading_system.submission_service.service.SubmissionService;
+import vn.edu.ptit.web_grading_system.submission_service.util.annotation.ApiMessage;
 
-import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -30,6 +30,7 @@ public class SubmissionController {
     private final SubmissionService submissionService;
 
     @PostMapping("/presigned-url")
+    @ApiMessage("Upload URL generated")
     public ResponseEntity<PresignedUrlResponse> requestUpload(
             @RequestParam UUID assignmentId,
             @RequestParam String zipFileName) {
@@ -43,6 +44,7 @@ public class SubmissionController {
     }
 
     @PostMapping("/{id}/confirm")
+    @ApiMessage("Upload confirmed")
     public ResponseEntity<Void> confirmUpload(@PathVariable UUID id) {
         log.info("Upload confirmed by FE: submissionId={}", id);
         submissionService.handleUploadComplete(id);
@@ -80,7 +82,8 @@ public class SubmissionController {
         submissionService.streamDownload(id, response);
     }
 
-    @PatchMapping("/{id}/status")
+    @PutMapping("/{id}/status")
+    @ApiMessage("Submission status updated")
     public ResponseEntity<Void> updateStatus(
             @PathVariable UUID id,
             @RequestBody @Valid UpdateStatusRequest request) {
@@ -98,7 +101,7 @@ public class SubmissionController {
         log.debug("Health check endpoint called");
         String version = getClass().getPackage().getImplementationVersion();
         if (version == null) version = "dev";
-        
+
         return ResponseEntity.ok(Map.of(
             "status", "UP",
             "service", "submission-service",
@@ -116,7 +119,7 @@ public class SubmissionController {
     public ResponseEntity<Map<String, String>> version() {
         String version = getClass().getPackage().getImplementationVersion();
         if (version == null) version = "dev";
-        
+
         return ResponseEntity.ok(Map.of(
             "service", "submission-service",
             "version", version,

@@ -4,7 +4,9 @@ import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import vn.edu.ptit.web_grading_system.submission_service.config.SubmissionProperties;
+import vn.edu.ptit.web_grading_system.submission_service.exception.ResourceNotFoundException;
+import vn.edu.ptit.web_grading_system.submission_service.mapper.SubmissionMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
@@ -26,11 +28,14 @@ import java.util.UUID;
 public class SubmissionService {
 
     private final SubmissionRepository submissionRepository;
+	private final SubmissionMapper submissionMapper;
     private final RustFSService rustfsService;
     private final EntityManager entityManager;
+    private final SubmissionProperties submissionProperties;
 
-    @Value("${submission.presigned-url-expiry-minutes}")
-    private long presignedUrlExpiryMinutes;
+    private long presignedUrlExpiryMinutes() {
+        return submissionProperties.presignedUrlExpiryMinutes();
+    }
 
     @Transactional
     public PresignedUrlResponse requestUpload(UUID assignmentId, UUID studentId, String zipFileName) {
@@ -63,14 +68,14 @@ public class SubmissionService {
                 .submissionId(submission.getId())
                 .uploadUrl(uploadUrl)
                 .objectName(objectName)
-                .expiresInMinutes(presignedUrlExpiryMinutes)
+                .expiresInMinutes(presignedUrlExpiryMinutes())
                 .build();
     }
 
     @Transactional
     public void handleUploadComplete(UUID submissionId) {
         Submission submission = submissionRepository.findById(submissionId)
-                .orElseThrow(() -> new RuntimeException("Submission not found: " + submissionId));
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + submissionId));
         submission.setStatus(SubmissionStatus.PENDING);
         submissionRepository.save(submission);
         log.info("Upload confirmed by FE: id={}", submissionId);
@@ -99,28 +104,28 @@ public class SubmissionService {
     @Transactional(readOnly = true)
     public Page<SubmissionResponse> listByStudent(UUID studentId, Pageable pageable) {
         return submissionRepository.findByStudentIdOrderByCreatedAtDesc(studentId, pageable)
-                .map(SubmissionResponse::from);
+                .map(submissionMapper::toResponse);
     }
 
     @Transactional(readOnly = true)
     public List<SubmissionResponse> listByAssignment(UUID assignmentId) {
         return submissionRepository.findByAssignmentIdOrderByCreatedAtDesc(assignmentId)
                 .stream()
-                .map(SubmissionResponse::from)
+                .map(submissionMapper::toResponse)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public SubmissionResponse getById(UUID id) {
         Submission submission = submissionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Submission not found: " + id));
-        return SubmissionResponse.from(submission);
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + id));
+        return submissionMapper.toResponse(submission);
     }
 
     @Transactional
     public void updateStatus(UUID id, String status) {
         Submission submission = submissionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Submission not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + id));
         submission.setStatus(SubmissionStatus.valueOf(status));
         submissionRepository.save(submission);
         log.info("Submission status updated: id={}, status={}", id, status);
@@ -128,13 +133,13 @@ public class SubmissionService {
 
     public String getDownloadUrl(UUID id) {
         Submission submission = submissionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Submission not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + id));
         return rustfsService.generatePresignedDownloadUrl(submission.getRustfsPath());
     }
 
     public void streamDownload(UUID id, HttpServletResponse response) {
         Submission submission = submissionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Submission not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + id));
 
         String fileName = submission.getZipFileName() != null ? submission.getZipFileName() : id + ".zip";
         response.setHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
