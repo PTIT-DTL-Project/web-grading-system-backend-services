@@ -4,7 +4,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import vn.edu.ptit.web_grading_system.submission_service.entities.Submission;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -22,15 +21,4 @@ public class SubmissionResponse {
     private Boolean latest;
     private OffsetDateTime createdAt;
 
-    public static SubmissionResponse from(Submission s) {
-        return SubmissionResponse.builder()
-                .id(s.getId())
-                .assignmentId(s.getAssignmentId())
-                .studentId(s.getStudentId())
-                .zipFileName(s.getZipFileName())
-                .status(s.getStatus().name())
-                .latest(s.getLatest())
-                .createdAt(s.getCreatedAt())
-                .build();
-    }
 }

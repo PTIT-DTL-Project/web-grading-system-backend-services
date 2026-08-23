@@ -11,7 +11,7 @@ on:
       - "executor-service/**"
       - "api-gateway/**"
       - "result-service/**"
-      - "assignment-service/**"
+      - "course-service/**"
   pull_request:
     branches:
       - main
@@ -43,8 +43,8 @@ jobs:
               - 'api-gateway/**'
             result-service:
               - 'result-service/**'
-            assignment-service:
-              - 'assignment-service/**'
+            course-service:
+              - 'course-service/**'
 
       - name: Set matrix
         id: set-matrix

@@ -1,12 +1,14 @@
 package vn.edu.ptit.web_grading_system.executor_service.entities;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.SQLRestriction;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+@SQLRestriction("deleted_at IS NULL")
 @Entity
 @Table(name = "grading_jobs")
 @Getter

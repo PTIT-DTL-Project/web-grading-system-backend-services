@@ -7,10 +7,10 @@ spring:
   cloud:
     gateway:
       routes:
-        - id: assignment-service
-          uri: ${ASSIGNMENT_SERVICE_URI:http://grading-assignment-service:8081}
+        - id: course-service
+          uri: ${COURSE_SERVICE_URI:http://grading-course-service:8081}
           predicates:
-            - Path=/api/v1/assignments/**,/api/v1/docker-images/**
+            - Path=/api/v1/classes/**,/api/v1/assignments/**,/api/v1/docker-images/**
         - id: submission-service
           uri: ${SUBMISSION_SERVICE_URI:http://grading-submission-service:8082}
           predicates:

@@ -1,6 +1,7 @@
 package vn.edu.ptit.web_grading_system.result_service.entities;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.SQLRestriction;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -9,6 +10,7 @@ import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+@SQLRestriction("deleted_at IS NULL")
 @Entity
 @Table(name = "step_results")
 @Getter

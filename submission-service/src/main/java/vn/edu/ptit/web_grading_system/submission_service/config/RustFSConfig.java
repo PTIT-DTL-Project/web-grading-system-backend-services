@@ -1,7 +1,6 @@
 package vn.edu.ptit.web_grading_system.submission_service.config;
 
 import io.minio.MinioClient;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -9,32 +8,20 @@ import org.springframework.context.annotation.Primary;
 @Configuration
 public class RustFSConfig {
 
-    @Value("${rustfs.endpoint}")
-    private String endpoint;
-
-    @Value("${rustfs.public-endpoint:${rustfs.endpoint}}")
-    private String publicEndpoint;
-
-    @Value("${rustfs.access-key}")
-    private String accessKey;
-
-    @Value("${rustfs.secret-key}")
-    private String secretKey;
-
     @Bean
     @Primary
-    public MinioClient minioClient() {
+    public MinioClient minioClient(RustFsProperties properties) {
         return MinioClient.builder()
-                .endpoint(endpoint)
-                .credentials(accessKey, secretKey)
+                .endpoint(properties.endpoint())
+                .credentials(properties.accessKey(), properties.secretKey())
                 .build();
     }
 
     @Bean
-    public MinioClient publicMinioClient() {
+    public MinioClient publicMinioClient(RustFsProperties properties) {
         return MinioClient.builder()
-                .endpoint(publicEndpoint)
-                .credentials(accessKey, secretKey)
+                .endpoint(properties.publicEndpoint() != null ? properties.publicEndpoint() : properties.endpoint())
+                .credentials(properties.accessKey(), properties.secretKey())
                 .build();
     }
 }
