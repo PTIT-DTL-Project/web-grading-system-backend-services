@@ -58,7 +58,7 @@ management:
 logging:
   level:
     root: INFO
-    vn.edu.ptit: DEBUG
+    vn.edu.ptit.web_grading_system: ${app.log.level:INFO}
     org.springframework.web: INFO
     io.micrometer.tracing: DEBUG
   pattern:

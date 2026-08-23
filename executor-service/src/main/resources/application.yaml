@@ -51,7 +51,8 @@ management:
 
 logging:
   level:
-    vn.edu.ptit.web_grading_system: INFO
+    root: INFO
+    vn.edu.ptit.web_grading_system: ${app.log.level:INFO}
   pattern:
     level: "%5p [${spring.application.name:},%X{trace_id:-},%X{span_id:-}]"
 

@@ -24,10 +24,7 @@ public class LoggingAspect {
 
     @Around("within(vn.edu.ptit.web_grading_system.executor_service..*) && ("
             + "@within(org.springframework.stereotype.Service)"
-            + " || @within(org.springframework.web.bind.annotation.RestController)"
-            + " || @within(org.springframework.context.annotation.Configuration)"
-            + " || @within(org.springframework.web.bind.annotation.ControllerAdvice)"
-            + " || @within(org.springframework.web.bind.annotation.RestControllerAdvice))")
+            + " || @within(org.springframework.web.bind.annotation.RestController))")
     public Object trace(ProceedingJoinPoint pjp) throws Throwable {
         if (isNoise(pjp)) {
             return pjp.proceed();
