@@ -8,6 +8,7 @@ RUN ./mvnw clean package -DskipTests
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
+COPY docker/kafka-ca.pem /etc/kafka/secrets/kafka-ca.pem
 COPY --from=builder /build/target/*.jar app.jar
 # Pyroscope agent disabled (no observability) — uncomment to re-enable
 # ADD https://repo1.maven.org/maven2/io/pyroscope/agent/2.1.2/agent-2.1.2.jar /app/pyroscope.jar
@@ -16,4 +17,5 @@ COPY --from=builder /build/target/*.jar app.jar
 #     PYROSCOPE_FORMAT=jfr \
 #     PYROSCOPE_PROFILER_EVENT=itimer
 EXPOSE 8082
+ENV KAFKA_CA_PATH=/etc/kafka/secrets/kafka-ca.pem
 ENTRYPOINT ["java", "-jar", "app.jar"]
