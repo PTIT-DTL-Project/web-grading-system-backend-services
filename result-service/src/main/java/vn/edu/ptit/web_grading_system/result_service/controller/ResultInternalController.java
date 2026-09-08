@@ -27,4 +27,11 @@ public class ResultInternalController {
 
     public record AverageRequest(List<UUID> assignmentIds, UUID studentId) {
     }
+
+    @PostMapping("/weighted")
+    public ResponseEntity<Map<String, BigDecimal>> weighted(
+            @RequestBody AverageRequest request) {
+        BigDecimal weighted = resultService.weightedScoreByPlan(request.assignmentIds(), request.studentId());
+        return ResponseEntity.ok(java.util.Collections.singletonMap("average", weighted));
+    }
 }

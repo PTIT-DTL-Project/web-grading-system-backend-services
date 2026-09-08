@@ -2,6 +2,24 @@ server:
   port: 8083
 
 spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: SCRAM-SHA-256
+      sasl.jaas.config: "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${KAFKA_USERNAME:}\" password=\"${KAFKA_PASSWORD:}\";"
+      ssl.endpoint.identification.algorithm: https
+      ssl.truststore.type: PEM
+      ssl.truststore.location: file:${KAFKA_CA_PATH:docker/kafka-ca.pem}
+    consumer:
+      group-id: executor-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      enable-auto-commit: true
+      auto-offset-reset: earliest
+      max-poll-records: 1
+    listener:
+      ack-mode: RECORD
   application:
     name: executor-service
   datasource:
@@ -64,3 +82,8 @@ pyroscope:
   labels:
     region: ${REGION:dev}
     cluster: ${CLUSTER:dev}
+
+# Shared events topic (single topic for the whole system — Aiven free tier = 5 topics)
+wgs:
+  events:
+    topic: wgs-events

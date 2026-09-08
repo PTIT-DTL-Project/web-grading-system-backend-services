@@ -31,4 +31,31 @@ public class ResultService {
         }
         return sum.divide(BigDecimal.valueOf(results.size()), 2, RoundingMode.HALF_UP);
     }
+
+    /**
+     * Assignment exercise score = weight-weighted average of per-plan scores
+     * (weighted by test_plans.weight, carried into results.plan_weight).
+     * Only plans with a latest result contribute; unsubmitted plans are ignored
+     * (live partial score). Null when the student has no results.
+     */
+    public BigDecimal weightedScoreByPlan(List<UUID> assignmentIds, UUID studentId) {
+        List<Result> results = resultRepository.findByAssignmentIdInAndStudentIdAndLatestTrue(assignmentIds, studentId);
+        if (results.isEmpty()) {
+            return null;
+        }
+        BigDecimal weightedSum = BigDecimal.ZERO;
+        BigDecimal weightTotal = BigDecimal.ZERO;
+        for (Result r : results) {
+            int weight = r.getPlanWeight() != null ? r.getPlanWeight() : 1;
+            BigDecimal weightBd = BigDecimal.valueOf(weight);
+            BigDecimal normalized = r.getScore().multiply(BigDecimal.TEN)
+                    .divide(r.getMaxScore(), 4, RoundingMode.HALF_UP);
+            weightedSum = weightedSum.add(normalized.multiply(weightBd));
+            weightTotal = weightTotal.add(weightBd);
+        }
+        if (weightTotal.signum() == 0) {
+            return null;
+        }
+        return weightedSum.divide(weightTotal, 2, RoundingMode.HALF_UP);
+    }
 }

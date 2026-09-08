@@ -20,4 +20,6 @@ public interface ClassStudentRepository extends JpaRepository<ClassStudent, UUID
     Optional<ClassStudent> findByClassIdAndStudentCode(UUID classId, String studentCode);
 
     boolean existsByClassIdAndStudentCode(UUID classId, String studentCode);
+
+    List<ClassStudent> findAllByStudentUserId(UUID studentUserId);
 }

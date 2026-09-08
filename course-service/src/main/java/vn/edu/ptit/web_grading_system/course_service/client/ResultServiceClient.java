@@ -15,6 +15,9 @@ public interface ResultServiceClient {
     @PostMapping("/api/v1/internal/results/average")
     Map<String, BigDecimal> average(@RequestBody AverageRequest request);
 
+    @PostMapping("/api/v1/internal/results/weighted")
+    Map<String, BigDecimal> weighted(@RequestBody AverageRequest request);
+
     record AverageRequest(List<UUID> assignmentIds, UUID studentId) {
     }
 }
