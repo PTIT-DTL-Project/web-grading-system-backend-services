@@ -28,6 +28,9 @@ public class TestStep extends BaseEntity {
     @Column(nullable = false)
     private String name;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "step_type", nullable = false, length = 50)
     private StepType stepType;

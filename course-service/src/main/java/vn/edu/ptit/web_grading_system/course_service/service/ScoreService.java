@@ -187,7 +187,7 @@ public class ScoreService {
             return null;
         }
         try {
-            return resultServiceClient.average(new ResultServiceClient.AverageRequest(assignmentIds, studentUserId))
+            return resultServiceClient.weighted(new ResultServiceClient.AverageRequest(assignmentIds, studentUserId))
                     .get("average");
         } catch (Exception e) {
             // grading data unavailable (service down, no results yet) — degrade to null,

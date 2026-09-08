@@ -31,6 +31,9 @@ public class Result extends BaseEntity {
     @Column(name = "plan_id")
     private UUID planId;
 
+    @Column(name = "plan_weight")
+    private Integer planWeight;
+
     @Column(nullable = false, precision = 5, scale = 2)
     private BigDecimal score;
 

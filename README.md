@@ -219,3 +219,22 @@ Thiếu bất kỳ điều kiện nào → `exercise = null` và do đó `total 
 ## 📚 Documentation
 
 Chi tiết về architecture và deployment xem tại [deploy repo](https://github.com/PTIT-DTL-Project/web-grading-system-deploy).
+
+## 🧪 Testing Flow: Assignments (Exercises)
+
+Xem kịch bản đầy đủ tại `docs/design/usecase-flows.md` (UC-02) và chạy bộ test tự động:
+```bash
+BASE_URL=http://localhost:18081 bash docs/api/scenarios/exercise-management.sh
+```
+Endpoints: POST/GET/GET{id}/PUT{id}/DELETE{id}/POST{id}/publish under `/api/v1/assignments`.
+Student read path (enrollment + published gated, steps sanitized): `GET /api/v1/student/assignments`,
+`GET /api/v1/student/assignments/{id}`, `GET /api/v1/student/assignments/{id}/plans`.
+`test_steps.description` is a nullable lecturer-authored note; FE shows it verbatim and
+falls back to auto-generated text from `config` when empty. Per-plan submission:
+`POST /api/v1/submissions/presigned-url?planId=` (planId optional; omitted ⇒ grade all).
+
+## 📘 Postman — full-flow testing guide
+
+Hướng dẫn từng bước test TOÀN BỘ luồng bằng Postman (Classes → Students → Scores →
+Assignments → Plans & Steps → Submissions), gồm cả negative tests và kiểm tra DB:
+`src-services/docs/api/postman/FULL_FLOW_TESTING_GUIDE.md`

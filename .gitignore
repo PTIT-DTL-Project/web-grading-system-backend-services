@@ -42,3 +42,7 @@ config-repos/
 **/test-ci-cd/**
 **/web-programming-grading-config-test1/**
 **/web-programming-grading-test1/**
+
+# Aiven secrets
+**/test.txt
+**/docker/kafka-ca.pem

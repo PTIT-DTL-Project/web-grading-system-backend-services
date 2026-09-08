@@ -25,7 +25,7 @@
 							}
 						},
 						"url": {
-							"raw": "{{submission-service}}/api/v1/submissions/presigned-url?assignmentId=769cbcb8-fffa-4b54-a54b-01c796e26ddc&zipFileName=kpdll.zip",
+							"raw": "{{submission-service}}/api/v1/submissions/presigned-url?assignmentId=769cbcb8-fffa-4b54-a54b-01c796e26ddc&zipFileName=kpdll.zip&planId=",
 							"host": [
 								"{{submission-service}}"
 							],
@@ -43,7 +43,219 @@
 								{
 									"key": "zipFileName",
 									"value": "kpdll.zip"
+								},
+								{
+									"key": "planId",
+									"value": "",
+									"disabled": true
 								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "confirm upload",
+					"request": {
+						"method": "POST",
+						"url": {
+							"raw": "{{submission-service}}/api/v1/submissions/{id}/confirm",
+							"host": [
+								"{{submission-service}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"submissions",
+								"{id}",
+								"confirm"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "list my submissions",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{submission-service}}/api/v1/submissions",
+							"host": [
+								"{{submission-service}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"submissions"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get submission by id",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{submission-service}}/api/v1/submissions/{id}",
+							"host": [
+								"{{submission-service}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"submissions",
+								"{id}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "list by assignment",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{submission-service}}/api/v1/submissions/assignment/{assignmentId}",
+							"host": [
+								"{{submission-service}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"submissions",
+								"assignment",
+								"{assignmentId}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get download url",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{submission-service}}/api/v1/submissions/{id}/download",
+							"host": [
+								"{{submission-service}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"submissions",
+								"{id}",
+								"download"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "update status",
+					"request": {
+						"method": "PUT",
+						"url": {
+							"raw": "{{submission-service}}/api/v1/submissions/{id}/status",
+							"host": [
+								"{{submission-service}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"submissions",
+								"{id}",
+								"status"
+							]
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"status\": \"DONE\"}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "webhook upload-complete",
+					"request": {
+						"method": "POST",
+						"url": {
+							"raw": "{{submission-service}}/api/v1/submissions/webhook/upload-complete",
+							"host": [
+								"{{submission-service}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"submissions",
+								"webhook",
+								"upload-complete"
+							]
+						},
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"event\": \"upload-complete\", \"object\": \"submissions/xxx.zip\"}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "health",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{submission-service}}/api/v1/submissions/health",
+							"host": [
+								"{{submission-service}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"submissions",
+								"health"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "version",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{submission-service}}/api/v1/submissions/version",
+							"host": [
+								"{{submission-service}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"submissions",
+								"version"
 							]
 						}
 					},
@@ -52,7 +264,7 @@
 			]
 		},
 		{
-			"name": "Assignment service",
+			"name": "Course service",
 			"item": [
 				{
 					"name": "classes",
@@ -2435,6 +2647,2005 @@
 							]
 						}
 					]
+				},
+				{
+					"name": "assignments",
+					"item": [
+						{
+							"name": "get list assignments paging",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/assignments",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"assignments"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0",
+											"disabled": true
+										},
+										{
+											"key": "size",
+											"value": "20",
+											"disabled": true
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 30 Aug 2026 05:10:46 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Success\",\n    \"data\": {\n        \"meta\": {\n            \"page\": 0,\n            \"pageSize\": 20,\n            \"pages\": 1,\n            \"total\": 10\n        },\n        \"result\": [\n            {\n                \"id\": \"c81047f1-3ca8-4480-be8b-f02ead328f53\",\n                \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n                \"classId\": \"acfb1200-5947-4932-9dc8-5ef9d13f3f5c\",\n                \"title\": \"unpub-1787792749\",\n                \"description\": null,\n                \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n                \"dockerComposeTemplate\": null,\n                \"dockerComposePort\": 8080,\n                \"startupTimeoutMs\": 60000,\n                \"executionTimeoutMs\": 300000,\n                \"maxMemoryMb\": 256,\n                \"maxCpu\": 0.5,\n                \"published\": false,\n                \"createdAt\": \"2026-08-27T01:06:25.831929Z\",\n                \"updatedAt\": \"2026-08-27T01:06:25.831958Z\"\n            },\n            {\n                \"id\": \"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\n                \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n                \"classId\": \"acfb1200-5947-4932-9dc8-5ef9d13f3f5c\",\n                \"title\": \"exs-assign-1787792749\",\n                \"description\": null,\n                \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n                \"dockerComposeTemplate\": null,\n                \"dockerComposePort\": 8080,\n                \"startupTimeoutMs\": 60000,\n                \"executionTimeoutMs\": 300000,\n                \"maxMemoryMb\": 256,\n                \"maxCpu\": 0.5,\n                \"published\": true,\n                \"createdAt\": \"2026-08-27T01:05:50.952962Z\",\n                \"updatedAt\": \"2026-08-27T01:05:51.897646Z\"\n            },\n            {\n                \"id\": \"b3981b5d-cb28-4d2c-bd56-f48a6fc2d30c\",\n                \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n                \"classId\": \"7869c2ea-a033-447b-a491-5baecc292e15\",\n                \"title\": \"Ex-1787792733-v2\",\n                \"description\": \"updated\",\n                \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n                \"dockerComposeTemplate\": null,\n                \"dockerComposePort\": 8080,\n                \"startupTimeoutMs\": 60000,\n                \"executionTimeoutMs\": 300000,\n                \"maxMemoryMb\": 512,\n                \"maxCpu\": 0.5,\n                \"published\": true,\n                \"createdAt\": \"2026-08-27T01:05:36.842031Z\",\n                \"updatedAt\": \"2026-08-27T01:05:47.79446Z\"\n            },\n            {\n                \"id\": \"a7b7efbe-70b1-4441-95b6-2665519c63ea\",\n                \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n                \"classId\": \"0b2e22e3-a254-4d9f-b2a4-f4acb59716c8\",\n                \"title\": \"unpub-1787562674\",\n                \"description\": null,\n                \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n                \"dockerComposeTemplate\": null,\n                \"dockerComposePort\": 8080,\n                \"startupTimeoutMs\": 60000,\n                \"executionTimeoutMs\": 300000,\n                \"maxMemoryMb\": 256,\n                \"maxCpu\": 0.5,\n                \"published\": false,\n                \"createdAt\": \"2026-08-24T09:11:55.736687Z\",\n                \"updatedAt\": \"2026-08-24T09:11:55.736707Z\"\n            },\n            {\n                \"id\": \"2b01f38b-24e3-46d4-9e6f-2ea8cfe9ad52\",\n                \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n                \"classId\": \"0b2e22e3-a254-4d9f-b2a4-f4acb59716c8\",\n                \"title\": \"exs-assign-1787562674\",\n                \"description\": null,\n                \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n                \"dockerComposeTemplate\": null,\n                \"dockerComposePort\": 8080,\n                \"startupTimeoutMs\": 60000,\n                \"executionTimeoutMs\": 300000,\n                \"maxMemoryMb\": 256,\n                \"maxCpu\": 0.5,\n                \"published\": true,\n                \"createdAt\": \"2026-08-24T09:11:16.294602Z\",\n                \"updatedAt\": \"2026-08-24T09:11:17.129257Z\"\n            },\n            {\n                \"id\": \"33b260cd-e626-4609-b860-cfd6aba6ded0\",\n                \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n                \"classId\": \"96b64a75-0258-4d01-a892-ef28cc5bef88\",\n                \"title\": \"unpub-1787562606\",\n                \"description\": null,\n                \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n                \"dockerComposeTemplate\": null,\n                \"dockerComposePort\": 8080,\n                \"startupTimeoutMs\": 60000,\n                \"executionTimeoutMs\": 300000,\n                \"maxMemoryMb\": 256,\n                \"maxCpu\": 0.5,\n                \"published\": false,\n                \"createdAt\": \"2026-08-24T09:10:45.009449Z\",\n                \"updatedAt\": \"2026-08-24T09:10:45.009498Z\"\n            },\n            {\n                \"id\": \"ff860f4e-b77e-480c-b52f-10680f3c912a\",\n                \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n                \"classId\": \"96b64a75-0258-4d01-a892-ef28cc5bef88\",\n                \"title\": \"exs-assign-1787562606\",\n                \"description\": null,\n                \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n                \"dockerComposeTemplate\": null,\n                \"dockerComposePort\": 8080,\n                \"startupTimeoutMs\": 60000,\n                \"executionTimeoutMs\": 300000,\n                \"maxMemoryMb\": 256,\n                \"maxCpu\": 0.5,\n                \"published\": true,\n                \"createdAt\": \"2026-08-24T09:10:08.425664Z\",\n                \"updatedAt\": \"2026-08-24T09:10:09.367842Z\"\n            },\n            {\n                \"id\": \"2fc924af-9f2c-432b-9f01-a37073a74c0b\",\n                \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n                \"classId\": \"f47b5fb6-21c3-4a51-8ac2-e4382a7dc2f3\",\n                \"title\": \"Ex-1787555303-v2\",\n                \"description\": \"updated\",\n                \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n                \"dockerComposeTemplate\": null,\n                \"dockerComposePort\": 8080,\n                \"startupTimeoutMs\": 60000,\n                \"executionTimeoutMs\": 300000,\n                \"maxMemoryMb\": 512,\n                \"maxCpu\": 0.5,\n                \"published\": true,\n                \"createdAt\": \"2026-08-24T07:08:26.087852Z\",\n                \"updatedAt\": \"2026-08-24T07:08:37.094338Z\"\n            },\n            {\n                \"id\": \"564b02ed-2985-495a-9b85-adfde4dd4ee6\",\n                \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n                \"classId\": \"e66feb9d-c8de-40f3-9690-0bdafdcd16bf\",\n                \"title\": \"Ex-1787554624-v2\",\n                \"description\": \"updated\",\n                \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n                \"dockerComposeTemplate\": null,\n                \"dockerComposePort\": 8080,\n                \"startupTimeoutMs\": 60000,\n                \"executionTimeoutMs\": 300000,\n                \"maxMemoryMb\": 512,\n                \"maxCpu\": 0.5,\n                \"published\": true,\n                \"createdAt\": \"2026-08-24T06:57:07.230158Z\",\n                \"updatedAt\": \"2026-08-24T06:57:13.03863Z\"\n            },\n            {\n                \"id\": \"c9952022-4906-4a56-961c-13c49afb903d\",\n                \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n                \"classId\": \"6c5f1121-cf1a-4cbf-acaa-1c960405e15a\",\n                \"title\": \"Ex-1787554251-v2\",\n                \"description\": \"updated\",\n                \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n                \"dockerComposeTemplate\": null,\n                \"dockerComposePort\": 8080,\n                \"startupTimeoutMs\": 60000,\n                \"executionTimeoutMs\": 300000,\n                \"maxMemoryMb\": 512,\n                \"maxCpu\": 0.5,\n                \"published\": true,\n                \"createdAt\": \"2026-08-24T06:50:54.614263Z\",\n                \"updatedAt\": \"2026-08-24T06:51:00.202422Z\"\n            }\n        ]\n    }\n}"
+								}
+							]
+						},
+						{
+							"name": "create assignments",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"Lab 01 - Book API\",\n  \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n  \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n  \"description\": \"REST basics\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 256,\n  \"maxCpu\": 0.5\n}\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{course-service}}/api/v1/assignments",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"assignments"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0",
+											"disabled": true
+										},
+										{
+											"key": "size",
+											"value": "20",
+											"disabled": true
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"title\": \"Lab 01 - Book API\",\n  \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n  \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n  \"description\": \"REST basics\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 256,\n  \"maxCpu\": 0.5\n}\n",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "Created",
+									"code": 201,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 30 Aug 2026 08:52:52 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 201,\n    \"message\": \"Assignment created\",\n    \"data\": {\n        \"id\": \"cf012ca0-9cf2-41ad-89cc-d43c49ee678b\",\n        \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n        \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n        \"title\": \"Lab 01 - Book API\",\n        \"description\": \"REST basics\",\n        \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n        \"dockerComposeTemplate\": null,\n        \"dockerComposePort\": 8080,\n        \"startupTimeoutMs\": 60000,\n        \"executionTimeoutMs\": 300000,\n        \"maxMemoryMb\": 256,\n        \"maxCpu\": 0.5,\n        \"published\": false,\n        \"createdAt\": null,\n        \"updatedAt\": null\n    }\n}"
+								},
+								{
+									"name": "400 lab name already exists",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"title\": \"Lab 01 - Book API\",\n  \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n  \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n  \"description\": \"REST basics\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 256,\n  \"maxCpu\": 0.5\n}\n",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "0",
+													"disabled": true
+												},
+												{
+													"key": "size",
+													"value": "20",
+													"disabled": true
+												}
+											]
+										}
+									},
+									"status": "Bad Request",
+									"code": 400,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 30 Aug 2026 08:53:06 GMT"
+										},
+										{
+											"key": "Connection",
+											"value": "close"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 400,\n    \"message\": \"Assignment 'Lab 01 - Book API' already exists in this class\"\n}"
+								}
+							]
+						},
+						{
+							"name": "update assignments",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"Lab 01 - Book API-edited\",\n  \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n  \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n  \"description\": \"REST basics\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 256,\n  \"maxCpu\": 0.5\n}\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{course-service}}/api/v1/assignments/:id",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"assignments",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "cf012ca0-9cf2-41ad-89cc-d43c49ee678b"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "PUT",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"title\": \"Lab 01 - Book API-edited\",\n  \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n  \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n  \"description\": \"REST basics\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 256,\n  \"maxCpu\": 0.5\n}\n",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments/:id",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments",
+												":id"
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "cf012ca0-9cf2-41ad-89cc-d43c49ee678b"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 30 Aug 2026 09:35:46 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Assignment updated\",\n    \"data\": {\n        \"id\": \"cf012ca0-9cf2-41ad-89cc-d43c49ee678b\",\n        \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n        \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n        \"title\": \"Lab 01 - Book API-edited\",\n        \"description\": \"REST basics\",\n        \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n        \"dockerComposeTemplate\": null,\n        \"dockerComposePort\": 8080,\n        \"startupTimeoutMs\": 60000,\n        \"executionTimeoutMs\": 300000,\n        \"maxMemoryMb\": 256,\n        \"maxCpu\": 0.5,\n        \"published\": false,\n        \"createdAt\": \"2026-08-30T08:52:51.916464Z\",\n        \"updatedAt\": \"2026-08-30T08:52:51.916575Z\"\n    }\n}"
+								}
+							]
+						},
+						{
+							"name": "delete assignments",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/assignments/:id",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"assignments",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "cf012ca0-9cf2-41ad-89cc-d43c49ee678b"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "DELETE",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments/:id",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments",
+												":id"
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "cf012ca0-9cf2-41ad-89cc-d43c49ee678b"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 30 Aug 2026 09:51:37 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Assignment deleted\"\n}"
+								},
+								{
+									"name": "404 not found",
+									"originalRequest": {
+										"method": "DELETE",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments/:id",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments",
+												":id"
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "cf012ca0-9cf2-41ad-89cc-d43c49ee678b"
+												}
+											]
+										}
+									},
+									"status": "Not Found",
+									"code": 404,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 30 Aug 2026 09:51:44 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 404,\n    \"message\": \"Assignment not found: cf012ca0-9cf2-41ad-89cc-d43c49ee678b\"\n}"
+								}
+							]
+						},
+						{
+							"name": "get detail by id",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/assignments/:id",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"assignments",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "cf012ca0-9cf2-41ad-89cc-d43c49ee678b"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments/:id",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments",
+												":id"
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "cf012ca0-9cf2-41ad-89cc-d43c49ee678b"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 30 Aug 2026 09:36:53 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Success\",\n    \"data\": {\n        \"id\": \"cf012ca0-9cf2-41ad-89cc-d43c49ee678b\",\n        \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n        \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n        \"title\": \"Lab 01 - Book API-edited\",\n        \"description\": \"REST basics\",\n        \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n        \"dockerComposeTemplate\": null,\n        \"dockerComposePort\": 8080,\n        \"startupTimeoutMs\": 60000,\n        \"executionTimeoutMs\": 300000,\n        \"maxMemoryMb\": 256,\n        \"maxCpu\": 0.5,\n        \"published\": false,\n        \"createdAt\": \"2026-08-30T08:52:51.916464Z\",\n        \"updatedAt\": \"2026-08-30T09:35:45.531704Z\"\n    }\n}"
+								}
+							]
+						},
+						{
+							"name": "publish assignment",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/assignments/:id/publish",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"assignments",
+										":id",
+										"publish"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "cf012ca0-9cf2-41ad-89cc-d43c49ee678b"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments/:id/publish",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments",
+												":id",
+												"publish"
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "cf012ca0-9cf2-41ad-89cc-d43c49ee678b"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 30 Aug 2026 09:37:23 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Assignment published\",\n    \"data\": {\n        \"id\": \"cf012ca0-9cf2-41ad-89cc-d43c49ee678b\",\n        \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n        \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n        \"title\": \"Lab 01 - Book API-edited\",\n        \"description\": \"REST basics\",\n        \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n        \"dockerComposeTemplate\": null,\n        \"dockerComposePort\": 8080,\n        \"startupTimeoutMs\": 60000,\n        \"executionTimeoutMs\": 300000,\n        \"maxMemoryMb\": 256,\n        \"maxCpu\": 0.5,\n        \"published\": true,\n        \"createdAt\": \"2026-08-30T08:52:51.916464Z\",\n        \"updatedAt\": \"2026-08-30T09:35:45.531704Z\"\n    }\n}"
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "test plans",
+					"item": [
+						{
+							"name": "update assignment plan",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"CRUD Book API — Basic=edited\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{course-service}}/api/v1/assignments/:id/plans/:planId",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"assignments",
+										":id",
+										"plans",
+										":planId"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "76b359be-80f6-4e6a-bcbe-4643a57a8d07"
+										},
+										{
+											"key": "planId",
+											"value": "29cb9370-9364-46ea-9c9d-7a621810fc78"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "404 assignment not found",
+									"originalRequest": {
+										"method": "PUT",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"name\": \"CRUD Book API — Basic=edited\"\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments/:id/plans/:planId",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments",
+												":id",
+												"plans",
+												":planId"
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "cf012ca0-9cf2-41ad-89cc-d43c49ee678b"
+												},
+												{
+													"key": "planId",
+													"value": "29cb9370-9364-46ea-9c9d-7a621810fc78"
+												}
+											]
+										}
+									},
+									"status": "Not Found",
+									"code": 404,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Mon, 31 Aug 2026 02:53:32 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 404,\n    \"message\": \"Assignment not found: cf012ca0-9cf2-41ad-89cc-d43c49ee678b\"\n}"
+								},
+								{
+									"name": "404 plan not found",
+									"originalRequest": {
+										"method": "PUT",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"name\": \"CRUD Book API — Basic=edited\"\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments/:id/plans/:planId",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments",
+												":id",
+												"plans",
+												":planId"
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "76b359be-80f6-4e6a-bcbe-4643a57a8d07"
+												},
+												{
+													"key": "planId",
+													"value": "29cb9370-9364-46ea-9c9d-7a621810fc79"
+												}
+											]
+										}
+									},
+									"status": "Not Found",
+									"code": 404,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Mon, 31 Aug 2026 03:04:46 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 404,\n    \"message\": \"Plan not found: 29cb9370-9364-46ea-9c9d-7a621810fc79\"\n}"
+								},
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "PUT",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"name\": \"CRUD Book API — Basic=edited\"\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments/:id/plans/:planId",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments",
+												":id",
+												"plans",
+												":planId"
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "76b359be-80f6-4e6a-bcbe-4643a57a8d07"
+												},
+												{
+													"key": "planId",
+													"value": "29cb9370-9364-46ea-9c9d-7a621810fc78"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Mon, 31 Aug 2026 03:04:59 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Plan updated\",\n    \"data\": {\n        \"id\": \"29cb9370-9364-46ea-9c9d-7a621810fc78\",\n        \"name\": \"CRUD Book API — Basic=edited\",\n        \"description\": \"basic flow\",\n        \"sequenceOrder\": 1,\n        \"weight\": 10,\n        \"steps\": []\n    }\n}"
+								}
+							]
+						},
+						{
+							"name": "create a plan",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"CRUD Book API — Basic\",\n    \"description\": \"basic flow\",\n    \"sequenceOrder\": 1,\n    \"weight\": 10\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{course-service}}/api/v1/assignments/:id/plans",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"assignments",
+										":id",
+										"plans"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "76b359be-80f6-4e6a-bcbe-4643a57a8d07"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "404 not found",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"name\": \"CRUD Book API — Basic\",\n    \"description\": \"basic flow\",\n    \"sequenceOrder\": 1,\n    \"weight\": 10\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments/:id/plans",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments",
+												":id",
+												"plans"
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "76b359be-80f6-4e6a-bcbe-4643a57a8d07"
+												}
+											]
+										}
+									},
+									"status": "Not Found",
+									"code": 404,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Mon, 31 Aug 2026 02:36:56 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 404,\n    \"message\": \"Assignment not found: cf012ca0-9cf2-41ad-89cc-d43c49ee678b\"\n}"
+								},
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "POST",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"name\": \"CRUD Book API — Basic\",\n    \"description\": \"basic flow\",\n    \"sequenceOrder\": 1,\n    \"weight\": 10\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments/:id/plans",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments",
+												":id",
+												"plans"
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "76b359be-80f6-4e6a-bcbe-4643a57a8d07"
+												}
+											]
+										}
+									},
+									"status": "Created",
+									"code": 201,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Mon, 31 Aug 2026 02:37:30 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 201,\n    \"message\": \"Plan created\",\n    \"data\": {\n        \"id\": \"29cb9370-9364-46ea-9c9d-7a621810fc78\",\n        \"name\": \"CRUD Book API — Basic\",\n        \"description\": \"basic flow\",\n        \"sequenceOrder\": 1,\n        \"weight\": 10,\n        \"steps\": []\n    }\n}"
+								},
+								{
+									"name": "400 duplicate sequenceOrder (Lab 01)",
+									"originalRequest": null,
+									"status": "Bad Request",
+									"code": 400,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 400, \"message\": \"A plan with sequence_order 1 already exists in this assignment\"}"
+								}
+							]
+						},
+						{
+							"name": "get steps of assignment plan",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"Lab 01 - Book API-edited\",\n  \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n  \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n  \"description\": \"REST basics\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 256,\n  \"maxCpu\": 0.5\n}\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{course-service}}/api/v1/assignments/:id/plans/:planId/steps",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"assignments",
+										":id",
+										"plans",
+										":planId",
+										"steps"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "76b359be-80f6-4e6a-bcbe-4643a57a8d07"
+										},
+										{
+											"key": "planId",
+											"value": "c20f3182-825b-48b2-be92-e848c1538810"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"title\": \"Lab 01 - Book API-edited\",\n  \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n  \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n  \"description\": \"REST basics\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 256,\n  \"maxCpu\": 0.5\n}\n",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments/:id/plans/:planId/steps",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments",
+												":id",
+												"plans",
+												":planId",
+												"steps"
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "76b359be-80f6-4e6a-bcbe-4643a57a8d07"
+												},
+												{
+													"key": "planId",
+													"value": "c20f3182-825b-48b2-be92-e848c1538810"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 30 Aug 2026 10:39:14 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Success\",\n    \"data\": [\n        {\n            \"id\": \"1d768a78-be3f-4448-931d-258f436cfb98\",\n            \"stepOrder\": 1,\n            \"name\": \"Create a book\",\n            \"type\": \"HTTP_REQUEST\",\n            \"config\": {\n                \"body\": {\n                    \"year\": 1941,\n                    \"title\": \"Dế Mèn Phiêu Lưu Ký\",\n                    \"author\": \"Tô Hoài\"\n                },\n                \"path\": \"/api/v1/books\",\n                \"method\": \"POST\",\n                \"extract\": [\n                    {\n                        \"from\": \"response_body\",\n                        \"name\": \"bookId\",\n                        \"expression\": \"$.id\"\n                    }\n                ],\n                \"headers\": {\n                    \"Content-Type\": \"application/json\"\n                },\n                \"expected_status\": 201\n            },\n            \"expectedResult\": null,\n            \"weight\": 2,\n            \"timeoutMs\": null,\n            \"required\": true\n        },\n        {\n            \"id\": \"a4c94b8d-4cf3-4ca8-bd21-67949a00dc2f\",\n            \"stepOrder\": 2,\n            \"name\": \"Verify book details v2\",\n            \"type\": \"HTTP_REQUEST\",\n            \"config\": {\n                \"path\": \"/api/v1/books/${bookId}\",\n                \"method\": \"GET\",\n                \"expected_status\": 200,\n                \"expected_body_contains\": \"Dế Mèn Phiêu Lưu Ký\"\n            },\n            \"expectedResult\": null,\n            \"weight\": 2,\n            \"timeoutMs\": null,\n            \"required\": true\n        },\n        {\n            \"id\": \"27812688-290e-429a-b36d-f99153d4620d\",\n            \"stepOrder\": 4,\n            \"name\": \"Check DB schema\",\n            \"type\": \"DB_SCHEMA_CHECK\",\n            \"config\": {\n                \"checks\": [\n                    {\n                        \"kind\": \"TABLE_EXISTS\",\n                        \"table_name\": \"books\"\n                    },\n                    {\n                        \"kind\": \"COLUMN_EXISTS\",\n                        \"data_type\": \"VARCHAR\",\n                        \"table_name\": \"books\",\n                        \"column_name\": \"title\"\n                    },\n                    {\n                        \"kind\": \"PRIMARY_KEY\",\n                        \"column\": \"id\",\n                        \"table_name\": \"books\"\n                    }\n                ]\n            },\n            \"expectedResult\": null,\n            \"weight\": 2,\n            \"timeoutMs\": null,\n            \"required\": true\n        },\n        {\n            \"id\": \"e002ab8f-1649-435f-a04b-10a1618e868e\",\n            \"stepOrder\": 6,\n            \"name\": \"Verify data in DB\",\n            \"type\": \"DB_QUERY\",\n            \"config\": {\n                \"query\": \"SELECT title, author, year FROM books WHERE id = ${bookId}\",\n                \"expected\": {\n                    \"columns\": [\n                        \"title\",\n                        \"author\",\n                        \"year\"\n                    ],\n                    \"row_count\": 1\n                }\n            },\n            \"expectedResult\": {\n                \"columns\": [\n                    \"title\",\n                    \"author\",\n                    \"year\"\n                ],\n                \"row_count\": 1\n            },\n            \"weight\": 2,\n            \"timeoutMs\": 15000,\n            \"required\": true\n        }\n    ]\n}"
+								}
+							]
+						},
+						{
+							"name": "get assignment plan",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"Lab 01 - Book API-edited\",\n  \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n  \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n  \"description\": \"REST basics\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 256,\n  \"maxCpu\": 0.5\n}\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{course-service}}/api/v1/assignments/:id/plans",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"assignments",
+										":id",
+										"plans"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "76b359be-80f6-4e6a-bcbe-4643a57a8d07"
+										}
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"title\": \"Lab 01 - Book API-edited\",\n  \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n  \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n  \"description\": \"REST basics\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 256,\n  \"maxCpu\": 0.5\n}\n",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments/:id/plans",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments",
+												":id",
+												"plans"
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "76b359be-80f6-4e6a-bcbe-4643a57a8d07"
+												}
+											]
+										}
+									},
+									"status": "OK",
+									"code": 200,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 30 Aug 2026 10:27:00 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 200,\n    \"message\": \"Success\",\n    \"data\": [\n        {\n            \"id\": \"39b3448d-163b-4fac-9eb0-2d8550eb9584\",\n            \"name\": \"CRUD Book API — Advanced\",\n            \"description\": null,\n            \"sequenceOrder\": 2,\n            \"weight\": 5,\n            \"steps\": []\n        },\n        {\n            \"id\": \"c20f3182-825b-48b2-be92-e848c1538810\",\n            \"name\": \"CRUD Book API — v2\",\n            \"description\": \"basic flow\",\n            \"sequenceOrder\": 3,\n            \"weight\": 10,\n            \"steps\": [\n                {\n                    \"id\": \"1d768a78-be3f-4448-931d-258f436cfb98\",\n                    \"stepOrder\": 1,\n                    \"name\": \"Create a book\",\n                    \"type\": \"HTTP_REQUEST\",\n                    \"config\": {\n                        \"body\": {\n                            \"year\": 1941,\n                            \"title\": \"Dế Mèn Phiêu Lưu Ký\",\n                            \"author\": \"Tô Hoài\"\n                        },\n                        \"path\": \"/api/v1/books\",\n                        \"method\": \"POST\",\n                        \"extract\": [\n                            {\n                                \"from\": \"response_body\",\n                                \"name\": \"bookId\",\n                                \"expression\": \"$.id\"\n                            }\n                        ],\n                        \"headers\": {\n                            \"Content-Type\": \"application/json\"\n                        },\n                        \"expected_status\": 201\n                    },\n                    \"expectedResult\": null,\n                    \"weight\": 2,\n                    \"timeoutMs\": null,\n                    \"required\": true\n                },\n                {\n                    \"id\": \"a4c94b8d-4cf3-4ca8-bd21-67949a00dc2f\",\n                    \"stepOrder\": 2,\n                    \"name\": \"Verify book details v2\",\n                    \"type\": \"HTTP_REQUEST\",\n                    \"config\": {\n                        \"path\": \"/api/v1/books/${bookId}\",\n                        \"method\": \"GET\",\n                        \"expected_status\": 200,\n                        \"expected_body_contains\": \"Dế Mèn Phiêu Lưu Ký\"\n                    },\n                    \"expectedResult\": null,\n                    \"weight\": 2,\n                    \"timeoutMs\": null,\n                    \"required\": true\n                },\n                {\n                    \"id\": \"27812688-290e-429a-b36d-f99153d4620d\",\n                    \"stepOrder\": 4,\n                    \"name\": \"Check DB schema\",\n                    \"type\": \"DB_SCHEMA_CHECK\",\n                    \"config\": {\n                        \"checks\": [\n                            {\n                                \"kind\": \"TABLE_EXISTS\",\n                                \"table_name\": \"books\"\n                            },\n                            {\n                                \"kind\": \"COLUMN_EXISTS\",\n                                \"data_type\": \"VARCHAR\",\n                                \"table_name\": \"books\",\n                                \"column_name\": \"title\"\n                            },\n                            {\n                                \"kind\": \"PRIMARY_KEY\",\n                                \"column\": \"id\",\n                                \"table_name\": \"books\"\n                            }\n                        ]\n                    },\n                    \"expectedResult\": null,\n                    \"weight\": 2,\n                    \"timeoutMs\": null,\n                    \"required\": true\n                },\n                {\n                    \"id\": \"e002ab8f-1649-435f-a04b-10a1618e868e\",\n                    \"stepOrder\": 6,\n                    \"name\": \"Verify data in DB\",\n                    \"type\": \"DB_QUERY\",\n                    \"config\": {\n                        \"query\": \"SELECT title, author, year FROM books WHERE id = ${bookId}\",\n                        \"expected\": {\n                            \"columns\": [\n                                \"title\",\n                                \"author\",\n                                \"year\"\n                            ],\n                            \"row_count\": 1\n                        }\n                    },\n                    \"expectedResult\": {\n                        \"columns\": [\n                            \"title\",\n                            \"author\",\n                            \"year\"\n                        ],\n                        \"row_count\": 1\n                    },\n                    \"weight\": 2,\n                    \"timeoutMs\": 15000,\n                    \"required\": true\n                }\n            ]\n        }\n    ]\n}"
+								},
+								{
+									"name": "404 not found",
+									"originalRequest": {
+										"method": "GET",
+										"header": [
+											{
+												"key": "X-User-Id",
+												"value": "{{fake_lecturer_id}}",
+												"type": "default"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"title\": \"Lab 01 - Book API-edited\",\n  \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n  \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n  \"description\": \"REST basics\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 256,\n  \"maxCpu\": 0.5\n}\n",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{course-service}}/api/v1/assignments/:id/plans",
+											"host": [
+												"{{course-service}}"
+											],
+											"path": [
+												"api",
+												"v1",
+												"assignments",
+												":id",
+												"plans"
+											],
+											"variable": [
+												{
+													"key": "id",
+													"value": "cf012ca0-9cf2-41ad-89cc-d43c49ee678b"
+												}
+											]
+										}
+									},
+									"status": "Not Found",
+									"code": 404,
+									"_postman_previewlanguage": "json",
+									"header": [
+										{
+											"key": "Content-Type",
+											"value": "application/json"
+										},
+										{
+											"key": "Transfer-Encoding",
+											"value": "chunked"
+										},
+										{
+											"key": "Date",
+											"value": "Sun, 30 Aug 2026 10:30:14 GMT"
+										},
+										{
+											"key": "Keep-Alive",
+											"value": "timeout=60"
+										},
+										{
+											"key": "Connection",
+											"value": "keep-alive"
+										}
+									],
+									"cookie": [],
+									"body": "{\n    \"status\": 404,\n    \"message\": \"Assignment not found: cf012ca0-9cf2-41ad-89cc-d43c49ee678b\"\n}"
+								}
+							]
+						},
+						{
+							"name": "create a step",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "default"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\"stepOrder\": 9, \"name\": \"Temp step\", \"description\": \"temp\", \"stepType\": \"HTTP_REQUEST\", \"weight\": 1, \"config\": {\"method\": \"GET\", \"path\": \"/api/v1/books\", \"expected_status\": 200}}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{course-service}}/api/v1/assignments/{assignmentId}/plans/{planId}/steps",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"assignments",
+										"{assignmentId}",
+										"plans",
+										"{planId}",
+										"steps"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "201 Created",
+									"originalRequest": null,
+									"status": "Created",
+									"code": 201,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 201, \"message\": \"Step created\", \"data\": {\"id\": \"d1ef2fa9-e525-41ba-a087-1f0cb8e323f4\", \"stepOrder\": 9, \"name\": \"Temp step\", \"description\": \"temp\", \"type\": \"HTTP_REQUEST\", \"config\": {\"method\": \"GET\", \"path\": \"/api/v1/books\", \"expected_status\": 200}, \"expectedResult\": null, \"weight\": 1, \"timeoutMs\": null, \"required\": true}}"
+								},
+								{
+									"name": "400 invalid config",
+									"originalRequest": null,
+									"status": "Bad Request",
+									"code": 400,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 400, \"message\": \"HTTP_REQUEST: unknown method 'TELEPORT'\"}"
+								},
+								{
+									"name": "201 Lab 01 duplicate-check step (409 expectation)",
+									"originalRequest": null,
+									"status": "Created",
+									"code": 201,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 201, \"message\": \"Step created\", \"data\": {\"id\": \"a73a53b1-885a-4e75-b1b5-41c55505610a\", \"stepOrder\": 2, \"name\": \"Duplicate book is rejected\", \"description\": \"Post the identical book again; a correct service rejects the duplicate.\", \"type\": \"HTTP_REQUEST\", \"config\": {\"method\": \"POST\", \"path\": \"/api/v1/books\", \"headers\": {\"Content-Type\": \"application/json\"}, \"body\": {\"title\": \"Dế Mèn Phiêu Lưu Ký\", \"author\": \"Tô Hoài\", \"year\": 1941}, \"expected_status\": 409, \"assertions\": [{\"kind\": \"contains\", \"text\": \"already exists\"}]}, \"expectedResult\": null, \"weight\": 2, \"timeoutMs\": null, \"required\": true}}"
+								},
+								{
+									"name": "201 Lab 01 filter step (query_params)",
+									"originalRequest": null,
+									"status": "Created",
+									"code": 201,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 201, \"message\": \"Step created\", \"data\": {\"id\": \"cf53ba70-7363-47f4-bfd5-dad05e7bf5e7\", \"stepOrder\": 7, \"name\": \"Filter by author\", \"description\": \"Filtering by author must return exactly that author's books.\", \"type\": \"HTTP_REQUEST\", \"config\": {\"method\": \"GET\", \"path\": \"/api/v1/books\", \"query_params\": {\"author\": \"Tô Hoài\"}, \"expected_status\": 200, \"assertions\": [{\"kind\": \"contains\", \"text\": \"Dế Mèn Phiêu Lưu Ký\"}, {\"kind\": \"body_structure\", \"json\": [{\"id\": \"\", \"title\": \"\", \"author\": \"\", \"year\": 0}]}]}, \"expectedResult\": null, \"weight\": 2, \"timeoutMs\": null, \"required\": true}}"
+								},
+								{
+									"name": "201 Lab 01 DB-query step",
+									"originalRequest": null,
+									"status": "Created",
+									"code": 201,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 201, \"message\": \"Step created\", \"data\": {\"id\": \"ac777e75-db12-4167-be21-252d2ea1c210\", \"stepOrder\": 3, \"name\": \"Verify data in DB\", \"description\": \"The searched book must really be stored in the database.\", \"type\": \"DB_QUERY\", \"config\": {\"query\": \"SELECT title, author, year FROM books WHERE title = 'Dế Mèn Phiêu Lưu Ký'\", \"expected\": {\"row_count\": 1, \"columns\": [\"title\", \"author\", \"year\"]}}, \"expectedResult\": null, \"weight\": 2, \"timeoutMs\": null, \"required\": true}}"
+								},
+								{
+									"name": "400 duplicate stepOrder (Lab 01)",
+									"originalRequest": null,
+									"status": "Bad Request",
+									"code": 400,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 400, \"message\": \"step_order 1 already exists in plan 'CRUD Basic'\"}"
+								}
+							]
+						},
+						{
+							"name": "update assignment step",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "default"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\"name\": \"Temp step v2\", \"stepType\": \"HTTP_REQUEST\", \"config\": {\"method\": \"GET\", \"path\": \"/api/v1/books\", \"expected_status\": 200}}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{course-service}}/api/v1/assignments/{assignmentId}/plans/{planId}/steps/{stepId}",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"assignments",
+										"{assignmentId}",
+										"plans",
+										"{planId}",
+										"steps",
+										"{stepId}"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200 OK",
+									"originalRequest": null,
+									"status": "OK",
+									"code": 200,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 200, \"message\": \"Step updated\", \"data\": {\"id\": \"d1ef2fa9-e525-41ba-a087-1f0cb8e323f4\", \"stepOrder\": 9, \"name\": \"Temp step v2\", \"description\": \"temp\", \"type\": \"HTTP_REQUEST\", \"config\": {\"method\": \"GET\", \"path\": \"/api/v1/books\", \"expected_status\": 200}, \"expectedResult\": null, \"weight\": 1, \"timeoutMs\": null, \"required\": true}}"
+								},
+								{
+									"name": "404 Not Found",
+									"originalRequest": null,
+									"status": "Not Found",
+									"code": 404,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 404, \"message\": \"Step not found: 00000000-0000-0000-0000-000000000000\"}"
+								}
+							]
+						},
+						{
+							"name": "delete assignment step",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/assignments/{assignmentId}/plans/{planId}/steps/{stepId}",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"assignments",
+										"{assignmentId}",
+										"plans",
+										"{planId}",
+										"steps",
+										"{stepId}"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200 OK",
+									"originalRequest": null,
+									"status": "OK",
+									"code": 200,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 200, \"message\": \"Step deleted\"}"
+								},
+								{
+									"name": "404 Not Found",
+									"originalRequest": null,
+									"status": "Not Found",
+									"code": 404,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 404, \"message\": \"Step not found: d1ef2fa9-e525-41ba-a087-1f0cb8e323f4\"}"
+								}
+							]
+						},
+						{
+							"name": "delete assignment plan",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_lecturer_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/assignments/{assignmentId}/plans/{planId}",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"assignments",
+										"{assignmentId}",
+										"plans",
+										"{planId}"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200 OK",
+									"originalRequest": null,
+									"status": "OK",
+									"code": 200,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 200, \"message\": \"Plan deleted\"}"
+								},
+								{
+									"name": "404 Not Found",
+									"originalRequest": null,
+									"status": "Not Found",
+									"code": 404,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 404, \"message\": \"Plan not found: cdb6c98e-234d-4328-ba39-57be011e4f03\"}"
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "Student",
+					"item": [
+						{
+							"name": "get student assignments (enrolled, published)",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_student_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/student/assignments",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"student",
+										"assignments"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200 OK",
+									"originalRequest": null,
+									"status": "OK",
+									"code": 200,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 200, \"message\": \"Success\", \"data\": {\"meta\": {\"page\": 0, \"pageSize\": 20, \"pages\": 1, \"total\": 1}, \"result\": [{\"id\": \"22c59140-d385-42f6-9577-3e1315cffa31\", \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\", \"classId\": \"a539e2f3-9d96-444d-a9e0-e53179b7e1fa\", \"title\": \"Lab 01 Book API\", \"description\": null, \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\", \"dockerComposeTemplate\": null, \"dockerComposePort\": 8080, \"startupTimeoutMs\": 60000, \"executionTimeoutMs\": 300000, \"maxMemoryMb\": 256, \"maxCpu\": 0.5, \"published\": true, \"createdAt\": \"2026-08-31T03:16:47.359781Z\", \"updatedAt\": \"2026-08-31T03:16:47.41756Z\"}]}}"
+								}
+							]
+						},
+						{
+							"name": "get assignment detail (student)",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_student_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/student/assignments/22c59140-d385-42f6-9577-3e1315cffa31",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"student",
+										"assignments",
+										"22c59140-d385-42f6-9577-3e1315cffa31"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200 OK",
+									"originalRequest": null,
+									"status": "OK",
+									"code": 200,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 200, \"message\": \"Success\", \"data\": {\"id\": \"22c59140-d385-42f6-9577-3e1315cffa31\", \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\", \"classId\": \"a539e2f3-9d96-444d-a9e0-e53179b7e1fa\", \"title\": \"Lab 01 Book API\", \"description\": null, \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\", \"dockerComposeTemplate\": null, \"dockerComposePort\": 8080, \"startupTimeoutMs\": 60000, \"executionTimeoutMs\": 300000, \"maxMemoryMb\": 256, \"maxCpu\": 0.5, \"published\": true, \"createdAt\": \"2026-08-31T03:16:47.359781Z\", \"updatedAt\": \"2026-08-31T03:16:47.41756Z\"}}"
+								},
+								{
+									"name": "404 Not Found (not enrolled / unpublished)",
+									"originalRequest": null,
+									"status": "Not Found",
+									"code": 404,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 404, \"message\": \"Assignment not found: 22c59140-d385-42f6-9577-3e1315cffa31\"}"
+								}
+							]
+						},
+						{
+							"name": "get assignment plans as problem set (sanitized)",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "X-User-Id",
+										"value": "{{fake_student_id}}",
+										"type": "default"
+									}
+								],
+								"url": {
+									"raw": "{{course-service}}/api/v1/student/assignments/22c59140-d385-42f6-9577-3e1315cffa31/plans",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"student",
+										"assignments",
+										"22c59140-d385-42f6-9577-3e1315cffa31",
+										"plans"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200 OK",
+									"originalRequest": null,
+									"status": "OK",
+									"code": 200,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 200, \"message\": \"Success\", \"data\": [{\"id\": \"fa715277-7755-4f25-bea7-01048d4f9024\", \"name\": \"CRUD Book API — Basic\", \"description\": null, \"sequenceOrder\": 1, \"weight\": 10, \"steps\": [{\"id\": \"5bc2644e-a08b-46f0-9f40-520bef9287fe\", \"stepOrder\": 1, \"name\": \"Create a book\", \"description\": \"Build a POST /api/v1/books endpoint that returns 201 and the created id.\", \"type\": \"HTTP_REQUEST\", \"config\": {\"body\": {\"year\": 1941, \"title\": \"Dế Mèn\", \"author\": \"Tô Hoài\"}, \"path\": \"/api/v1/books\", \"method\": \"POST\", \"headers\": {\"Content-Type\": \"application/json\"}, \"expected_status\": 201}, \"expectedResult\": null, \"weight\": 2, \"timeoutMs\": null, \"required\": true}, {\"id\": \"9ce2a90e-881d-4f5e-b760-8fe87a867b55\", \"stepOrder\": 2, \"name\": \"Check DB schema\", \"description\": \"Ensure the books table exists with the right columns.\", \"type\": \"DB_SCHEMA_CHECK\", \"config\": {\"checks\": [{\"kind\": \"TABLE_EXISTS\", \"table_name\": \"books\"}, {\"kind\": \"COLUMN_EXISTS\", \"table_name\": \"books\", \"column_name\": \"title\"}]}, \"expectedResult\": null, \"weight\": 2, \"timeoutMs\": null, \"required\": true}]}]}"
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "internal",
+					"item": [
+						{
+							"name": "get grading config (executor)",
+							"request": {
+								"method": "GET",
+								"url": {
+									"raw": "{{course-service}}/api/v1/internal/assignments/{id}",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"internal",
+										"assignments",
+										"{id}"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200 OK",
+									"originalRequest": null,
+									"status": "OK",
+									"code": 200,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"id\": \"22c59140-d385-42f6-9577-3e1315cffa31\", \"classId\": \"a539e2f3-9d96-444d-a9e0-e53179b7e1fa\", \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\", \"dockerComposeTemplate\": null, \"dockerComposePort\": 8080, \"startupTimeoutMs\": 60000, \"executionTimeoutMs\": 300000, \"maxMemoryMb\": 256, \"maxCpu\": 0.5}"
+								},
+								{
+									"name": "404 Not Found",
+									"originalRequest": null,
+									"status": "Not Found",
+									"code": 404,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 404, \"message\": \"Assignment not found: 00000000-0000-0000-0000-000000000000\"}"
+								}
+							]
+						},
+						{
+							"name": "get plans (executor)",
+							"request": {
+								"method": "GET",
+								"url": {
+									"raw": "{{course-service}}/api/v1/internal/assignments/{id}/plans",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"internal",
+										"assignments",
+										"{id}",
+										"plans"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200 OK",
+									"originalRequest": null,
+									"status": "OK",
+									"code": 200,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "[{\"id\": \"fa715277-7755-4f25-bea7-01048d4f9024\", \"name\": \"CRUD Book API — Basic\", \"sequenceOrder\": 1, \"weight\": 10, \"steps\": [{\"id\": \"5bc2644e-a08b-46f0-9f40-520bef9287fe\", \"stepOrder\": 1, \"name\": \"Create a book\", \"stepType\": \"HTTP_REQUEST\", \"config\": \"{\\\"body\\\": {\\\"year\\\": 1941, \\\"title\\\": \\\"Dế Mèn\\\", \\\"author\\\": \\\"Tô Hoài\\\"}, \\\"path\\\": \\\"/api/v1/books\\\", \\\"method\\\": \\\"POST\\\", \\\"extract\\\": [{\\\"from\\\": \\\"response_body\\\", \\\"name\\\": \\\"bookId\\\", \\\"expression\\\": \\\"$.id\\\"}], \\\"headers\\\": {\\\"Content-Type\\\": \\\"application/json\\\"}, \\\"expected_status\\\": 201}\", \"expectedResult\": null, \"weight\": 2, \"timeoutMs\": null, \"required\": true}, {\"id\": \"9ce2a90e-881d-4f5e-b760-8fe87a867b55\", \"stepOrder\": 2, \"name\": \"Check DB schema\", \"stepType\": \"DB_SCHEMA_CHECK\", \"config\": \"{\\\"checks\\\": [{\\\"kind\\\": \\\"TABLE_EXISTS\\\", \\\"table_name\\\": \\\"books\\\"}, {\\\"kind\\\": \\\"COLUMN_EXISTS\\\", \\\"table_name\\\": \\\"books\\\", \\\"column_name\\\": \\\"title\\\"}], \\\"connection\\\": {\\\"database\\\": \\\"bookstore\\\", \\\"password\\\": \\\"postgres\\\", \\\"username\\\": \\\"postgres\\\", \\\"db_service\\\": \\\"db\\\"}}\", \"expectedResult\": null, \"weight\": 2, \"timeoutMs\": null, \"required\": true}]}]"
+								},
+								{
+									"name": "404 Not Found",
+									"originalRequest": null,
+									"status": "Not Found",
+									"code": 404,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"status\": 404, \"message\": \"Assignment not found: 00000000-0000-0000-0000-000000000000\"}"
+								}
+							]
+						},
+						{
+							"name": "exists (submission)",
+							"request": {
+								"method": "GET",
+								"url": {
+									"raw": "{{course-service}}/api/v1/internal/assignments/{id}/exists",
+									"host": [
+										"{{course-service}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"internal",
+										"assignments",
+										"{id}",
+										"exists"
+									]
+								}
+							},
+							"response": [
+								{
+									"name": "200 exists=true",
+									"originalRequest": null,
+									"status": "OK",
+									"code": 200,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"exists\": true}"
+								},
+								{
+									"name": "200 exists=false",
+									"originalRequest": null,
+									"status": "OK",
+									"code": 200,
+									"header": [],
+									"_postman_previewlanguage": "json",
+									"body": "{\"exists\": false}"
+								}
+							]
+						}
+					]
 				}
 			]
 		},
@@ -2444,6 +4655,98 @@
 				{
 					"name": "internal",
 					"item": []
+				},
+				{
+					"name": "weighted (plan-weighted exercise score)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"assignmentIds\": [\"{{assignmentId}}\"], \"studentId\": \"{{fake_student_id}}\"}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{result-service}}/api/v1/internal/results/weighted",
+							"host": [
+								"{{result-service}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"internal",
+								"results",
+								"weighted"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK (average null when no results)",
+							"originalRequest": null,
+							"status": "OK",
+							"code": 200,
+							"header": [],
+							"_postman_previewlanguage": "json",
+							"body": "{\"average\": null}"
+						}
+					]
+				},
+				{
+					"name": "average (plan-weighted alias / legacy)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"assignmentIds\": [\"{{assignmentId}}\"], \"studentId\": \"{{fake_student_id}}\"}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{result-service}}/api/v1/internal/results/average",
+							"host": [
+								"{{result-service}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"internal",
+								"results",
+								"average"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK (average null when no results)",
+							"originalRequest": null,
+							"status": "OK",
+							"code": 200,
+							"header": [],
+							"_postman_previewlanguage": "json",
+							"body": "{\"average\": null}"
+						}
+					]
 				}
 			]
 		}

@@ -33,13 +33,15 @@ public class SubmissionController {
     @ApiMessage("Upload URL generated")
     public ResponseEntity<PresignedUrlResponse> requestUpload(
             @RequestParam UUID assignmentId,
-            @RequestParam String zipFileName) {
+            @RequestParam String zipFileName,
+            @RequestParam(required = false) UUID planId) {
         UUID studentUUID = UUID.randomUUID();
         String studentId = String.valueOf(studentUUID);
         PresignedUrlResponse response = submissionService.requestUpload(
                 assignmentId,
                 UUID.fromString(studentId),
-                zipFileName);
+                zipFileName,
+                planId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
