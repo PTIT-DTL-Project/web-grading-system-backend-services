@@ -1,6 +1,5 @@
 package vn.edu.ptit.web_grading_system.submission_service.config;
 
-import org.apache.kafka.clients.producer.ProducerConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,10 +37,16 @@ public class KafkaConfig {
     @Value("${spring.kafka.properties.ssl.truststore.location:docker/kafka-ca.pem}")
     private String sslTruststoreLocation;
 
+    @Value("${spring.kafka.producer.acks:1}")
+    private String acks;
+
+    @Value("${spring.kafka.producer.retries:0}")
+    private int retries;
+
     @Bean
     public ProducerFactory<String, WgsEvent<?>> wgsProducerFactory() {
         Map<String, Object> props = new HashMap<>();
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put("bootstrap.servers", bootstrapServers);
         props.put("security.protocol", securityProtocol);
         props.put("sasl.mechanism", saslMechanism);
         if (saslJaasConfig != null && !saslJaasConfig.isBlank()) {
@@ -50,8 +55,8 @@ public class KafkaConfig {
         props.put("ssl.endpoint.identification.algorithm", sslEndpointIdentificationAlgorithm);
         props.put("ssl.truststore.type", sslTruststoreType);
         props.put("ssl.truststore.location", sslTruststoreLocation);
-        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        props.put("acks", acks);
+        props.put("retries", retries);
         return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), new JsonSerializer<>());
     }
 
