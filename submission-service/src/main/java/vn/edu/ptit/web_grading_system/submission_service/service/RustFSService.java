@@ -13,7 +13,6 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
-import java.io.InputStream;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
@@ -73,47 +72,6 @@ public class RustFSService {
         } catch (Exception e) {
             log.error("Failed to generate presigned upload URL for {}", objectName, e);
             throw new RuntimeException("Failed to generate presigned upload URL", e);
-        }
-    }
-
-    public String generatePresignedDownloadUrl(String objectName) {
-        try {
-            return publicMinioClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder()
-                            .method(Method.GET)
-                            .bucket(rustFsProperties.bucketName())
-                            .object(objectName)
-                            .expiry(1, TimeUnit.HOURS)
-                            .build());
-        } catch (Exception e) {
-            log.error("Failed to generate presigned download URL for {}", objectName, e);
-            throw new RuntimeException("Failed to generate presigned download URL", e);
-        }
-    }
-
-    public void deleteFile(String objectName) {
-        try {
-            minioClient.removeObject(
-                    RemoveObjectArgs.builder()
-                            .bucket(rustFsProperties.bucketName())
-                            .object(objectName)
-                            .build());
-            log.info("Deleted file from RustFS: {}/{}", rustFsProperties.bucketName(), objectName);
-        } catch (Exception e) {
-            log.error("Failed to delete file from RustFS: {}", objectName, e);
-        }
-    }
-
-    public InputStream getObject(String objectName) {
-        try {
-            return minioClient.getObject(
-                    GetObjectArgs.builder()
-                            .bucket(rustFsProperties.bucketName())
-                            .object(objectName)
-                            .build());
-        } catch (Exception e) {
-            log.error("Failed to get object from RustFS: {}", objectName, e);
-            throw new RuntimeException("Failed to get object from RustFS", e);
         }
     }
 

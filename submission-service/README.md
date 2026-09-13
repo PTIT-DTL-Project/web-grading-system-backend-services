@@ -40,14 +40,12 @@ Submission Service handles all code submission operations in the Web Grading Sys
 - `GET /api/v1/submissions/version` - Detailed version information
 
 #### Submissions
-- `POST /api/v1/submissions/presigned-url` - Request upload URL
-- `POST /api/v1/submissions/{id}/confirm` - Confirm upload complete
-- `GET /api/v1/submissions` - List user submissions (paginated)
+- `POST /api/v1/submissions/presigned-url` - Request upload URL (query: `assignmentId`, `zipFileName`, optional `planId`)
+- `GET /api/v1/submissions` - List user submissions (paginated, requires `X-User-Id`)
 - `GET /api/v1/submissions/{id}` - Get submission details
 - `GET /api/v1/submissions/assignment/{assignmentId}` - List by assignment
-- `GET /api/v1/submissions/{id}/download` - Get download URL
-- `GET /api/v1/submissions/{id}/download/file` - Stream download file
-- `PATCH /api/v1/submissions/{id}/status` - Update submission status
+- `PUT /api/v1/submissions/{id}/status` - Update submission status (executor-internal)
+- `POST /api/v1/submissions/webhook/upload-complete` - RustFS webhook, sole grading trigger
 
 ### Configuration
 
