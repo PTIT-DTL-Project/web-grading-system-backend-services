@@ -23,23 +23,23 @@ public class KafkaConfig {
     public ProducerFactory<String, WgsEvent<?>> wgsProducerFactory() {
         Map<String, Object> cfg = new HashMap<>();
         cfg.put("bootstrap.servers", props.bootstrapServers());
-        String jaasConfig = props.properties().sasl().jaas().config();
+        String jaasConfig = props.saslJaasConfig();
         if (jaasConfig != null && !jaasConfig.isBlank()) {
             cfg.put("sasl.jaas.config", jaasConfig);
         }
         cfg.put("security.protocol",
-                props.properties().security().protocol() != null ? props.properties().security().protocol() : "SASL_SSL");
+                props.securityProtocol() != null ? props.securityProtocol() : "SASL_SSL");
         cfg.put("sasl.mechanism",
-                props.properties().sasl().mechanism() != null ? props.properties().sasl().mechanism() : "SCRAM-SHA-256");
+                props.saslMechanism() != null ? props.saslMechanism() : "SCRAM-SHA-256");
         cfg.put("ssl.endpoint.identification.algorithm",
-                props.properties().ssl().endpoint().identification().algorithm() != null
-                        ? props.properties().ssl().endpoint().identification().algorithm() : "https");
+                props.sslEndpointIdentificationAlgorithm() != null
+                        ? props.sslEndpointIdentificationAlgorithm() : "https");
         cfg.put("ssl.truststore.type",
-                props.properties().ssl().truststore().type() != null ? props.properties().ssl().truststore().type() : "PEM");
+                props.sslTruststoreType() != null ? props.sslTruststoreType() : "PEM");
         cfg.put("ssl.truststore.location",
-                props.properties().ssl().truststore().location() != null ? props.properties().ssl().truststore().location() : "docker/kafka-ca.pem");
-        cfg.put("acks", props.producer().acks() != null ? props.producer().acks() : "1");
-        cfg.put("retries", props.producer().retries());
+                props.sslTruststoreLocation() != null ? props.sslTruststoreLocation() : "docker/kafka-ca.pem");
+        cfg.put("acks", props.acks() != null ? props.acks() : "1");
+        cfg.put("retries", props.retries());
         return new DefaultKafkaProducerFactory<>(cfg, new StringSerializer(), new JsonSerializer<>());
     }
 
