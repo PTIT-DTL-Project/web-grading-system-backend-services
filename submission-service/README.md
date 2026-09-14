@@ -9,7 +9,6 @@ Submission Service handles all code submission operations in the Web Grading Sys
 - Validate submission format
 - Store submission metadata
 - Queue submissions for execution
-- Download and retrieve submission files
 
 ### Recent Updates (2026-08-06)
 - ✨ Added `/api/v1/submissions/health` endpoint for health checks

@@ -23,16 +23,22 @@ public class KafkaConfig {
     public ProducerFactory<String, WgsEvent<?>> wgsProducerFactory() {
         Map<String, Object> cfg = new HashMap<>();
         cfg.put("bootstrap.servers", props.bootstrapServers());
-        cfg.put("security.protocol", props.properties().security().protocol());
-        cfg.put("sasl.mechanism", props.properties().sasl().mechanism());
         String jaasConfig = props.properties().sasl().jaas().config();
         if (jaasConfig != null && !jaasConfig.isBlank()) {
             cfg.put("sasl.jaas.config", jaasConfig);
         }
-        cfg.put("ssl.endpoint.identification.algorithm", props.properties().ssl().endpoint().identification().algorithm());
-        cfg.put("ssl.truststore.type", props.properties().ssl().truststore().type());
-        cfg.put("ssl.truststore.location", props.properties().ssl().truststore().location());
-        cfg.put("acks", props.producer().acks());
+        cfg.put("security.protocol",
+                props.properties().security().protocol() != null ? props.properties().security().protocol() : "SASL_SSL");
+        cfg.put("sasl.mechanism",
+                props.properties().sasl().mechanism() != null ? props.properties().sasl().mechanism() : "SCRAM-SHA-256");
+        cfg.put("ssl.endpoint.identification.algorithm",
+                props.properties().ssl().endpoint().identification().algorithm() != null
+                        ? props.properties().ssl().endpoint().identification().algorithm() : "https");
+        cfg.put("ssl.truststore.type",
+                props.properties().ssl().truststore().type() != null ? props.properties().ssl().truststore().type() : "PEM");
+        cfg.put("ssl.truststore.location",
+                props.properties().ssl().truststore().location() != null ? props.properties().ssl().truststore().location() : "docker/kafka-ca.pem");
+        cfg.put("acks", props.producer().acks() != null ? props.producer().acks() : "1");
         cfg.put("retries", props.producer().retries());
         return new DefaultKafkaProducerFactory<>(cfg, new StringSerializer(), new JsonSerializer<>());
     }
