@@ -27,7 +27,7 @@ public class WgsEventsProducer {
      */
     public void publishGradeSubmission(GradeSubmissionPayload payload) {
         WgsEvent<GradeSubmissionPayload> event = WgsEvent.of(WgsEventAction.GRADE_SUBMISSION, payload);
-        kafkaTemplate.send(topic, payload.submissionId().toString(), event);
-        log.info("Published GRADE_SUBMISSION: submissionId={}, topic={}", payload.submissionId(), topic);
+        kafkaTemplate.send(topic, payload.getSubmissionId().toString(), event);
+        log.info("Published GRADE_SUBMISSION: submissionId={}, topic={}", payload.getSubmissionId(), topic);
     }
 }

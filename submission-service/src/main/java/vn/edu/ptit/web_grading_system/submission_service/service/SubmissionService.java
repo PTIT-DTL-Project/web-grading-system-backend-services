@@ -1,7 +1,6 @@
 package vn.edu.ptit.web_grading_system.submission_service.service;
 
 import jakarta.persistence.EntityManager;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.ptit.web_grading_system.submission_service.config.SubmissionProperties;
@@ -20,7 +19,6 @@ import vn.edu.ptit.web_grading_system.submission_service.entities.Submission;
 import vn.edu.ptit.web_grading_system.submission_service.entities.SubmissionStatus;
 import vn.edu.ptit.web_grading_system.submission_service.repositories.SubmissionRepository;
 
-import java.io.InputStream;
 import java.util.List;
 import java.util.UUID;
 
@@ -77,17 +75,6 @@ public class SubmissionService {
     }
 
     @Transactional
-    public void handleUploadComplete(UUID submissionId) {
-        Submission submission = submissionRepository.findById(submissionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + submissionId));
-        SubmissionStatus previous = submission.getStatus();
-        submission.setStatus(SubmissionStatus.PENDING);
-        submissionRepository.save(submission);
-        log.info("Upload confirmed by FE: id={}", submissionId);
-        publishGradingIfNotStarted(submission, previous);
-    }
-
-    @Transactional
     public void handleUploadComplete(String objectName) {
         Submission submission = submissionRepository.findByRustfsPath(objectName)
                 .orElse(null);
@@ -98,9 +85,14 @@ public class SubmissionService {
         }
 
         SubmissionStatus previous = submission.getStatus();
-        submission.setStatus(SubmissionStatus.PENDING);
-        submissionRepository.save(submission);
-        log.info("Upload confirmed by webhook: id={}, objectName={}", submission.getId(), objectName);
+        if (previous == null || previous == SubmissionStatus.PENDING) {
+            submission.setStatus(SubmissionStatus.PENDING);
+            submissionRepository.save(submission);
+            log.info("Upload confirmed by webhook: id={}, objectName={}", submission.getId(), objectName);
+        } else {
+            // Late/duplicate delivery after grading moved on — never regress the status.
+            log.info("Webhook ignored, submission already {}: id={}", previous, submission.getId());
+        }
         publishGradingIfNotStarted(submission, previous);
     }
 
@@ -157,29 +149,5 @@ public class SubmissionService {
         submission.setStatus(SubmissionStatus.valueOf(status));
         submissionRepository.save(submission);
         log.info("Submission status updated: id={}, status={}", id, status);
-    }
-
-    public String getDownloadUrl(UUID id) {
-        Submission submission = submissionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + id));
-        return rustfsService.generatePresignedDownloadUrl(submission.getRustfsPath());
-    }
-
-    public void streamDownload(UUID id, HttpServletResponse response) {
-        Submission submission = submissionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + id));
-
-        String fileName = submission.getZipFileName() != null ? submission.getZipFileName() : id + ".zip";
-        response.setHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
-        response.setContentType("application/zip");
-
-        try (InputStream is = rustfsService.getObject(submission.getRustfsPath())) {
-            is.transferTo(response.getOutputStream());
-            response.flushBuffer();
-            log.info("File streamed: submissionId={}, fileName={}", id, fileName);
-        } catch (Exception e) {
-            log.error("Failed to stream file for submission: {}", id, e);
-            throw new RuntimeException("Failed to stream file", e);
-        }
     }
 }

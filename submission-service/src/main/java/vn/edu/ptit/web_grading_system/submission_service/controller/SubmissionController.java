@@ -1,17 +1,13 @@
 package vn.edu.ptit.web_grading_system.submission_service.controller;
 
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import vn.edu.ptit.web_grading_system.submission_service.dto.request.UpdateStatusRequest;
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.PresignedUrlResponse;
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.SubmissionResponse;
 import vn.edu.ptit.web_grading_system.submission_service.service.SubmissionService;
@@ -45,17 +41,9 @@ public class SubmissionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @PostMapping("/{id}/confirm")
-    @ApiMessage("Upload confirmed")
-    public ResponseEntity<Void> confirmUpload(@PathVariable UUID id) {
-        log.info("Upload confirmed by FE: submissionId={}", id);
-        submissionService.handleUploadComplete(id);
-        return ResponseEntity.ok().build();
-    }
-
     @GetMapping
     public ResponseEntity<Page<SubmissionResponse>> listMySubmissions(
-            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String studentId,
+            @RequestHeader("X-User-Id") String studentId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, size);
@@ -71,26 +59,6 @@ public class SubmissionController {
     public ResponseEntity<List<SubmissionResponse>> listByAssignment(
             @PathVariable UUID assignmentId) {
         return ResponseEntity.ok(submissionService.listByAssignment(assignmentId));
-    }
-
-    @GetMapping("/{id}/download")
-    public ResponseEntity<Map<String, String>> getDownloadUrl(@PathVariable UUID id) {
-        String url = submissionService.getDownloadUrl(id);
-        return ResponseEntity.ok(Map.of("downloadUrl", url));
-    }
-
-    @GetMapping(value = "/{id}/download/file", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
-    public void downloadFile(@PathVariable UUID id, HttpServletResponse response) {
-        submissionService.streamDownload(id, response);
-    }
-
-    @PutMapping("/{id}/status")
-    @ApiMessage("Submission status updated")
-    public ResponseEntity<Void> updateStatus(
-            @PathVariable UUID id,
-            @RequestBody @Valid UpdateStatusRequest request) {
-        submissionService.updateStatus(id, request.getStatus());
-        return ResponseEntity.noContent().build();
     }
 
     /**
