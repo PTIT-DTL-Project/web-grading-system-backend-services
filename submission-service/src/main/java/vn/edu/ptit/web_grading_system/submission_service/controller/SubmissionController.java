@@ -1,6 +1,5 @@
 package vn.edu.ptit.web_grading_system.submission_service.controller;
 
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -9,7 +8,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import vn.edu.ptit.web_grading_system.submission_service.dto.request.UpdateStatusRequest;
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.PresignedUrlResponse;
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.SubmissionResponse;
 import vn.edu.ptit.web_grading_system.submission_service.service.SubmissionService;
@@ -61,15 +59,6 @@ public class SubmissionController {
     public ResponseEntity<List<SubmissionResponse>> listByAssignment(
             @PathVariable UUID assignmentId) {
         return ResponseEntity.ok(submissionService.listByAssignment(assignmentId));
-    }
-
-    @PutMapping("/{id}/status")
-    @ApiMessage("Submission status updated")
-    public ResponseEntity<Void> updateStatus(
-            @PathVariable UUID id,
-            @RequestBody @Valid UpdateStatusRequest request) {
-        submissionService.updateStatus(id, request.getStatus());
-        return ResponseEntity.noContent().build();
     }
 
     /**
