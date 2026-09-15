@@ -50,12 +50,10 @@ public class StepResult extends BaseEntity {
     @Builder.Default
     private BigDecimal score = BigDecimal.ZERO;
 
-    @Column(name = "actual_value", columnDefinition = "jsonb")
-    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "actual_value", columnDefinition = "text")
     private String actualValue;
 
-    @Column(name = "expected_value", columnDefinition = "jsonb")
-    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "expected_value", columnDefinition = "text")
     private String expectedValue;
 
     @Column(name = "error_message")

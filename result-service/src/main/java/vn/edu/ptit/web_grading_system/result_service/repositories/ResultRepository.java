@@ -12,4 +12,11 @@ import java.util.UUID;
 public interface ResultRepository extends JpaRepository<Result, UUID> {
 
     List<Result> findByAssignmentIdInAndStudentIdAndLatestTrue(Collection<UUID> assignmentIds, UUID studentId);
+
+    List<Result> findBySubmissionId(UUID submissionId);
+    List<Result> findByStudentIdAndAssignmentIdAndPlanIdAndLatestTrue(
+            UUID studentId, UUID assignmentId, UUID planId);
+
+    List<Result> findByStudentIdAndAssignmentIdAndPlanIdIsNullAndLatestTrue(
+            UUID studentId, UUID assignmentId);
 }

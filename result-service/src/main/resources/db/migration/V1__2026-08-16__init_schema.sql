@@ -39,7 +39,6 @@ CREATE TABLE IF NOT EXISTS step_results (
     step_order INT NOT NULL,
     step_name VARCHAR(255) NOT NULL,
     step_type VARCHAR(50) NOT NULL,
-    passed BOOLEAN NOT NULL,
     weight INT NOT NULL DEFAULT 1,
     score DECIMAL(5,2) NOT NULL DEFAULT 0,
     actual_value JSONB,
