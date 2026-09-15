@@ -65,7 +65,7 @@ class HttpLoggingFilterTest {
         assertEquals("{\"name\":\"x\"}", logged.getRequestBody());
         assertEquals(201, logged.getStatusCode());
         assertEquals("{\"ok\":true}", logged.getResponseBody());
-        assertTrue(logged.getDurationMs() >= 0);
+        assertTrue(logged.getDurationMs() > 0);
         // Response body must reach the client.
         assertTrue(response.getContentAsByteArray().length > 0);
     }
