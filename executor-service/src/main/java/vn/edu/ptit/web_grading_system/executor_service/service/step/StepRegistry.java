@@ -1,5 +1,6 @@
 package vn.edu.ptit.web_grading_system.executor_service.service.step;
 
+import vn.edu.ptit.web_grading_system.executor_service.Constant;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -12,19 +13,22 @@ import java.util.stream.Collectors;
  * implementing {@link StepExecutor}; it registers itself automatically.
  */
 @Component
-public class StepRegistry {
-
+public class StepRegistry
+{
     private final Map<String, StepExecutor> executors;
 
-    public StepRegistry(List<StepExecutor> executors) {
+    public StepRegistry(List<StepExecutor> executors)
+    {
         this.executors = executors.stream()
                 .collect(Collectors.toUnmodifiableMap(StepExecutor::type, Function.identity()));
     }
 
-    public StepExecutor of(String type) {
+    public StepExecutor of(String type)
+    {
         StepExecutor executor = executors.get(type);
-        if (executor == null) {
-            throw new IllegalArgumentException("Unknown step type: " + type);
+        if (executor == null)
+        {
+            throw new IllegalStateException(Constant.Message.UNKNOWN_STEP_TYPE + type);
         }
         return executor;
     }

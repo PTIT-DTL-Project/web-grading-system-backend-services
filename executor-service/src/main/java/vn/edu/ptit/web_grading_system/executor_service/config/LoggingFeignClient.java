@@ -35,7 +35,7 @@ public class LoggingFeignClient implements Client {
                 return response;
             }
             byte[] responseBody = response.body() == null ? null : response.body().asInputStream().readAllBytes();
-            saveLog(request, response.status(), responseBody, System.currentTimeMillis() - start);
+            saveLog(request, response, responseBody, System.currentTimeMillis() - start);
             return response.toBuilder().body(responseBody).build();
         } catch (IOException e) {
             saveLog(request, null, null, System.currentTimeMillis() - start);
@@ -58,7 +58,7 @@ public class LoggingFeignClient implements Client {
         return null;
     }
 
-    private void saveLog(Request request, Integer statusCode, byte[] responseBody, long durationMs) {
+    private void saveLog(Request request, Response response, byte[] responseBody, long durationMs) {
         try {
             HttpLog httpLog = HttpLog.builder()
                     .serviceName(serviceName)
@@ -68,7 +68,8 @@ public class LoggingFeignClient implements Client {
                     .port(portOf(request.url()))
                     .requestHeaders(httpLogService.headersToJson(request.headers()))
                     .requestBody(httpLogService.truncate(request.body()))
-                    .statusCode(statusCode)
+                    .statusCode(response == null ? null : response.status())
+                    .responseHeaders(response == null ? null : httpLogService.headersToJson(response.headers()))
                     .responseBody(httpLogService.truncate(responseBody))
                     .durationMs((int) durationMs)
                     .build();

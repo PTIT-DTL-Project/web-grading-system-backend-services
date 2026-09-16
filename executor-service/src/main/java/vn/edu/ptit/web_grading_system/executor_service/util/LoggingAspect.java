@@ -1,5 +1,7 @@
 package vn.edu.ptit.web_grading_system.executor_service.util;
 
+import vn.edu.ptit.web_grading_system.executor_service.Constant;
+
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -45,8 +47,8 @@ public class LoggingAspect {
     private boolean isNoise(ProceedingJoinPoint pjp) {
         String cls = pjp.getSignature().getDeclaringType().getSimpleName();
         String method = pjp.getSignature().getName();
-        return cls.startsWith("HttpLog") || cls.equals("OpenApiConfig")
-                || method.equals("health") || method.equals("version");
+        return cls.startsWith(Constant.Logstash.HTTP_LOG) || cls.equals(Constant.Logstash.OPEN_API_CONFIG)
+                || method.equals(Constant.Logstash.HEALTH) || method.equals(Constant.Logstash.VERSION);
     }
 
     private String summarize(Object[] args) {
@@ -68,7 +70,7 @@ public class LoggingAspect {
             return "file=" + f.getOriginalFilename() + "(" + f.getSize() + "B)";
         }
         if (a == null) {
-            return "null";
+            return Constant.Logstash.NULL;
         }
         String s = String.valueOf(a);
         return s.length() > MAX_ARG_LENGTH ? s.substring(0, MAX_ARG_LENGTH) + "..." : s;

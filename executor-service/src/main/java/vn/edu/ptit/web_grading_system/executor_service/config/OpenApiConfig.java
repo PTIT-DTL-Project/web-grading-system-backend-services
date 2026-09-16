@@ -1,9 +1,11 @@
 package vn.edu.ptit.web_grading_system.executor_service.config;
 
+
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import vn.edu.ptit.web_grading_system.executor_service.Constant;
 
 /**
  * When Keycloak resource-server security is wired in, permit docs paths:
@@ -16,7 +18,7 @@ public class OpenApiConfig {
     public OpenAPI openAPI() {
         return new OpenAPI().info(new Info()
                 .title("Executor Service API")
-                .version("v1")
+                .version(Constant.Logstash.API_V1)
                 .description("Grading job execution"));
     }
 }

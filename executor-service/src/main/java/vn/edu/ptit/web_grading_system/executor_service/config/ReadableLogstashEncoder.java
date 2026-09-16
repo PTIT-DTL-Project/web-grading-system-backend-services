@@ -3,6 +3,7 @@ package vn.edu.ptit.web_grading_system.executor_service.config;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import vn.edu.ptit.web_grading_system.executor_service.Constant;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator;
@@ -11,8 +12,8 @@ import net.logstash.logback.encoder.LogstashEncoder;
 public class ReadableLogstashEncoder extends LogstashEncoder {
 
     private boolean isReadable() {
-        String env = getContext() != null ? getContext().getProperty("APP_ENV") : "local";
-        return env == null || env.isBlank() || "local".equals(env) || "default".equals(env);
+        String env = getContext() != null ? getContext().getProperty(Constant.Logstash.APP_ENV) : Constant.Logstash.LOCAL;
+        return env == null || env.isBlank() || Constant.Logstash.LOCAL.equals(env) || Constant.Logstash.DEFAULT.equals(env);
     }
 
     @Override
@@ -29,8 +30,8 @@ public class ReadableLogstashEncoder extends LogstashEncoder {
         if (!isReadable()) {
             return json;
         }
-        String readable = unescapeField(new String(json, StandardCharsets.UTF_8), "message");
-        readable = unescapeField(readable, "stack_trace");
+        String readable = unescapeField(new String(json, StandardCharsets.UTF_8), Constant.Logstash.MESSAGE);
+        readable = unescapeField(readable, Constant.Logstash.STACK_TRACE);
         return readable.getBytes(StandardCharsets.UTF_8);
     }
 

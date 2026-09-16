@@ -9,13 +9,16 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.stereotype.Component;
+import vn.edu.ptit.web_grading_system.executor_service.Constant;
 import vn.edu.ptit.web_grading_system.executor_service.util.GsonStructureComparator;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class AssertionEngine {
-
+@Component
+public class AssertionEngine
+{
     private final Gson gson = new Gson();
     private final Configuration jsonPathConfig = Configuration.builder()
             .options(Option.SUPPRESS_EXCEPTIONS)
@@ -25,7 +28,8 @@ public class AssertionEngine {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class AssertionDetail {
+    public static class AssertionDetail
+    {
         private String kind;
         private Object expected;
         private Object actual;
@@ -33,120 +37,140 @@ public class AssertionEngine {
         private String message;
     }
 
-    /**
-     * Evaluate HTTP assertions from config.
-     * config is the step's config JsonNode (parsed), actualBody is response body string.
-     */
-    public List<AssertionDetail> evaluateHttp(int actualStatus, String actualBody, tools.jackson.databind.JsonNode config) {
+    public List<AssertionDetail> evaluateHttp(int actualStatus, String actualBody,
+            tools.jackson.databind.JsonNode config)
+    {
         List<AssertionDetail> results = new ArrayList<>();
-        if (config == null) {
+        if (config == null)
+        {
             return results;
         }
 
-        // expected_status check
-        if (config.hasNonNull("expected_status")) {
-            int expected = config.get("expected_status").asInt();
+        if (config.hasNonNull(Constant.HttpStep.EXPECTED_STATUS))
+        {
+            int expected = config.get(Constant.HttpStep.EXPECTED_STATUS).asInt();
             boolean passed = actualStatus == expected;
             results.add(AssertionDetail.builder()
-                    .kind("status")
+                    .kind(Constant.Assertion.TEXT + "")
                     .expected(expected)
                     .actual(actualStatus)
                     .passed(passed)
-                    .message(passed ? "status matched" : "Expected status " + expected + " but got " + actualStatus)
+                    .message(passed ? Constant.Message.STATUS_MATCHED : "Expected status " + expected + " but got " + actualStatus)
                     .build());
         }
 
-        if (!config.hasNonNull("assertions") || !config.get("assertions").isArray()) {
+        if (!config.hasNonNull(Constant.Assertion.ASSERTIONS) || !config.get(Constant.Assertion.ASSERTIONS).isArray())
+        {
             return results;
         }
 
-        for (tools.jackson.databind.JsonNode assertion : config.get("assertions")) {
-            String kind = assertion.path("kind").asText("");
-            AssertionDetail detail = switch (kind) {
-                case "status" -> checkStatus(assertion, actualStatus);
-                case "contains" -> checkContains(assertion, actualBody);
-                case "json_path" -> checkJsonPath(assertion, actualBody);
-                case "body_equals" -> checkBodyEquals(assertion, actualBody);
-                case "body_structure" -> checkBodyStructure(assertion, actualBody);
+        for (tools.jackson.databind.JsonNode assertion : config.get(Constant.Assertion.ASSERTIONS))
+        {
+            String kind = assertion.path(Constant.Assertion.KIND).asString();
+            AssertionDetail detail = switch (kind)
+            {
+                case Constant.Assertion.STATUS -> checkStatus(assertion, actualStatus);
+                case Constant.Assertion.CONTAINS -> checkContains(assertion, actualBody);
+                case Constant.Assertion.JSON_PATH -> checkJsonPath(assertion, actualBody);
+                case Constant.Assertion.BODY_EQUALS -> checkBodyEquals(assertion, actualBody);
+                case Constant.Assertion.BODY_STRUCTURE -> checkBodyStructure(assertion, actualBody);
                 default -> AssertionDetail.builder()
                         .kind(kind).passed(false)
-                        .message("Unknown assertion kind: " + kind).build();
+                        .message(Constant.Message.UNKNOWN_ASSERTION_KIND_PREFIX + kind).build();
             };
             results.add(detail);
         }
         return results;
     }
 
-    private AssertionDetail checkStatus(tools.jackson.databind.JsonNode assertion, int actualStatus) {
-        int expected = assertion.path("equals").asInt();
+    private AssertionDetail checkStatus(tools.jackson.databind.JsonNode assertion, int actualStatus)
+    {
+        int expected = assertion.path(Constant.Assertion.EQUALS).asInt();
         boolean passed = actualStatus == expected;
         return AssertionDetail.builder()
-                .kind("status").expected(expected).actual(actualStatus).passed(passed)
-                .message(passed ? "status matched" : "Expected status " + expected + " but got " + actualStatus)
+                .kind(Constant.Assertion.TEXT + "").expected(expected).actual(actualStatus).passed(passed)
+                .message(passed ? Constant.Message.STATUS_MATCHED : "Expected status " + expected + " but got " + actualStatus)
                 .build();
     }
 
-    private AssertionDetail checkContains(tools.jackson.databind.JsonNode assertion, String actualBody) {
-        String text = assertion.path("text").asText("");
+    private AssertionDetail checkContains(tools.jackson.databind.JsonNode assertion, String actualBody)
+    {
+        String text = assertion.path(Constant.Assertion.TEXT).asString();
         boolean passed = actualBody != null && actualBody.contains(text);
         return AssertionDetail.builder()
-                .kind("contains").expected(text).actual(actualBody).passed(passed)
-                .message(passed ? "body contains '" + text + "'" : "Body does not contain '" + text + "'")
+                .kind(Constant.Assertion.CONTAINS).expected(text).actual(actualBody).passed(passed)
+                .message(passed ? Constant.Message.BODY_CONTAINS_PREFIX + text + Constant.Message.BODY_CONTAINS_SUFFIX : Constant.Message.BODY_DOES_NOT_CONTAIN_PREFIX + text + Constant.Message.BODY_DOES_NOT_CONTAIN_SUFFIX)
                 .build();
     }
 
-    private AssertionDetail checkJsonPath(tools.jackson.databind.JsonNode assertion, String actualBody) {
-        String path = assertion.path("path").asText("");
-        boolean shouldExist = !assertion.has("exists") || assertion.get("exists").asBoolean(true);
-        try {
+    private AssertionDetail checkJsonPath(tools.jackson.databind.JsonNode assertion, String actualBody)
+    {
+        String path = assertion.path(Constant.Assertion.PATH).asString();
+        boolean shouldExist = !assertion.has(Constant.Assertion.EXISTS) || assertion.get(Constant.Assertion.EXISTS).asBoolean(true);
+        try
+        {
             Object result = JsonPath.using(jsonPathConfig).parse(actualBody == null ? "{}" : actualBody).read(path);
             boolean exists = result != null && (!(result instanceof List) || !((List<?>) result).isEmpty());
             boolean passed = exists == shouldExist;
             return AssertionDetail.builder()
-                    .kind("json_path").expected(path).actual(result).passed(passed)
-                    .message(passed ? "json_path '" + path + "' existence matched"
-                            : "JSONPath '" + path + "' expected exists=" + shouldExist + " but was " + exists)
+                    .kind(Constant.Assertion.JSON_PATH).expected(path).actual(result).passed(passed)
+                    .message(passed ? Constant.Message.JSON_PATH_EXISTENCE_MATCHED_PREFIX + path + Constant.Message.JSON_PATH_EXISTENCE_MATCHED_MIDDLE : Constant.Message.JSON_PATH_EXPECTED_EXISTS_PREFIX + path + Constant.Message.JSON_PATH_EXPECTED_EXISTS_MIDDLE + shouldExist + " but was " + exists)
                     .build();
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             boolean passed = !shouldExist;
             return AssertionDetail.builder()
-                    .kind("json_path").expected(path).actual(null).passed(passed)
-                    .message(passed ? "json_path correctly not found" : "JSONPath error: " + e.getMessage())
+                    .kind(Constant.Assertion.JSON_PATH).expected(path).actual(null).passed(passed)
+                    .message(passed ? Constant.Message.JSON_PATH_CORRECTLY_NOT_FOUND : Constant.Message.JSON_PATH_ERROR_PREFIX + e.getMessage())
                     .build();
         }
     }
 
-    private AssertionDetail checkBodyEquals(tools.jackson.databind.JsonNode assertion, String actualBody) {
-        String expectedJson = assertion.path("json").toString();
-        try {
-            JsonElement actualEl = gson.fromJson(actualBody == null ? "null" : actualBody, JsonElement.class);
+    private AssertionDetail checkBodyEquals(tools.jackson.databind.JsonNode assertion, String actualBody)
+    {
+        String expectedJson = assertion.path(Constant.Assertion.JSON).toString();
+        try
+        {
+            JsonElement actualEl = gson.fromJson(actualBody == null ? Constant.Assertion.NULL_JSON : actualBody, JsonElement.class);
             JsonElement expectedEl = gson.fromJson(expectedJson, JsonElement.class);
             boolean passed = expectedEl.equals(actualEl);
             return AssertionDetail.builder()
-                    .kind("body_equals").expected(expectedEl).actual(actualEl).passed(passed)
-                    .message(passed ? "body equals matched" : "Body not equal. Expected: " + expectedJson)
+                    .kind(Constant.Assertion.BODY_EQUALS).expected(expectedEl).actual(actualEl).passed(passed)
+                    .message(passed ? Constant.Message.BODY_EQUALS_MATCHED : Constant.Message.BODY_NOT_EQUAL_PREFIX + expectedJson)
                     .build();
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             return AssertionDetail.builder()
-                    .kind("body_equals").passed(false)
-                    .message("body_equals parse error: " + e.getMessage()).build();
+                    .kind(Constant.Assertion.BODY_EQUALS).passed(false)
+                    .message(Constant.Message.BODY_EQUALS_PARSE_ERROR_PREFIX + e.getMessage()).build();
         }
     }
 
-    private AssertionDetail checkBodyStructure(tools.jackson.databind.JsonNode assertion, String actualBody) {
-        String expectedJson = assertion.path("json").toString();
-        try {
-            JsonElement actualEl = gson.fromJson(actualBody == null ? "null" : actualBody, JsonElement.class);
+    private AssertionDetail checkBodyStructure(tools.jackson.databind.JsonNode assertion, String actualBody)
+    {
+        String expectedJson = assertion.path(Constant.Assertion.JSON).toString();
+        try
+        {
+            JsonElement actualEl = gson.fromJson(actualBody == null ? Constant.Assertion.NULL_JSON : actualBody, JsonElement.class);
             JsonElement expectedEl = gson.fromJson(expectedJson, JsonElement.class);
             boolean passed = GsonStructureComparator.sameStructure(expectedEl, actualEl);
             return AssertionDetail.builder()
-                    .kind("body_structure").expected(expectedEl).actual(actualEl).passed(passed)
-                    .message(passed ? "body structure matched" : "Body structure mismatch. Expected keys: " + expectedJson)
+                    .kind(Constant.Assertion.BODY_STRUCTURE).expected(expectedEl).actual(actualEl).passed(passed)
+                    .message(passed ? Constant.Message.BODY_STRUCTURE_MATCHED : Constant.Message.BODY_STRUCTURE_MISMATCH_PREFIX + expectedJson)
                     .build();
-        } catch (Exception e) {
-            return AssertionDetail.builder()
-                    .kind("body_structure").passed(false)
-                    .message("body_structure parse error: " + e.getMessage()).build();
         }
+        catch (Exception e)
+        {
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.BODY_STRUCTURE).passed(false)
+                    .message(Constant.Message.BODY_STRUCTURE_PARSE_ERROR_PREFIX + e.getMessage()).build();
+        }
+    }
+
+    private static String safeMessage(Exception e)
+    {
+        return e.getMessage() != null ? e.getMessage() : e.toString();
     }
 }
