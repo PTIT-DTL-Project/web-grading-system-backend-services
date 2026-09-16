@@ -7,9 +7,11 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import vn.edu.ptit.web_grading_system.executor_service.event.EventHandler;
+import vn.edu.ptit.web_grading_system.executor_service.Constant;
 import vn.edu.ptit.web_grading_system.executor_service.event.WgsEventAction;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -36,9 +38,9 @@ public class WgsEventsConsumer {
     public void consume(ConsumerRecord<String, String> record) {
         try {
             JsonNode root = objectMapper.readTree(record.value());
-            String action = root.path("action").asText(null);
-            String traceId = root.path("traceId").asText(null);
-            JsonNode payload = root.path("payload");
+            String action = Optional.ofNullable(root.path(Constant.Event.ACTION).asString()).filter(s -> !s.isEmpty()).orElse(null);
+            String traceId = Optional.ofNullable(root.path(Constant.Event.TRACE_ID).asString()).filter(s -> !s.isEmpty()).orElse(null);
+            JsonNode payload = root.path(Constant.Event.PAYLOAD);
 
             WgsEventAction parsed = WgsEventAction.fromString(action);
             EventHandler handler = handlers.get(parsed);

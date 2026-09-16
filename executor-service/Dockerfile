@@ -1,6 +1,8 @@
 FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /build
-COPY mvnw .
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH=$JAVA_HOME/bin:$PATH
+COPY --chmod=755 mvnw .
 COPY .mvn .mvn
 COPY pom.xml .
 COPY src ./src
@@ -8,6 +10,8 @@ RUN ./mvnw clean package -DskipTests
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH=$JAVA_HOME/bin:$PATH
 COPY --from=builder /build/target/*.jar app.jar
 # Pyroscope agent disabled (no observability) — uncomment to re-enable
 # ADD https://repo1.maven.org/maven2/io/pyroscope/agent/2.1.2/agent-2.1.2.jar /app/pyroscope.jar
