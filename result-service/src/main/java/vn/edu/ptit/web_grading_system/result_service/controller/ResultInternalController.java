@@ -1,8 +1,11 @@
 package vn.edu.ptit.web_grading_system.result_service.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import vn.edu.ptit.web_grading_system.result_service.dto.request.CreateResultRequest;
 import vn.edu.ptit.web_grading_system.result_service.service.ResultService;
 
 import java.math.BigDecimal;
@@ -17,14 +20,6 @@ public class ResultInternalController {
 
     private final ResultService resultService;
 
-    @PostMapping("/average")
-    public ResponseEntity<Map<String, BigDecimal>> average(
-            @RequestBody AverageRequest request) {
-        BigDecimal average = resultService.averageBand10(request.assignmentIds(), request.studentId());
-        // average is null when the student has no results — Map.of would NPE
-        return ResponseEntity.ok(java.util.Collections.singletonMap("average", average));
-    }
-
     public record AverageRequest(List<UUID> assignmentIds, UUID studentId) {
     }
 
@@ -33,5 +28,12 @@ public class ResultInternalController {
             @RequestBody AverageRequest request) {
         BigDecimal weighted = resultService.weightedScoreByPlan(request.assignmentIds(), request.studentId());
         return ResponseEntity.ok(java.util.Collections.singletonMap("average", weighted));
+    }
+
+    @PostMapping
+    public ResponseEntity<Map<String, UUID>> create(@Valid @RequestBody CreateResultRequest request) {
+        UUID id = resultService.createResult(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(java.util.Collections.singletonMap("id", id));
     }
 }

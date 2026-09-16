@@ -1,0 +1,5 @@
+-- Idempotent no-op. V1__2026-08-16__init_schema.sql now defines
+-- step_results.passed BOOLEAN NOT NULL and the idx_step_results_passed
+-- index at byte-identical baseline content, so Flyway validation
+-- (default on) matches any already-migrated schema_history.
+-- No DDL is needed here; V4 stays as a no-op marker in the chain.

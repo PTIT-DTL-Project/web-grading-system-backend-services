@@ -11,22 +11,41 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 class ResultInternalControllerTest {
 
     @Test
-    void average_nullResult_returnsNullValue_withoutNpe() {
+    void weighted_nullResult_returnsNullValue_withoutNpe() {
         ResultService service = Mockito.mock(ResultService.class);
         UUID student = UUID.randomUUID();
-        Mockito.when(service.averageBand10(Mockito.any(), Mockito.eq(student))).thenReturn(null);
+        Mockito.when(service.weightedScoreByPlan(Mockito.any(), Mockito.eq(student))).thenReturn(null);
 
         ResponseEntity<Map<String, BigDecimal>> response =
-                new ResultInternalController(service).average(
+                new ResultInternalController(service).weighted(
                         new ResultInternalController.AverageRequest(List.of(UUID.randomUUID()), student));
 
         assertEquals(200, response.getStatusCode().value());
-        assertNull(response.getBody().get("average")); // Map.of would have NPE'd here
+        assertEquals(null, response.getBody().get("average")); // Map.of would have NPE'd here
+    }
+
+    @Test
+    void create_returns201WithId() {
+        ResultService service = Mockito.mock(ResultService.class);
+        UUID id = UUID.randomUUID();
+        Mockito.when(service.createResult(Mockito.any())).thenReturn(id);
+
+        vn.edu.ptit.web_grading_system.result_service.dto.request.CreateResultRequest request =
+                vn.edu.ptit.web_grading_system.result_service.dto.request.CreateResultRequest.builder()
+                        .submissionId(UUID.randomUUID())
+                        .assignmentId(UUID.randomUUID())
+                        .studentId(UUID.randomUUID())
+                        .score(BigDecimal.TEN)
+                        .status("DONE")
+                        .build();
+
+        ResponseEntity<Map<String, UUID>> response = new ResultInternalController(service).create(request);
+
+        assertEquals(201, response.getStatusCode().value());
+        assertEquals(id, response.getBody().get("id"));
     }
 }
