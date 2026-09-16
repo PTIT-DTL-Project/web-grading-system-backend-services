@@ -34,13 +34,9 @@ public class ResultController {
             @RequestHeader(value = "X-User-Id", required = false) String xUserId) {
         List<ResultResponse> results = resultService.getBySubmissionId(submissionId);
         if (xUserId != null && !results.isEmpty()) {
-            UUID callerId;
-            try {
-                callerId = UUID.fromString(xUserId);
-            } catch (IllegalArgumentException ignored) {
-                return ResponseEntity.ok(results);
-            }
-            if (!results.get(0).getStudentId().equals(callerId)) {
+            UUID callerId = UUID.fromString(xUserId);
+            boolean allMatch = results.stream().allMatch(r -> r.getStudentId().equals(callerId));
+            if (!allMatch) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not owner of submission");
             }
         }

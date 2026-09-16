@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS step_results (
 );
 
 CREATE INDEX IF NOT EXISTS idx_step_results_result ON step_results(result_id);
--- idx_step_results_passed moved to V4 after passed column is added
+CREATE INDEX IF NOT EXISTS idx_step_results_passed ON step_results(passed);
 
 -- ============================================================
 -- manual_scores
