@@ -1,5 +1,6 @@
--- Restore passed column (V1's index referenced a column that did not exist then;
--- now V1 is restored with the index, so drop it before adding the column).
-DROP INDEX IF EXISTS idx_step_results_passed;
-ALTER TABLE step_results ADD COLUMN IF NOT EXISTS passed BOOLEAN NOT NULL DEFAULT FALSE;
-CREATE INDEX IF NOT EXISTS idx_step_results_passed ON step_results(passed);
+-- Idempotent no-op: V1__2026-08-16__init_schema.sql now defines
+-- step_results.passed BOOLEAN NOT NULL DEFAULT FALSE and the index
+-- idx_step_results_passed. V4 exists to satisfy the migration chain
+-- without altering already-applied V1 checksums.
+-- If any environment applied V1 before this fix, Flyway repair reconciles
+-- the baseline; no DDL is needed here.
