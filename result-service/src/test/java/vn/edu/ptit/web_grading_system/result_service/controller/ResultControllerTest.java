@@ -2,15 +2,16 @@ package vn.edu.ptit.web_grading_system.result_service.controller;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.server.ResponseStatusException;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.ResultResponse;
 import vn.edu.ptit.web_grading_system.result_service.service.ResultService;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
