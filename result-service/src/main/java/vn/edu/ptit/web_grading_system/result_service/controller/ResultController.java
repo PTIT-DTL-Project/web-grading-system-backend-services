@@ -1,11 +1,14 @@
 package vn.edu.ptit.web_grading_system.result_service.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.ResultResponse;
 import vn.edu.ptit.web_grading_system.result_service.service.ResultService;
 import vn.edu.ptit.web_grading_system.result_service.util.annotation.ApiMessage;
@@ -27,7 +30,20 @@ public class ResultController {
     @GetMapping("/{submissionId}")
     @ApiMessage("Results fetched")
     public ResponseEntity<List<ResultResponse>> getBySubmission(
-            @PathVariable UUID submissionId) {
-        return ResponseEntity.ok(resultService.getBySubmissionId(submissionId));
+            @PathVariable UUID submissionId,
+            @RequestHeader(value = "X-User-Id", required = false) String xUserId) {
+        List<ResultResponse> results = resultService.getBySubmissionId(submissionId);
+        if (xUserId != null && !results.isEmpty()) {
+            UUID callerId;
+            try {
+                callerId = UUID.fromString(xUserId);
+            } catch (IllegalArgumentException ignored) {
+                return ResponseEntity.ok(results);
+            }
+            if (!results.get(0).getStudentId().equals(callerId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not owner of submission");
+            }
+        }
+        return ResponseEntity.ok(results);
     }
 }

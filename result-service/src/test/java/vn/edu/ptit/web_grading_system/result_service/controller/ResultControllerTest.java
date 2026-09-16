@@ -26,7 +26,7 @@ class ResultControllerTest {
         Mockito.when(service.getBySubmissionId(submissionId)).thenReturn(payload);
 
         ResponseEntity<List<ResultResponse>> response =
-                new ResultController(service).getBySubmission(submissionId);
+                new ResultController(service).getBySubmission(submissionId, null);
 
         assertEquals(200, response.getStatusCode().value());
         assertEquals(payload, response.getBody());
@@ -39,7 +39,7 @@ class ResultControllerTest {
         Mockito.when(service.getBySubmissionId(submissionId)).thenReturn(List.of());
 
         ResponseEntity<List<ResultResponse>> response =
-                new ResultController(service).getBySubmission(submissionId);
+                new ResultController(service).getBySubmission(submissionId, null);
 
         assertEquals(200, response.getStatusCode().value());
         assertTrue(response.getBody().isEmpty());

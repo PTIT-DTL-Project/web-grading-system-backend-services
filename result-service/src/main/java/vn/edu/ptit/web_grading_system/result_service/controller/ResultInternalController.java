@@ -1,5 +1,6 @@
 package vn.edu.ptit.web_grading_system.result_service.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,7 +31,7 @@ public class ResultInternalController {
     }
 
     @PostMapping
-    public ResponseEntity<Map<String, UUID>> create(@RequestBody CreateResultRequest request) {
+    public ResponseEntity<Map<String, UUID>> create(@Valid @RequestBody CreateResultRequest request) {
         UUID id = resultService.createResult(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(java.util.Collections.singletonMap("id", id));

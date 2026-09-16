@@ -34,9 +34,16 @@ class ResultInternalControllerTest {
         UUID id = UUID.randomUUID();
         Mockito.when(service.createResult(Mockito.any())).thenReturn(id);
 
-        ResponseEntity<Map<String, UUID>> response = new ResultInternalController(service)
-                .create(Mockito.mock(
-                        vn.edu.ptit.web_grading_system.result_service.dto.request.CreateResultRequest.class));
+        vn.edu.ptit.web_grading_system.result_service.dto.request.CreateResultRequest request =
+                vn.edu.ptit.web_grading_system.result_service.dto.request.CreateResultRequest.builder()
+                        .submissionId(UUID.randomUUID())
+                        .assignmentId(UUID.randomUUID())
+                        .studentId(UUID.randomUUID())
+                        .score(BigDecimal.TEN)
+                        .status("DONE")
+                        .build();
+
+        ResponseEntity<Map<String, UUID>> response = new ResultInternalController(service).create(request);
 
         assertEquals(201, response.getStatusCode().value());
         assertEquals(id, response.getBody().get("id"));

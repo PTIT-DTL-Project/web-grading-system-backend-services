@@ -1,5 +1,8 @@
 package vn.edu.ptit.web_grading_system.result_service.dto.request;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,16 +17,21 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CreateResultRequest {
+    @NotNull
     private UUID submissionId;
+    @NotNull
     private UUID assignmentId;
+    @NotNull
     private UUID studentId;
+    @NotNull
+    private BigDecimal score;
     private UUID planId;
     private Integer planWeight;
-    private BigDecimal score;
     private BigDecimal maxScore;
     private String status;
     private String summaryLog;
-    private List<StepResultItem> stepResults;
+    @Valid
+    private List<@Valid StepResultItem> stepResults;
 
     @Data
     @Builder
@@ -32,7 +40,9 @@ public class CreateResultRequest {
     public static class StepResultItem {
         private UUID planId;
         private UUID stepId;
+        @NotNull
         private Integer stepOrder;
+        @NotBlank
         private String stepName;
         private String stepType;
         private Boolean passed;
