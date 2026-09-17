@@ -2,6 +2,7 @@ package vn.edu.ptit.web_grading_system.executor_service.event.handler;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.dao.DataIntegrityViolationException;
 import tools.jackson.databind.ObjectMapper;
 import vn.edu.ptit.web_grading_system.executor_service.entities.GradingJob;
@@ -89,5 +90,25 @@ class GradeSubmissionHandlerTest {
                 Mockito.any(), Mockito.eq(subId),
                 Mockito.any(), Mockito.any(), Mockito.isNull(), Mockito.isNull(),
                 Mockito.eq("reaper"));
+    }
+
+    @Test
+    void handle_saturatedPool_leavesJobPendingForReaper() throws Exception {
+        UUID subId = UUID.randomUUID();
+        String json = """
+                {"submissionId":"%s","assignmentId":"%s","studentId":"%s","planId":null}
+                """.formatted(subId, UUID.randomUUID(), UUID.randomUUID());
+        Mockito.when(jobRepo.save(Mockito.any())).thenAnswer(inv -> {
+            GradingJob j = inv.getArgument(0);
+            j.setId(UUID.randomUUID());
+            return j;
+        });
+        Mockito.doThrow(new TaskRejectedException("pool saturated")).when(orchestrator)
+                .gradeAsync(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(),
+                        Mockito.isNull(), Mockito.isNull(), Mockito.any());
+
+        assertDoesNotThrow(() -> handler.handle(mapper.readTree(json), "trace-4"));
+        Mockito.verify(jobRepo).save(Mockito.argThat(j ->
+                j.getSubmissionId().equals(subId) && j.getStatus() == GradingJobStatus.PENDING));
     }
 }

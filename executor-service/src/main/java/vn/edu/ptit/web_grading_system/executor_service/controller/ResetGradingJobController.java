@@ -2,6 +2,7 @@ package vn.edu.ptit.web_grading_system.executor_service.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.executor_service.dto.request.ResetGradingJobRequest;
@@ -31,15 +32,20 @@ public class ResetGradingJobController {
         if (result.success()) {
             GradingJob job = gradingJobRepository.findById(result.jobId()).orElse(null);
             if (job != null) {
-                gradingOrchestrator.gradeAsync(
-                        result.jobId(),
-                        submissionId,
-                        job.getAssignmentId(),
-                        job.getStudentId(),
-                        job.getPlanId(),
-                        job.getRustfsPath(),
-                        request.getTraceId()
-                );
+                try {
+                    gradingOrchestrator.gradeAsync(
+                            result.jobId(),
+                            submissionId,
+                            job.getAssignmentId(),
+                            job.getStudentId(),
+                            job.getPlanId(),
+                            job.getRustfsPath(),
+                            request.getTraceId()
+                    );
+                } catch (TaskRejectedException saturated) {
+                    log.warn("Grading pool saturated for job={}, re-grade deferred to reaper",
+                            result.jobId());
+                }
             }
         }
         return ResponseEntity.ok(Map.of("success", result.success(), "message", result.message(), "jobId", result.jobId()));

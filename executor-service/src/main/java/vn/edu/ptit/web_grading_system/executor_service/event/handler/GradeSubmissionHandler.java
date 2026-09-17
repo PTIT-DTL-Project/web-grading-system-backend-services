@@ -2,9 +2,9 @@ package vn.edu.ptit.web_grading_system.executor_service.event.handler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.stereotype.Component;
-import tools.jackson.databind.JsonNode;
+import org.springframework.stereotype.Component;import tools.jackson.databind.JsonNode;
 import vn.edu.ptit.web_grading_system.executor_service.entities.GradingJob;
 import vn.edu.ptit.web_grading_system.executor_service.entities.GradingJobStatus;
 import vn.edu.ptit.web_grading_system.executor_service.entities.GradingLog;
@@ -84,6 +84,9 @@ public class GradeSubmissionHandler implements EventHandler {
             } else {
                 log.info(Constant.Message.GRADE_DUPLICATE_PREFIX, submissionId);
             }
+        } catch (TaskRejectedException saturated) {
+            log.warn("Grading pool saturated for submission={}, job stays PENDING for reaper recovery",
+                    submissionId);
         }
     }
 }

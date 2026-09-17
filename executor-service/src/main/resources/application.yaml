@@ -38,7 +38,9 @@ executor:
     startup-timeout-ms: ${EXECUTOR_STARTUP_TIMEOUT_MS:60000}
     max-execution-time-ms: ${EXECUTOR_MAX_EXECUTION_MS:300000}
   reaper:
-    # must exceed startup + execution timeouts (6 min) or live jobs get double-graded
+    # must exceed startup + execution timeouts (6 min) or live jobs get double-graded;
+    # RUNNING jobs are never reaped (see StaleJobReaper), so this only guards
+    # PENDING/FETCHING/BUILDING
     stale-after-minutes: ${EXECUTOR_REAPER_STALE_AFTER_MINUTES:30}
     interval-ms: ${EXECUTOR_REAPER_INTERVAL_MS:300000}
     max-attempts: ${EXECUTOR_REAPER_MAX_ATTEMPTS:3}

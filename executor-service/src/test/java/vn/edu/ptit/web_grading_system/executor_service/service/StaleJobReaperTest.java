@@ -2,6 +2,7 @@ package vn.edu.ptit.web_grading_system.executor_service.service;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.core.task.TaskRejectedException;
 import vn.edu.ptit.web_grading_system.executor_service.config.ExecutorProperties;
 import vn.edu.ptit.web_grading_system.executor_service.entities.GradingJob;
 import vn.edu.ptit.web_grading_system.executor_service.entities.GradingJobStatus;
@@ -83,5 +84,33 @@ class StaleJobReaperTest {
         Mockito.verify(orchestrator, Mockito.never()).gradeAsync(
                 Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(),
                 Mockito.isNull(), Mockito.isNull(), Mockito.any());
+    }
+
+    @Test
+    void reapQueryExcludesRunning() {
+        GradingJobRepository repo = Mockito.mock(GradingJobRepository.class);
+        Mockito.when(repo.findByStatusIn(Mockito.any())).thenReturn(List.of());
+        GradingOrchestrator orchestrator = Mockito.mock(GradingOrchestrator.class);
+
+        new StaleJobReaper(repo, orchestrator, props()).reap();
+
+        Mockito.verify(repo).findByStatusIn(Mockito.argThat(
+                statuses -> !statuses.contains(GradingJobStatus.RUNNING)));
+    }
+
+    @Test
+    void saturatedPool_doesNotThrow() {
+        GradingJob stale = job(GradingJobStatus.PENDING, null,
+                OffsetDateTime.now().minusHours(2), 0);
+        GradingJobRepository repo = Mockito.mock(GradingJobRepository.class);
+        Mockito.when(repo.findByStatusIn(Mockito.any())).thenReturn(List.of(stale));
+        GradingOrchestrator orchestrator = Mockito.mock(GradingOrchestrator.class);
+        Mockito.doThrow(new TaskRejectedException("pool saturated")).when(orchestrator)
+                .gradeAsync(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(),
+                        Mockito.isNull(), Mockito.isNull(), Mockito.any());
+
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+                () -> new StaleJobReaper(repo, orchestrator, props()).reap());
+        Mockito.verify(repo).save(Mockito.argThat(saved -> saved.getRetryCount() == 1));
     }
 }
