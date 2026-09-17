@@ -30,6 +30,9 @@ public class GradingJob extends BaseEntity {
     @Column(name = "plan_id")
     private UUID planId;
 
+    @Column(name = "rustfs_path")
+    private String rustfsPath;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
@@ -47,4 +50,7 @@ public class GradingJob extends BaseEntity {
 
     @Column(name = "completed_at")
     private OffsetDateTime completedAt;
+
+    @Column(name = "trace_id")
+    private String traceId;
 }

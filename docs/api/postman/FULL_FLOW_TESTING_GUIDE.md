@@ -230,8 +230,11 @@ X-User-Id: {{ownerLecturer1}}
   "config": { "method": "GET",
               "path": "/api/v1/books/${bookId}",
               "expected_status": 200,
-              "expected_body_contains": "Dế Mèn Phiêu Lưu Ký" } }
+              "assertions": [{"kind": "contains", "text": "Dế Mèn Phiêu Lưu Ký"}] } }
 ```
+
+> Do NOT use legacy `expected_body_contains` — the assertion engine only evaluates
+> `assertions[]` (`contains` kind above).
 
 **Order 3 — search**, **order 4 — DB_SCHEMA_CHECK**, **order 5 — DB_QUERY**
 (copy configs verbatim from `docs/db/README.md` §8.1).
@@ -263,8 +266,10 @@ Other lecturer accessing your plans → 404.
 
 ## 5. Student submissions
 
-⚠️ Pre-Keycloak caveats: server generates a **random `studentId`** per upload;
-Kafka→executor pipeline is not wired yet, so status stays `PENDING` after confirm.
+⚠️ Pre-Keycloak caveat: server generates a **random `studentId`** per upload.
+Grading is webhook-triggered: after the PUT, RustFS fires `ObjectCreated:Put` →
+submission-service publishes `GRADE_SUBMISSION` → executor grades (`FETCHING →
+BUILDING → RUNNING → DONE/FAILED`). There is no confirm endpoint.
 
 ### 5.1 Request presigned upload URL
 
@@ -272,22 +277,16 @@ Kafka→executor pipeline is not wired yet, so status stays `PENDING` after conf
 POST {{baseUrl}}/api/v1/submissions/presigned-url?assignmentId={{assignmentId}}&zipFileName=lab01.zip
 ```
 
-Expected `200`: `uploadUrl` + `submissionId` (**save both**).
+Expected `201`: `uploadUrl` + `submissionId` (**save both**).
+`planId` is an optional extra query param (`&planId={id}`) — omitted grades all plans.
 
 ### 5.2 Upload the zip
 
 New request: **PUT** `{{uploadUrl}}` → Body → **binary** → select any `.zip`.
 No auth headers (signature authenticates). Expected `200` from RustFS.
+The upload itself triggers grading via the RustFS webhook — no further call needed.
 
-### 5.3 Confirm
-
-```
-POST {{baseUrl}}/api/v1/submissions/{{submissionId}}/confirm
-```
-
-Expected `200` "Upload confirmed". (RustFS webhook does this automatically too.)
-
-### 5.4 Verify
+### 5.3 Verify
 
 ```
 GET {{baseUrl}}/api/v1/submissions                      (mine)
