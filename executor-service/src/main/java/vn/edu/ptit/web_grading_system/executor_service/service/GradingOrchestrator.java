@@ -446,14 +446,35 @@ public class GradingOrchestrator
                 resultServiceClient.create(request);
                 return;
             } catch (Exception e) {
+                if (isValidationError(e)) {
+                    log.warn("Result report rejected (job already {}), not retrying: {}", status,
+                            safeMessage(e));
+                    return;
+                }
                 if (attempt == 3) {
                     log.warn("Result report failed after 3 attempts (job already {}): {}", status,
                             safeMessage(e));
                 } else {
                     log.warn("Result report attempt {} failed for job={}, retrying", attempt, job.getId());
+                    try {
+                        Thread.sleep(attempt * 2000L);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
             }
         }
+    }
+
+    private static boolean isValidationError(Exception e)
+    {
+        if (e instanceof feign.FeignException fe)
+        {
+            int status = fe.status();
+            return status >= 400 && status < 500 && status != 408 && status != 429;
+        }
+        return false;
     }
 
     private void patchSubmission(UUID submissionId, String status)

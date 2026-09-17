@@ -36,6 +36,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import feign.FeignException;
+
 class GradingOrchestratorTest {
 
     @TempDir
@@ -202,5 +204,69 @@ class GradingOrchestratorTest {
         Mockito.verify(f.resultClient()).create(Mockito.argThat(req ->
                 req.getPlanId().equals(b.getId())
                         && req.getScore().compareTo(new java.math.BigDecimal("10.00")) == 0));
+    }
+
+    @Test
+    void resultPosts_retriesTransientFailures() {
+        InternalPlanDto one = plan(0, List.of(step(null, 0, false)));
+        Fixture f;
+        try {
+            f = fixture(StepResultStatus.PASSED, List.of(one));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        Mockito.when(f.resultClient().create(Mockito.any()))
+                .thenThrow(new RuntimeException("boom"))
+                .thenThrow(new RuntimeException("boom"))
+                .thenReturn(Map.of("id", UUID.randomUUID()));
+        GradingJob job = f.job();
+
+        f.orchestrator().grade(job.getId(), job.getSubmissionId(), job.getAssignmentId(),
+                job.getStudentId(), null, "submissions/x.zip", "t3");
+
+        assertEquals(GradingJobStatus.DONE, job.getStatus());
+        Mockito.verify(f.resultClient(), Mockito.times(3)).create(Mockito.any());
+    }
+
+    @Test
+    void resultPosts_givesUpAfterThreeAttempts() {
+        InternalPlanDto one = plan(0, List.of(step(null, 0, false)));
+        Fixture f;
+        try {
+            f = fixture(StepResultStatus.PASSED, List.of(one));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        Mockito.when(f.resultClient().create(Mockito.any()))
+                .thenThrow(new RuntimeException("down"));
+        GradingJob job = f.job();
+
+        f.orchestrator().grade(job.getId(), job.getSubmissionId(), job.getAssignmentId(),
+                job.getStudentId(), null, "submissions/x.zip", "t4");
+
+        assertEquals(GradingJobStatus.DONE, job.getStatus());
+        Mockito.verify(f.resultClient(), Mockito.times(3)).create(Mockito.any());
+    }
+
+    @Test
+    void resultPosts_skipsRetryOnValidationError() {
+        InternalPlanDto one = plan(0, List.of(step(null, 0, false)));
+        Fixture f;
+        try {
+            f = fixture(StepResultStatus.PASSED, List.of(one));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        FeignException badRequest = Mockito.mock(FeignException.class);
+        Mockito.when(badRequest.status()).thenReturn(400);
+        Mockito.when(badRequest.getMessage()).thenReturn("400 Bad Request");
+        Mockito.when(f.resultClient().create(Mockito.any())).thenThrow(badRequest);
+        GradingJob job = f.job();
+
+        f.orchestrator().grade(job.getId(), job.getSubmissionId(), job.getAssignmentId(),
+                job.getStudentId(), null, "submissions/x.zip", "t5");
+
+        assertEquals(GradingJobStatus.DONE, job.getStatus());
+        Mockito.verify(f.resultClient(), Mockito.times(1)).create(Mockito.any());
     }
 }
