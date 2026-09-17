@@ -62,6 +62,16 @@ class ArtifactServiceTest {
     }
 
     @Test
+    void fetchWorkDir_marksBuildWrappersExecutable() throws IOException {
+        byte[] zip = zipOf("mvnw", "#!/bin/sh\necho hi", "Dockerfile", "FROM x");
+        UUID submissionId = UUID.randomUUID();
+
+        Path workDir = serviceWithZip(zip).fetchWorkDir(submissionId, "submissions/x.zip");
+
+        assertTrue(Files.isExecutable(workDir.resolve("mvnw")));
+    }
+
+    @Test
     void fetchWorkDir_rejectsZipSlipEntry() throws IOException {
         byte[] zip = zipOf("../../evil.txt", "pwned");
         UUID submissionId = UUID.randomUUID();
