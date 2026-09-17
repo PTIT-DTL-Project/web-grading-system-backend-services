@@ -10,6 +10,7 @@ import vn.edu.ptit.web_grading_system.executor_service.entities.GradingJob;
 import vn.edu.ptit.web_grading_system.executor_service.entities.GradingJobStatus;
 import vn.edu.ptit.web_grading_system.executor_service.repositories.GradingJobRepository;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -26,7 +27,8 @@ public class StaleJobReaper {
     private static final List<GradingJobStatus> ACTIVE = List.of(
             GradingJobStatus.PENDING,
             GradingJobStatus.FETCHING,
-            GradingJobStatus.BUILDING);
+            GradingJobStatus.BUILDING,
+            GradingJobStatus.RUNNING);
 
     private final GradingJobRepository gradingJobRepository;
     private final GradingOrchestrator gradingOrchestrator;
@@ -37,8 +39,9 @@ public class StaleJobReaper {
         long staleAfterMinutes = executorProperties.reaper().staleAfterMinutes();
         int maxAttempts = executorProperties.reaper().maxAttempts();
         OffsetDateTime cutoff = OffsetDateTime.now().minusMinutes(staleAfterMinutes);
+        long maxExecMs = executorProperties.container().maxExecutionTimeMs();
         List<GradingJob> stale = gradingJobRepository.findByStatusIn(ACTIVE).stream()
-                .filter(job -> isStale(job, cutoff))
+                .filter(job -> isStale(job, cutoff, maxExecMs))
                 .filter(job -> job.getRetryCount() < maxAttempts)
                 .toList();
         for (GradingJob job : stale) {
@@ -52,8 +55,12 @@ public class StaleJobReaper {
         }
     }
 
-    private static boolean isStale(GradingJob job, OffsetDateTime cutoff) {
+    private boolean isStale(GradingJob job, OffsetDateTime cutoff, long maxExecMs) {
         OffsetDateTime start = job.getStartedAt() != null ? job.getStartedAt() : job.getCreatedAt();
-        return start != null && start.isBefore(cutoff);
+        if (start == null || !start.isBefore(cutoff)) return false;
+        if (job.getStatus() == GradingJobStatus.RUNNING) {
+            return start.plus(Duration.ofMillis(maxExecMs)).isBefore(OffsetDateTime.now());
+        }
+        return true;
     }
 }
