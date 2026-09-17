@@ -6,7 +6,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.testcontainers.containers.ComposeContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.utility.DockerImageName;
 
+import java.io.File;
 import java.time.Duration;
 
 /**
@@ -36,7 +38,8 @@ public class DockerComposeRunner
 
     public RunningCompose boot(DockerComposePatcher.EffectiveCompose effective, long startupTimeoutMs)
     {
-        ComposeContainer compose = new ComposeContainer(effective.composeFile().toFile())
+        ComposeContainer compose = new ComposeContainer(new DockerImageName("docker:25.0.5"),
+                effective.composeFile().toFile())
                 .withExposedService(effective.serviceName(), effective.containerPort(),
                         Wait.forHttp("/").forStatusCodeMatching(status -> status < 500)
                                 .withStartupTimeout(Duration.ofMillis(startupTimeoutMs * 2L)))

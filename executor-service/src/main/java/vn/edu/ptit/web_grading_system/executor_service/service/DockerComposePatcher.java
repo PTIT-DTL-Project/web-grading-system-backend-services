@@ -61,7 +61,7 @@ public final class DockerComposePatcher
         {
             throw new IllegalStateException(Constant.Message.NO_SERVICES);
         }
-        String appService = firstServiceWithPorts(services);
+        String appService = identifyAppService(services);
         int containerPort = dockerComposePort > 0 ? dockerComposePort : 8080;
         for (Map.Entry<String, Object> entry : services.entrySet())
         {
@@ -105,15 +105,22 @@ public final class DockerComposePatcher
         return (Map<String, Object>) services;
     }
 
-    @SuppressWarnings("unchecked")
-    private static String firstServiceWithPorts(Map<String, Object> services)
+    private static String identifyAppService(Map<String, Object> services)
     {
         for (Map.Entry<String, Object> entry : services.entrySet())
         {
+            String name = entry.getKey();
+            if (name.toLowerCase().contains("db") || name.toLowerCase().contains("database")
+                    || name.toLowerCase().contains("postgres") || name.toLowerCase().contains("mysql")
+                    || name.toLowerCase().contains("mongo") || name.toLowerCase().contains("redis")
+                    || name.toLowerCase().contains("kafka") || name.toLowerCase().contains("zipkin"))
+            {
+                continue;
+            }
             Object service = entry.getValue();
             if (service instanceof Map<?, ?> map && map.get(Constant.DockerCompose.PORTS) != null)
             {
-                return entry.getKey();
+                return name;
             }
         }
         return services.keySet().iterator().next();

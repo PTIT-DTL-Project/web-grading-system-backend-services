@@ -26,8 +26,7 @@ public class StaleJobReaper {
     private static final List<GradingJobStatus> ACTIVE = List.of(
             GradingJobStatus.PENDING,
             GradingJobStatus.FETCHING,
-            GradingJobStatus.BUILDING,
-            GradingJobStatus.RUNNING);
+            GradingJobStatus.BUILDING);
 
     private final GradingJobRepository gradingJobRepository;
     private final GradingOrchestrator gradingOrchestrator;

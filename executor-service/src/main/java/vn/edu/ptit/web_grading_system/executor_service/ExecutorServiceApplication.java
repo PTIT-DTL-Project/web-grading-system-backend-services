@@ -11,6 +11,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import java.util.concurrent.Executor;
 
 @EnableAsync
 @EnableScheduling
@@ -20,10 +23,18 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableFeignClients
 public class ExecutorServiceApplication {
 
+	@Bean(name = "gradingTaskExecutor")
+	public Executor gradingTaskExecutor() {
+		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+		executor.setCorePoolSize(1);
+		executor.setMaxPoolSize(1);
+		executor.setQueueCapacity(0);
+		executor.setThreadNamePrefix("grading-");
+		executor.initialize();
+		return executor;
+	}
 
 	public static void main(String[] args) {
 		SpringApplication.run(ExecutorServiceApplication.class, args);
 	}
-
-
 }

@@ -51,7 +51,7 @@ public class AssertionEngine
             int expected = config.get(Constant.HttpStep.EXPECTED_STATUS).asInt();
             boolean passed = actualStatus == expected;
             results.add(AssertionDetail.builder()
-                    .kind(Constant.Assertion.TEXT + "")
+                    .kind(Constant.Assertion.STATUS)
                     .expected(expected)
                     .actual(actualStatus)
                     .passed(passed)
@@ -88,7 +88,7 @@ public class AssertionEngine
         int expected = assertion.path(Constant.Assertion.EQUALS).asInt();
         boolean passed = actualStatus == expected;
         return AssertionDetail.builder()
-                .kind(Constant.Assertion.TEXT + "").expected(expected).actual(actualStatus).passed(passed)
+                .kind(Constant.Assertion.STATUS).expected(expected).actual(actualStatus).passed(passed)
                 .message(passed ? Constant.Message.STATUS_MATCHED : "Expected status " + expected + " but got " + actualStatus)
                 .build();
     }

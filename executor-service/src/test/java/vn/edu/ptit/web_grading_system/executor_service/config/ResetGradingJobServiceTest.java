@@ -10,6 +10,7 @@ import vn.edu.ptit.web_grading_system.executor_service.repositories.GradingSagaS
 import vn.edu.ptit.web_grading_system.executor_service.repositories.GradingStepResultRepository;
 import vn.edu.ptit.web_grading_system.executor_service.service.ResetGradingJobService;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -63,7 +64,7 @@ class ResetGradingJobServiceTest {
         var stepRepo = mock(GradingStepResultRepository.class);
         var sagaRepo = mock(GradingSagaRepository.class);
         var sagaStepRepo = mock(GradingSagaStepRepository.class);
-        when(sagaRepo.findFirstByJobId(nullable(UUID.class))).thenReturn(Optional.of(saga));
+        when(sagaRepo.findByJobId(nullable(UUID.class))).thenReturn(List.of(saga));
         var svc = new ResetGradingJobService(repo, sagaRepo, sagaStepRepo, stepRepo);
         var r = svc.reset(UUID.randomUUID());
 
@@ -71,7 +72,7 @@ class ResetGradingJobServiceTest {
         assertEquals("Job reset to PENDING", r.message());
         verify(repo).findBySubmissionId(any());
         verify(stepRepo).deleteByJobId(any());
-        verify(sagaRepo).findFirstByJobId(any());
+        verify(sagaRepo).findByJobId(any());
         verify(sagaStepRepo).deleteBySagaId(any());
         verify(sagaRepo).resetByJobId(any(), any());
         verify(repo).save(any());

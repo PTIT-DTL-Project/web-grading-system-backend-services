@@ -28,7 +28,7 @@ public class StepRegistry
         StepExecutor executor = executors.get(type);
         if (executor == null)
         {
-            throw new IllegalStateException(Constant.Message.UNKNOWN_STEP_TYPE + type);
+            throw new IllegalArgumentException(Constant.Message.UNKNOWN_STEP_TYPE + type);
         }
         return executor;
     }

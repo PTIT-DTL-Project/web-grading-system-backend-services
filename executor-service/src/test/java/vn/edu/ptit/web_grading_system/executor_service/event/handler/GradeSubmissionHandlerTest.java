@@ -85,8 +85,9 @@ class GradeSubmissionHandlerTest {
 
         assertDoesNotThrow(() -> handler.handle(mapper.readTree(json), "trace-3"));
         Mockito.verify(resetService).reset(subId);
-        Mockito.verify(orchestrator, Mockito.never()).gradeAsync(
-                Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(),
-                Mockito.any(), Mockito.any(), Mockito.any());
+        Mockito.verify(orchestrator).gradeAsync(
+                Mockito.any(), Mockito.eq(subId),
+                Mockito.any(), Mockito.any(), Mockito.isNull(), Mockito.isNull(),
+                Mockito.eq("reaper"));
     }
 }

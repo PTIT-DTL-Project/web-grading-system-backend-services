@@ -70,7 +70,7 @@ public class GradingOrchestrator
     private final ExecutorProperties executorProperties;
     private final SagaTracker sagaTracker;
 
-    @Async
+    @Async("gradingTaskExecutor")
     public void gradeAsync(UUID jobId, UUID submissionId, UUID assignmentId, UUID studentId,
             UUID planId, String rustfsPath, String traceId)
     {
@@ -429,25 +429,30 @@ public class GradingOrchestrator
             UUID planId, List<InternalPlanDto> plans, BigDecimal score, String summary,
             List<ResultServiceClient.StepResultItem> items, GradingJobStatus status)
     {
-        try
-        {
-            resultServiceClient.create(ResultServiceClient.CreateResultRequest.builder()
-                    .submissionId(submissionId)
-                    .assignmentId(assignmentId)
-                    .studentId(studentId)
-                    .planId(planId)
-                    .planWeight(weightOf(plans, planId))
-                    .score(score)
-                    .maxScore(MAX_SCORE)
-                    .status(status.name())
-                    .summaryLog(summary)
-                    .stepResults(items)
-                    .build());
-        }
-        catch (Exception e)
-        {
-            log.warn("Result report failed (job already {}): {}", status,
-                    safeMessage(e));
+        ResultServiceClient.CreateResultRequest request = ResultServiceClient.CreateResultRequest.builder()
+                .submissionId(submissionId)
+                .assignmentId(assignmentId)
+                .studentId(studentId)
+                .planId(planId)
+                .planWeight(weightOf(plans, planId))
+                .score(score)
+                .maxScore(MAX_SCORE)
+                .status(status.name())
+                .summaryLog(summary)
+                .stepResults(items)
+                .build();
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                resultServiceClient.create(request);
+                return;
+            } catch (Exception e) {
+                if (attempt == 3) {
+                    log.warn("Result report failed after 3 attempts (job already {}): {}", status,
+                            safeMessage(e));
+                } else {
+                    log.warn("Result report attempt {} failed for job={}, retrying", attempt, job.getId());
+                }
+            }
         }
     }
 
