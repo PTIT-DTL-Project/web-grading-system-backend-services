@@ -126,7 +126,7 @@ public class ArtifactService
             }
             catch (Exception e)
             {
-                log.debug("Could not chmod {}: {}", wrapper, e.getMessage());
+                log.warn("Could not chmod {}: {}", wrapper, e.getMessage());
             }
         }
     }
