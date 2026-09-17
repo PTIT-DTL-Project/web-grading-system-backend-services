@@ -15,6 +15,8 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.List;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -28,6 +30,8 @@ import java.util.zip.ZipInputStream;
 @RequiredArgsConstructor
 public class ArtifactService
 {
+    private static final List<String> EXECUTABLE_WRAPPERS = List.of("mvnw", "gradlew");
+
     private final MinioClient minioClient;
     private final RustFsProperties rustFsProperties;
     private final ExecutorProperties executorProperties;
@@ -44,6 +48,7 @@ public class ArtifactService
                 Files.copy(in, zipFile, StandardCopyOption.REPLACE_EXISTING);
             }
             unzip(zipFile, workDir);
+            restoreWrapperPermissions(workDir);
             log.info("Submission artifact ready: submission={}, dir={}", submissionId, workDir);
             return workDir;
         }
@@ -94,6 +99,34 @@ public class ArtifactService
                     }
                 }
                 zis.closeEntry();
+            }
+        }
+    }
+
+    /**
+     * Zip extraction drops Unix mode bits, so build wrappers (755 in git)
+     * land non-executable and the DinD {@code docker build} fails at
+     * {@code RUN ./mvnw} with "Permission denied" (exit 126). Restore +x on
+     * the known wrappers at the workdir root. Best-effort only — a chmod
+     * failure must never fail grading; the docker build is the real gate.
+     */
+    static void restoreWrapperPermissions(Path workDir)
+    {
+        for (String name : EXECUTABLE_WRAPPERS)
+        {
+            Path wrapper = workDir.resolve(name);
+            try
+            {
+                if (Files.isRegularFile(wrapper) && !Files.isExecutable(wrapper))
+                {
+                    Files.setPosixFilePermissions(wrapper,
+                            PosixFilePermissions.fromString("rwxr-xr-x"));
+                    log.debug("Restored executable bit: {}", wrapper);
+                }
+            }
+            catch (Exception e)
+            {
+                log.warn("Could not chmod {}: {}", wrapper, e.getMessage());
             }
         }
     }
