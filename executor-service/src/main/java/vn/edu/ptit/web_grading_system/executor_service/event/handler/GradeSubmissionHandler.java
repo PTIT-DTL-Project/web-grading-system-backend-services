@@ -76,11 +76,16 @@ public class GradeSubmissionHandler implements EventHandler {
             if (existing.isPresent() && existing.get().getStatus() == GradingJobStatus.FAILED) {
                 log.warn("Existing grading job for submission={} is FAILED, triggering reset and re-grading", submissionId);
                 resetGradingJobService.reset(submissionId);
-                gradingOrchestrator.gradeAsync(
-                        existing.get().getId(), submissionId,
-                        existing.get().getAssignmentId(), existing.get().getStudentId(),
-                        existing.get().getPlanId(), existing.get().getRustfsPath(),
-                        Constant.Reaper.TRACE_ID);
+                try {
+                    gradingOrchestrator.gradeAsync(
+                            existing.get().getId(), submissionId,
+                            existing.get().getAssignmentId(), existing.get().getStudentId(),
+                            existing.get().getPlanId(), existing.get().getRustfsPath(),
+                            Constant.Reaper.TRACE_ID);
+                } catch (TaskRejectedException saturated) {
+                    log.warn("Grading pool saturated for submission={}, job stays PENDING for reaper recovery",
+                            submissionId);
+                }
             } else {
                 log.info(Constant.Message.GRADE_DUPLICATE_PREFIX, submissionId);
             }

@@ -111,6 +111,6 @@ class StaleJobReaperTest {
 
         org.junit.jupiter.api.Assertions.assertDoesNotThrow(
                 () -> new StaleJobReaper(repo, orchestrator, props()).reap());
-        Mockito.verify(repo).save(Mockito.argThat(saved -> saved.getRetryCount() == 1));
+        Mockito.verify(repo, Mockito.never()).save(Mockito.any());
     }
 }

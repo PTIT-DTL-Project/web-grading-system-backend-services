@@ -111,4 +111,26 @@ class GradeSubmissionHandlerTest {
         Mockito.verify(jobRepo).save(Mockito.argThat(j ->
                 j.getSubmissionId().equals(subId) && j.getStatus() == GradingJobStatus.PENDING));
     }
+
+    @Test
+    void handle_duplicateFailedJob_saturatedPool_doesNotThrow() throws Exception {
+        UUID subId = UUID.randomUUID();
+        String json = """
+                {"submissionId":"%s","assignmentId":"%s","studentId":"%s","planId":null}
+                """.formatted(subId, UUID.randomUUID(), UUID.randomUUID());
+        Mockito.when(jobRepo.save(Mockito.any()))
+                .thenThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint"));
+        GradingJob failedJob = GradingJob.builder()
+                .submissionId(subId)
+                .status(GradingJobStatus.FAILED)
+                .build();
+        failedJob.setId(UUID.randomUUID());
+        Mockito.when(jobRepo.findBySubmissionId(subId)).thenReturn(Optional.of(failedJob));
+        Mockito.doThrow(new TaskRejectedException("pool saturated")).when(orchestrator)
+                .gradeAsync(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(),
+                        Mockito.any(), Mockito.any(), Mockito.any());
+
+        assertDoesNotThrow(() -> handler.handle(mapper.readTree(json), "trace-5"));
+        Mockito.verify(resetService).reset(subId);
+    }
 }

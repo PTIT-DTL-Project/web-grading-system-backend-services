@@ -46,18 +46,19 @@ public class StaleJobReaper {
                 .filter(job -> job.getRetryCount() < maxAttempts)
                 .toList();
         for (GradingJob job : stale) {
-            job.setRetryCount(job.getRetryCount() + 1);
-            gradingJobRepository.save(job);
-            log.warn(Constant.Message.REENQUEUE_PREFIX,
-                    job.getId(), job.getStatus(), job.getRetryCount());
             try {
                 gradingOrchestrator.gradeAsync(job.getId(), job.getSubmissionId(),
                         job.getAssignmentId(), job.getStudentId(), job.getPlanId(),
                         job.getRustfsPath(), Constant.Reaper.TRACE_ID);
             } catch (TaskRejectedException saturated) {
-                log.warn("Grading pool saturated for job={}, stays queued for next reaper cycle",
+                log.warn("Grading pool saturated for job={}, retry not consumed, stays queued for next reaper cycle",
                         job.getId());
+                continue;
             }
+            job.setRetryCount(job.getRetryCount() + 1);
+            gradingJobRepository.save(job);
+            log.warn(Constant.Message.REENQUEUE_PREFIX,
+                    job.getId(), job.getStatus(), job.getRetryCount());
         }
     }
 

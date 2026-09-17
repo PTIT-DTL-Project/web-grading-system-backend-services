@@ -36,9 +36,9 @@ public class ResetGradingJobService {
             return new ResetResult(false, "No grading job found for submission", null, null);
         }
         GradingJob job = existing.get();
-        if (job.getStatus() != GradingJobStatus.FAILED) {
+        if (job.getStatus() == GradingJobStatus.DONE) {
             log.warn(Constant.Message.RESET_FAILED_PREFIX, submissionId, job.getStatus());
-            return new ResetResult(false, "Job is not FAILED, current status: " + job.getStatus(), job.getId(), job);
+            return new ResetResult(false, "Job is already DONE, current status: " + job.getStatus(), job.getId(), job);
         }
         UUID jobId = job.getId();
 

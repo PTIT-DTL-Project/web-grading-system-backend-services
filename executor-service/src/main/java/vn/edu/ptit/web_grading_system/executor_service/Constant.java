@@ -147,10 +147,10 @@ public class Constant {
             public static final String REQUEST_LOG = "Reset request: submissionId={} traceId={}";
             public static final String LOG_PREFIX = "Reset grading job: id={} submission={} action={}";
             public static final String SUCCESS_PREFIX = "Grading job reset: id={} submission={}";
-            public static final String FAILED_PREFIX = "Reset failed: job not FAILED, submission={} status={}";
+            public static final String FAILED_PREFIX = "Reset failed: job already DONE, submission={} status={}";
             public static final String NOT_FOUND = "Reset failed: no grading job found for submission={}";
             public static final String NOT_FOUND_MESSAGE = "No grading job found for submission";
-            public static final String NOT_FAILED_PREFIX = "Job is not FAILED, current status: ";
+            public static final String NOT_FAILED_PREFIX = "Job is already DONE, current status: ";
             public static final String SAGA_DELETED = "Deleted saga steps for saga={}, reset saga to STARTED for job={}";
             public static final String SUCCESS = "Job reset to PENDING";
             public static final String FAILED_TRIGGER = "Existing grading job for submission={} is FAILED, triggering reset";
