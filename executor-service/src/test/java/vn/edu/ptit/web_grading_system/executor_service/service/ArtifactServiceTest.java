@@ -26,9 +26,15 @@ class ArtifactServiceTest {
     Path tempDir;
 
     private ArtifactService serviceWithZip(byte[] zipBytes) {
+        return serviceWithZipAndMaven(zipBytes,
+                "https://example.invalid/maven-bin.zip");
+    }
+
+    private ArtifactService serviceWithZipAndMaven(byte[] zipBytes, String pinnedUrl) {
         ExecutorProperties props = new ExecutorProperties(
                 tempDir.toString(), new ExecutorProperties.Container(1000, 2000),
-                new ExecutorProperties.Reaper(30, 300000, 3));
+                new ExecutorProperties.Reaper(30, 300000, 3),
+                new ExecutorProperties.Maven(pinnedUrl));
         return new ArtifactService(null, null, props) {
             @Override
             protected InputStream fetchObject(String rustfsPath) {
@@ -69,6 +75,50 @@ class ArtifactServiceTest {
         Path workDir = serviceWithZip(zip).fetchWorkDir(submissionId, "submissions/x.zip");
 
         assertTrue(Files.isExecutable(workDir.resolve("mvnw")));
+    }
+
+    @Test
+    void fetchWorkDir_rewritesWrapperOnlyDistributionUrl() throws IOException {
+        byte[] zip = zipOf(
+                ".mvn/wrapper/maven-wrapper.properties",
+                "distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper-distribution/3.3.4/maven-wrapper-distribution-3.3.4-bin.zip\ndistributionSha256Sum=abc123\n",
+                "pom.xml", "<project/>");
+        UUID submissionId = UUID.randomUUID();
+
+        Path workDir = serviceWithZipAndMaven(zip, "https://example.invalid/maven-bin.zip")
+                .fetchWorkDir(submissionId, "submissions/x.zip");
+
+        String rewritten = Files.readString(workDir.resolve(".mvn/wrapper/maven-wrapper.properties"));
+        assertTrue(rewritten.contains("distributionUrl=https://example.invalid/maven-bin.zip"));
+        assertFalse(rewritten.contains("distributionSha256Sum"));
+        assertFalse(rewritten.contains("maven-wrapper-distribution-"));
+    }
+
+    @Test
+    void fetchWorkDir_leavesFullMavenDistributionUrlUntouched() throws IOException {
+        String body = "distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip\n";
+        byte[] zip = zipOf(".mvn/wrapper/maven-wrapper.properties", body, "pom.xml", "<project/>");
+        UUID submissionId = UUID.randomUUID();
+
+        Path workDir = serviceWithZipAndMaven(zip, "https://example.invalid/maven-bin.zip")
+                .fetchWorkDir(submissionId, "submissions/x.zip");
+
+        assertEquals(body, Files.readString(workDir.resolve(".mvn/wrapper/maven-wrapper.properties")));
+    }
+
+    @Test
+    void fetchWorkDir_blankPinnedUrlSkipsPatch() throws IOException {
+        byte[] zip = zipOf(
+                ".mvn/wrapper/maven-wrapper.properties",
+                "distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper-distribution/3.3.4/maven-wrapper-distribution-3.3.4-bin.zip\n",
+                "pom.xml", "<project/>");
+        UUID submissionId = UUID.randomUUID();
+
+        Path workDir = serviceWithZipAndMaven(zip, "  ")
+                .fetchWorkDir(submissionId, "submissions/x.zip");
+
+        assertTrue(Files.readString(workDir.resolve(".mvn/wrapper/maven-wrapper.properties"))
+                .contains("maven-wrapper-distribution-"));
     }
 
     @Test

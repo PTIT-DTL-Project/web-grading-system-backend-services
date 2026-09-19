@@ -34,6 +34,12 @@ spring:
 
 executor:
   temp-dir: ${EXECUTOR_TEMP_DIR:/tmp/grading}
+  maven:
+    # Full Maven distribution used to rewrite wrapper-based submissions whose
+    # distributionUrl points at a maven-wrapper-distribution artifact (those
+    # contain no Maven binaries). Blank disables the rewrite. Bump
+    # deliberately — grading must stay reproducible, never "latest".
+    pinned-distribution-url: ${EXECUTOR_MAVEN_PINNED_URL:https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip}
   container:
     startup-timeout-ms: ${EXECUTOR_STARTUP_TIMEOUT_MS:60000}
     max-execution-time-ms: ${EXECUTOR_MAX_EXECUTION_MS:300000}

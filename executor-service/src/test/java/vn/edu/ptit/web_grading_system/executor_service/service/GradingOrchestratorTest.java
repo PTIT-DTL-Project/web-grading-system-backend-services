@@ -123,7 +123,8 @@ class GradingOrchestratorTest {
         };
         ExecutorProperties props = new ExecutorProperties(
                 tempDir.toString(), new ExecutorProperties.Container(1000, 60000),
-                new ExecutorProperties.Reaper(30, 300000, 3));
+                new ExecutorProperties.Reaper(30, 300000, 3),
+                new ExecutorProperties.Maven(null));
         GradingOrchestrator orchestrator = new GradingOrchestrator(jobRepo, stepRepo, logRepo,
                 course, submission, result, artifacts, ports, runner,
                 new StepRegistry(List.of(stub)), new ObjectMapper(), props,
