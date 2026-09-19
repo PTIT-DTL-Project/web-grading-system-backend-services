@@ -17,7 +17,8 @@ class StaleJobReaperTest {
     private static ExecutorProperties props() {
         return new ExecutorProperties("tmp",
                 new ExecutorProperties.Container(1000, 2000),
-                new ExecutorProperties.Reaper(30, 300000, 3));
+                new ExecutorProperties.Reaper(30, 300000, 3),
+                new ExecutorProperties.Maven(null));
     }
 
     private static GradingJob job(GradingJobStatus status, OffsetDateTime startedAt,

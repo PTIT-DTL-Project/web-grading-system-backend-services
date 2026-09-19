@@ -12,10 +12,12 @@ import vn.edu.ptit.web_grading_system.executor_service.Constant;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
@@ -49,6 +51,7 @@ public class ArtifactService
             }
             unzip(zipFile, workDir);
             restoreWrapperPermissions(workDir);
+            patchWrapperDistributionUrl(workDir);
             log.info("Submission artifact ready: submission={}, dir={}", submissionId, workDir);
             return workDir;
         }
@@ -129,5 +132,73 @@ public class ArtifactService
                 log.warn("Could not chmod {}: {}", wrapper, e.getMessage());
             }
         }
+    }
+
+    /**
+     * Rewrites a wrapper-only {@code distributionUrl} to the configured full
+     * Maven distribution. Published {@code maven-wrapper-distribution}
+     * artifacts ship scripts + wrapper jar but no Maven binaries, so any
+     * submission pointing at one fails its build deterministically. Only URLs
+     * containing that artifact name are touched; full Maven URLs, Gradle and
+     * wrapper-less projects pass through unchanged. A stale
+     * {@code distributionSha256Sum} is dropped alongside the rewrite since it
+     * pins the old URL's checksum. Best-effort: never fails grading.
+     *
+     * @return true when the properties file was rewritten
+     */
+    boolean patchWrapperDistributionUrl(Path workDir)
+    {
+        ExecutorProperties.Maven maven = executorProperties.maven();
+        String pinned = maven == null ? null : maven.pinnedDistributionUrl();
+        if (pinned == null || pinned.isBlank())
+        {
+            return false;
+        }
+        Path props = workDir.resolve(".mvn/wrapper/maven-wrapper.properties");
+        if (!Files.isRegularFile(props))
+        {
+            return false;
+        }
+        try
+        {
+            List<String> lines = Files.readAllLines(props, StandardCharsets.UTF_8);
+            boolean broken = lines.stream().anyMatch(ArtifactService::isWrapperOnlyDistributionUrl);
+            if (!broken)
+            {
+                return false;
+            }
+            List<String> kept = new ArrayList<>(lines.size());
+            for (String line : lines)
+            {
+                String trimmed = line.trim();
+                if (!trimmed.startsWith("#") && trimmed.startsWith("distributionUrl="))
+                {
+                    kept.add("distributionUrl=" + pinned);
+                }
+                else if (!trimmed.startsWith("#") && trimmed.startsWith("distributionSha256Sum="))
+                {
+                    log.info("Dropped stale distributionSha256Sum for {}", props);
+                }
+                else
+                {
+                    kept.add(line);
+                }
+            }
+            Files.write(props, kept, StandardCharsets.UTF_8);
+            log.info("Rewrote maven-wrapper distributionUrl to {} (published wrapper distributions lack Maven binaries)", pinned);
+            return true;
+        }
+        catch (Exception e)
+        {
+            log.debug("Could not patch {}: {}", props, e.getMessage());
+            return false;
+        }
+    }
+
+    private static boolean isWrapperOnlyDistributionUrl(String line)
+    {
+        String trimmed = line.trim();
+        return !trimmed.startsWith("#") && trimmed.startsWith("distributionUrl=")
+                && trimmed.contains("maven-wrapper-distribution-");
     }
 }

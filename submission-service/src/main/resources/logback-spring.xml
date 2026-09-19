@@ -27,8 +27,46 @@
         </encoder>
     </appender>
 
-    <root level="INFO">
-        <appender-ref ref="JSON"/>
-    </root>
+    <!-- FILE appender is local-only (no stg/prod profile): the baked basedir path
+         is meaningless inside containers, where only stdout/Loki is used. -->
+    <springProfile name="!stg &amp; !prod">
+    <!-- File: rolling JSON mirror for local debugging (WAL-style).
+         %i is the version number on size rollover. totalSizeCap deletes the
+         OLDEST archives first; the active app.log is never touched. -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>@project.basedir@/.log/app.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>@project.basedir@/.log/app-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>100MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="vn.edu.ptit.web_grading_system.submission_service.config.ReadableLogstashEncoder">
+            <includeMdcKeyName>trace_id</includeMdcKeyName>
+            <includeMdcKeyName>span_id</includeMdcKeyName>
+            <includeMdcKeyName>trace_flags</includeMdcKeyName>
+            <fieldNames>
+                <timestamp>[ignore]</timestamp>
+                <version>[ignore]</version>
+            </fieldNames>
+            <customFields>
+                {"service":"${APP_NAME}","environment":"${APP_ENV}"}
+            </customFields>
+            <timeZone>UTC</timeZone>
+        </encoder>
+    </appender>
+    </springProfile>
+
+    <springProfile name="stg | prod">
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+    </springProfile>
+    <springProfile name="!stg &amp; !prod">
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+            <appender-ref ref="FILE"/>
+        </root>
+    </springProfile>
 
 </configuration>
