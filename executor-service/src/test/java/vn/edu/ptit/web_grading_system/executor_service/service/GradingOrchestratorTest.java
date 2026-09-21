@@ -593,4 +593,41 @@ class GradingOrchestratorTest {
         assertEquals(1, step0Config.get("extract").size(),
                 "Should NOT duplicate extract when already mapped");
     }
+
+    @Test
+    void autoInjectExtracts_doesNotSkipWhenProducerRunsAfter() throws Exception {
+        /*
+         * S0: POST → no extract (creates token)
+         * S1: GET /api/books/${token} → needs token (runs BEFORE S2)
+         * S2: POST → extract token (explicit, for later steps)
+         *
+         * Old code: map has token→2, skips injection at S1 → token="" → FAIL
+         * New code: src=2, 2 < 1 = false → inject into S0 → works
+         * Review: 2026-09-20, Pullfrog PR #16.
+         */
+        InternalStepDto step0 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(1).name("create")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/books\"}")
+                .build();
+        InternalStepDto step1 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(2).name("get")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"GET\",\"path\":\"/api/books/${token}\"}")
+                .build();
+        InternalStepDto step2 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(3).name("extract")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/books\","
+                        + "\"extract\":[{\"name\":\"token\",\"from\":\"response_body\",\"expression\":\"$.id\"}]}")
+                .build();
+
+        List<InternalStepDto> result = invokeAutoInject(rawOrchestrator(),
+                List.of(step0, step1, step2));
+
+        JsonNode step0Config = new ObjectMapper().readTree(result.get(0).getConfig());
+        boolean hasExtract = step0Config.has("extract");
+        assertTrue(hasExtract, "S0 should get extract (producer S2 runs AFTER S1)");
+        assertEquals("token", step0Config.get("extract").get(0).path("name").asText());
+    }
 }

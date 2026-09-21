@@ -97,6 +97,27 @@ class AssertionEngineTest {
     }
 
     @Test
+    void fieldEquals_numericComparison() {
+        // 1.0 should equal 1 numerically
+        assertTrue(engine.evaluateHttp(200, "{\"score\":1.0}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"field_equals\",\"path\":\"$.score\",\"equals\":\"1\"}]}"),
+                vars).get(0).isPassed());
+        // 1.5 should not equal 1
+        assertFalse(engine.evaluateHttp(200, "{\"score\":1.5}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"field_equals\",\"path\":\"$.score\",\"equals\":\"1\"}]}"),
+                vars).get(0).isPassed());
+    }
+
+    @Test
+    void fieldEquals_missingFieldExplicitNull() {
+        // Response body has explicit null at $.id
+        // Expected "null" should NOT pass — missing/null fields always fail
+        assertFalse(engine.evaluateHttp(200, "{\"id\":null}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"field_equals\",\"path\":\"$.id\",\"equals\":\"null\"}]}"),
+                vars).get(0).isPassed());
+    }
+
+    @Test
     void fieldEquals_messageContainsMismatch() {
         AssertionDetail d = only("{\"assertions\":[{\"kind\":\"field_equals\",\"path\":\"$.title\",\"equals\":\"Other\"}]}");
         assertFalse(d.isPassed());

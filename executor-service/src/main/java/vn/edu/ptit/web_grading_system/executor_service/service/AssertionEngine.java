@@ -182,7 +182,14 @@ public class AssertionEngine
             Object actual = JsonPath.using(jsonPathConfig)
                     .parse(actualBody == null ? "{}" : actualBody)
                     .read(path);
-            boolean passed = expected.equals(String.valueOf(actual));
+            /*
+             * Compare field value against expected.
+             * - null actual (missing field) → always FAIL (never match "null")
+             * - numeric values → compare as doubles (1.0 == 1)
+             * - everything else → string equality
+             * Review: 2026-09-20, Pullfrog PR #16.
+             */
+            boolean passed = fieldEquals(expected, actual);
             return AssertionDetail.builder()
                     .kind(Constant.Assertion.FIELD_EQUALS).expected(expected).actual(actual)
                     .passed(passed)
@@ -197,6 +204,32 @@ public class AssertionEngine
                     .passed(false)
                     .message(Constant.Message.JSON_PATH_ERROR_PREFIX + e.getMessage())
                     .build();
+        }
+    }
+
+    /*
+     * Compare expected string against actual field value.
+     * - null actual (missing field) → always FAIL
+     * - numeric values → compare as doubles (1.0 == 1)
+     * - everything else → string equality
+     * Review: 2026-09-20, Pullfrog PR #16.
+     */
+    private boolean fieldEquals(String expected, Object actual)
+    {
+        if (actual == null)
+        {
+            return false;
+        }
+        String actualStr = String.valueOf(actual);
+        try
+        {
+            double expectedNum = Double.parseDouble(expected);
+            double actualNum = Double.parseDouble(actualStr);
+            return expectedNum == actualNum;
+        }
+        catch (NumberFormatException e)
+        {
+            return expected.equals(actualStr);
         }
     }
 

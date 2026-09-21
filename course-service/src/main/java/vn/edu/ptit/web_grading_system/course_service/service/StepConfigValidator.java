@@ -90,7 +90,7 @@ public final class StepConfigValidator {
                         requireText(a, "path", ctx + ".assertions[field_equals]");
                         requireText(a, "equals", ctx + ".assertions[field_equals]");
                     }
-                    default -> { /* body_structure / body_equals / field_equals carry 'json' of any shape */ }
+                    default -> { /* body_structure / body_equals carry 'json' of any shape */ }
                 }
             }
         }

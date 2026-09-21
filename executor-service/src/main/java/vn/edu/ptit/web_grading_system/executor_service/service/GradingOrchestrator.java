@@ -366,7 +366,16 @@ public class GradingOrchestrator
                 collectVarRefs(config, varPattern, neededVars);
                 for (String varName : neededVars)
                 {
-                    if (varSourceMap.containsKey(varName))
+                    /*
+                     * Phase 2: Only skip auto-injection if the source step actually
+                     * executes BEFORE this step (src < i). If the explicit producer
+                     * runs AFTER the referencing step (src >= i), fall back to
+                     * injecting into the adjacent step (i-1). Otherwise S1's
+                     * ${var} silently becomes "" and grading fails misleadingly.
+                     * Review: 2026-09-20, Pullfrog PR #16.
+                     */
+                    Integer src = varSourceMap.get(varName);
+                    if (src != null && src < i)
                     {
                         continue;
                     }
