@@ -11,8 +11,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.stereotype.Component;
 import vn.edu.ptit.web_grading_system.executor_service.Constant;
+import vn.edu.ptit.web_grading_system.executor_service.service.VariableContext;
 import vn.edu.ptit.web_grading_system.executor_service.util.GsonStructureComparator;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,7 +40,7 @@ public class AssertionEngine
     }
 
     public List<AssertionDetail> evaluateHttp(int actualStatus, String actualBody,
-            tools.jackson.databind.JsonNode config)
+            tools.jackson.databind.JsonNode config, VariableContext vars)
     {
         List<AssertionDetail> results = new ArrayList<>();
         if (config == null)
@@ -74,6 +76,7 @@ public class AssertionEngine
                 case Constant.Assertion.JSON_PATH -> checkJsonPath(assertion, actualBody);
                 case Constant.Assertion.BODY_EQUALS -> checkBodyEquals(assertion, actualBody);
                 case Constant.Assertion.BODY_STRUCTURE -> checkBodyStructure(assertion, actualBody);
+                case Constant.Assertion.FIELD_EQUALS -> checkFieldEquals(assertion, actualBody, vars);
                 default -> AssertionDetail.builder()
                         .kind(kind).passed(false)
                         .message(Constant.Message.UNKNOWN_ASSERTION_KIND_PREFIX + kind).build();
@@ -167,6 +170,70 @@ public class AssertionEngine
                     .kind(Constant.Assertion.BODY_STRUCTURE).passed(false)
                     .message(Constant.Message.BODY_STRUCTURE_PARSE_ERROR_PREFIX + e.getMessage()).build();
         }
+    }
+
+    private AssertionDetail checkFieldEquals(tools.jackson.databind.JsonNode assertion,
+            String actualBody, VariableContext vars)
+    {
+        String path = assertion.path(Constant.Assertion.PATH).asString();
+        String expectedRaw = assertion.path(Constant.Assertion.EQUALS).asString();
+        String expected = vars != null ? vars.substitute(expectedRaw) : expectedRaw;
+        try
+        {
+            Object actual = JsonPath.using(jsonPathConfig)
+                    .parse(actualBody == null ? "{}" : actualBody)
+                    .read(path);
+            /*
+             * Compare field value against expected.
+             * - null actual (missing field) → always FAIL (never match "null")
+             * - Number instances → compare via BigDecimal (1.0 == 1, exact)
+             * - non-Number types → exact string equality
+             * Review: 2026-09-20, Pullfrog PR #16.
+             */
+            boolean passed = fieldEquals(expected, actual);
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.FIELD_EQUALS).expected(expected).actual(actual)
+                    .passed(passed)
+                    .message(passed ? "Field equals matched"
+                            : "Field not equal. Expected: " + expected + " but was " + actual)
+                    .build();
+        }
+        catch (Exception e)
+        {
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.FIELD_EQUALS).expected(expected).actual(null)
+                    .passed(false)
+                    .message(Constant.Message.JSON_PATH_ERROR_PREFIX + e.getMessage())
+                    .build();
+        }
+    }
+
+    /*
+     * Compare expected string against actual field value.
+     * - null actual (missing field or explicit JSON null) → always FAIL
+     * - Number instances → compare numerically via BigDecimal (1.0 == 1, no precision loss)
+     * - String or other types → exact string equality ("00123" ≠ "123")
+     * Review: 2026-09-20, Pullfrog PR #16.
+     */
+    private boolean fieldEquals(String expected, Object actual)
+    {
+        if (actual == null)
+        {
+            return false;
+        }
+        if (actual instanceof Number actualNum)
+        {
+            try
+            {
+                BigDecimal expectedNum = new BigDecimal(expected);
+                return expectedNum.compareTo(new BigDecimal(actualNum.toString())) == 0;
+            }
+            catch (NumberFormatException e)
+            {
+                return false;
+            }
+        }
+        return expected.equals(String.valueOf(actual));
     }
 
     private static String safeMessage(Exception e)
