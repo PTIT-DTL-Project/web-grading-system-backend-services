@@ -14,6 +14,7 @@ import vn.edu.ptit.web_grading_system.executor_service.Constant;
 import vn.edu.ptit.web_grading_system.executor_service.service.VariableContext;
 import vn.edu.ptit.web_grading_system.executor_service.util.GsonStructureComparator;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -209,9 +210,9 @@ public class AssertionEngine
 
     /*
      * Compare expected string against actual field value.
-     * - null actual (missing field) → always FAIL
-     * - numeric values → compare as doubles (1.0 == 1)
-     * - everything else → string equality
+     * - null actual (missing field or explicit JSON null) → always FAIL
+     * - Number instances → compare numerically via BigDecimal (1.0 == 1, no precision loss)
+     * - String or other types → exact string equality ("00123" ≠ "123")
      * Review: 2026-09-20, Pullfrog PR #16.
      */
     private boolean fieldEquals(String expected, Object actual)
@@ -220,17 +221,19 @@ public class AssertionEngine
         {
             return false;
         }
-        String actualStr = String.valueOf(actual);
-        try
+        if (actual instanceof Number actualNum)
         {
-            double expectedNum = Double.parseDouble(expected);
-            double actualNum = Double.parseDouble(actualStr);
-            return expectedNum == actualNum;
+            try
+            {
+                BigDecimal expectedNum = new BigDecimal(expected);
+                return expectedNum.compareTo(new BigDecimal(actualNum.toString())) == 0;
+            }
+            catch (NumberFormatException e)
+            {
+                return false;
+            }
         }
-        catch (NumberFormatException e)
-        {
-            return expected.equals(actualStr);
-        }
+        return expected.equals(String.valueOf(actual));
     }
 
     private static String safeMessage(Exception e)

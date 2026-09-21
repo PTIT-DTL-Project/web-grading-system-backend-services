@@ -98,13 +98,31 @@ class AssertionEngineTest {
 
     @Test
     void fieldEquals_numericComparison() {
-        // 1.0 should equal 1 numerically
+        // 1.0 should equal 1 numerically via BigDecimal
         assertTrue(engine.evaluateHttp(200, "{\"score\":1.0}", mapper.readTree(
                 "{\"assertions\":[{\"kind\":\"field_equals\",\"path\":\"$.score\",\"equals\":\"1\"}]}"),
                 vars).get(0).isPassed());
         // 1.5 should not equal 1
         assertFalse(engine.evaluateHttp(200, "{\"score\":1.5}", mapper.readTree(
                 "{\"assertions\":[{\"kind\":\"field_equals\",\"path\":\"$.score\",\"equals\":\"1\"}]}"),
+                vars).get(0).isPassed());
+    }
+
+    @Test
+    void fieldEquals_stringNumericNoMatch() {
+        // String "00123" should NOT equal "123" — exact string equality, not numeric
+        // Review: 2026-09-20, Pullfrog PR #16.
+        assertFalse(engine.evaluateHttp(200, "{\"id\":\"00123\"}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"field_equals\",\"path\":\"$.id\",\"equals\":\"123\"}]}"),
+                vars).get(0).isPassed());
+    }
+
+    @Test
+    void fieldEquals_stringNumberExactMatch() {
+        // String "123" should equal "123" — exact string equality holds
+        // Review: 2026-09-20, Pullfrog PR #16.
+        assertTrue(engine.evaluateHttp(200, "{\"id\":\"123\"}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"field_equals\",\"path\":\"$.id\",\"equals\":\"123\"}]}"),
                 vars).get(0).isPassed());
     }
 
