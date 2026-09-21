@@ -50,6 +50,7 @@ public class Constant {
         public static final String JSON_PATH = "json_path";
         public static final String BODY_EQUALS = "body_equals";
         public static final String BODY_STRUCTURE = "body_structure";
+        public static final String FIELD_EQUALS = "field_equals";
     }
 
     public static final class DockerCompose {

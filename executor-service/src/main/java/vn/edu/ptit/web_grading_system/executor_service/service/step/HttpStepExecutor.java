@@ -130,7 +130,7 @@ public class HttpStepExecutor implements StepExecutor
             response.headers().map().forEach((k, v) -> rh.put(k, String.join(", ", v)));
             responseHeaders = rh;
 
-            assertionDetails = assertionEngine.evaluateHttp(attemptStatus, responseBody, ctx.config());
+            assertionDetails = assertionEngine.evaluateHttp(attemptStatus, responseBody, ctx.config(), ctx.variableContext());
             boolean allPassed = assertionDetails.isEmpty() || assertionDetails.stream().allMatch(AssertionEngine.AssertionDetail::isPassed);
 
             Map<String, Object> extracted = new HashMap<>();

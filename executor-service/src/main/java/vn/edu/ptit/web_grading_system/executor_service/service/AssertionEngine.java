@@ -11,6 +11,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.stereotype.Component;
 import vn.edu.ptit.web_grading_system.executor_service.Constant;
+import vn.edu.ptit.web_grading_system.executor_service.service.VariableContext;
 import vn.edu.ptit.web_grading_system.executor_service.util.GsonStructureComparator;
 
 import java.util.ArrayList;
@@ -38,7 +39,7 @@ public class AssertionEngine
     }
 
     public List<AssertionDetail> evaluateHttp(int actualStatus, String actualBody,
-            tools.jackson.databind.JsonNode config)
+            tools.jackson.databind.JsonNode config, VariableContext vars)
     {
         List<AssertionDetail> results = new ArrayList<>();
         if (config == null)
@@ -74,6 +75,7 @@ public class AssertionEngine
                 case Constant.Assertion.JSON_PATH -> checkJsonPath(assertion, actualBody);
                 case Constant.Assertion.BODY_EQUALS -> checkBodyEquals(assertion, actualBody);
                 case Constant.Assertion.BODY_STRUCTURE -> checkBodyStructure(assertion, actualBody);
+                case Constant.Assertion.FIELD_EQUALS -> checkFieldEquals(assertion, actualBody, vars);
                 default -> AssertionDetail.builder()
                         .kind(kind).passed(false)
                         .message(Constant.Message.UNKNOWN_ASSERTION_KIND_PREFIX + kind).build();
@@ -166,6 +168,35 @@ public class AssertionEngine
             return AssertionDetail.builder()
                     .kind(Constant.Assertion.BODY_STRUCTURE).passed(false)
                     .message(Constant.Message.BODY_STRUCTURE_PARSE_ERROR_PREFIX + e.getMessage()).build();
+        }
+    }
+
+    private AssertionDetail checkFieldEquals(tools.jackson.databind.JsonNode assertion,
+            String actualBody, VariableContext vars)
+    {
+        String path = assertion.path(Constant.Assertion.PATH).asString();
+        String expectedRaw = assertion.path(Constant.Assertion.EQUALS).asString();
+        String expected = vars != null ? vars.substitute(expectedRaw) : expectedRaw;
+        try
+        {
+            Object actual = JsonPath.using(jsonPathConfig)
+                    .parse(actualBody == null ? "{}" : actualBody)
+                    .read(path);
+            boolean passed = expected.equals(String.valueOf(actual));
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.FIELD_EQUALS).expected(expected).actual(actual)
+                    .passed(passed)
+                    .message(passed ? "Field equals matched"
+                            : "Field not equal. Expected: " + expected + " but was " + actual)
+                    .build();
+        }
+        catch (Exception e)
+        {
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.FIELD_EQUALS).expected(expected).actual(null)
+                    .passed(false)
+                    .message(Constant.Message.JSON_PATH_ERROR_PREFIX + e.getMessage())
+                    .build();
         }
     }
 

@@ -23,7 +23,7 @@ public final class StepConfigValidator {
     private static final Set<String> HTTP_METHODS =
             Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
     private static final Set<String> ASSERTION_KINDS =
-            Set.of("status", "body_structure", "body_equals", "json_path", "contains");
+            Set.of("status", "body_structure", "body_equals", "json_path", "contains", "field_equals");
     private static final Set<String> SCHEMA_CHECK_KINDS =
             Set.of("TABLE_EXISTS", "COLUMN_EXISTS", "INDEX_EXISTS", "PRIMARY_KEY");
 
@@ -48,7 +48,7 @@ public final class StepConfigValidator {
     }
 
     private static void requireText(JsonNode node, String field, String ctx) {
-        if (!node.hasNonNull(field) || !StringUtils.hasText(node.get(field).asText())) {
+        if (!node.hasNonNull(field) || !StringUtils.hasText(node.get(field).asString())) {
             throw new IllegalArgumentException(ctx + ": missing or empty '" + field + "'");
         }
     }
@@ -56,11 +56,11 @@ public final class StepConfigValidator {
     private static void validateHttp(JsonNode c) {
         String ctx = "HTTP_REQUEST";
         requireText(c, "method", ctx);
-        if (!HTTP_METHODS.contains(c.get("method").asText().toUpperCase())) {
-            throw new IllegalArgumentException(ctx + ": unknown method '" + c.get("method").asText() + "'");
+        if (!HTTP_METHODS.contains(c.get("method").asString().toUpperCase())) {
+            throw new IllegalArgumentException(ctx + ": unknown method '" + c.get("method").asString() + "'");
         }
         requireText(c, "path", ctx);
-        if (!c.get("path").asText().startsWith("/")) {
+        if (!c.get("path").asString().startsWith("/")) {
             throw new IllegalArgumentException(ctx + ": path must start with '/'");
         }
         if (c.hasNonNull("headers") && !c.get("headers").isObject()) {
@@ -78,7 +78,7 @@ public final class StepConfigValidator {
         if (c.hasNonNull("assertions") && c.get("assertions").isArray()) {
             for (JsonNode a : c.get("assertions")) {
                 requireText(a, "kind", ctx + ".assertions");
-                String kind = a.get("kind").asText();
+                String kind = a.get("kind").asString();
                 if (!ASSERTION_KINDS.contains(kind)) {
                     throw new IllegalArgumentException(ctx + ".assertions: unknown kind '" + kind + "'");
                 }
@@ -86,7 +86,11 @@ public final class StepConfigValidator {
                     case "status" -> requireText(a, "equals", ctx + ".assertions[status]");
                     case "json_path" -> requireText(a, "path", ctx + ".assertions[json_path]");
                     case "contains" -> requireText(a, "text", ctx + ".assertions[contains]");
-                    default -> { /* body_structure / body_equals carry 'json' of any shape */ }
+                    case "field_equals" -> {
+                        requireText(a, "path", ctx + ".assertions[field_equals]");
+                        requireText(a, "equals", ctx + ".assertions[field_equals]");
+                    }
+                    default -> { /* body_structure / body_equals / field_equals carry 'json' of any shape */ }
                 }
             }
         }
@@ -113,7 +117,7 @@ public final class StepConfigValidator {
         }
         List<String> errors = new ArrayList<>();
         for (JsonNode chk : checks) {
-            String kind = chk.path("kind").asText("");
+            String kind = chk.path("kind").asString("");
             if (!SCHEMA_CHECK_KINDS.contains(kind)) {
                 errors.add("unknown check kind '" + kind + "'");
                 continue;
@@ -140,7 +144,7 @@ public final class StepConfigValidator {
             throw new IllegalArgumentException("DB_MIGRATION: 'statements' must be a non-empty array");
         }
         for (JsonNode st : statements) {
-            if (!st.isTextual() || !StringUtils.hasText(st.asText())) {
+            if (!st.isString() || !StringUtils.hasText(st.asString())) {
                 throw new IllegalArgumentException("DB_MIGRATION.statements: entries must be non-empty strings");
             }
         }
@@ -154,11 +158,11 @@ public final class StepConfigValidator {
         for (JsonNode v : variables) {
             requireText(v, "name", "EXTRACT.variables");
             boolean hasValue = v.hasNonNull("value");
-            boolean hasFrom = v.hasNonNull("from") && StringUtils.hasText(v.get("from").asText());
-            boolean hasExpr = v.hasNonNull("expression") && StringUtils.hasText(v.get("expression").asText());
+            boolean hasFrom = v.hasNonNull("from") && StringUtils.hasText(v.get("from").asString());
+            boolean hasExpr = v.hasNonNull("expression") && StringUtils.hasText(v.get("expression").asString());
             if (!hasValue && !(hasFrom && hasExpr)) {
                 throw new IllegalArgumentException(
-                        "EXTRACT.variables['" + v.get("name").asText() + "']: needs 'value' or ('from' + 'expression')");
+                        "EXTRACT.variables['" + v.get("name").asString() + "']: needs 'value' or ('from' + 'expression')");
             }
         }
     }

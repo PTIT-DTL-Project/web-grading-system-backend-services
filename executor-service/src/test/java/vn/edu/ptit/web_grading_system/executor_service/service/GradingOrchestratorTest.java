@@ -24,17 +24,25 @@ import vn.edu.ptit.web_grading_system.executor_service.service.step.HttpStepExec
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepExecutor;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepRegistry;
 
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import tools.jackson.databind.JsonNode;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import feign.FeignException;
 
@@ -269,5 +277,320 @@ class GradingOrchestratorTest {
 
         assertEquals(GradingJobStatus.DONE, job.getStatus());
         Mockito.verify(f.resultClient(), Mockito.times(1)).create(Mockito.any());
+    }
+
+    // ─── autoInjectExtracts tests ───
+
+    private GradingOrchestrator rawOrchestrator() {
+        return new GradingOrchestrator(null, null, null, null, null, null, null,
+                null, null, null, new ObjectMapper(), null, null);
+    }
+
+    private List<InternalStepDto> invokeAutoInject(Object orchestrator,
+            List<InternalStepDto> steps) throws Exception {
+        Method method = GradingOrchestrator.class.getDeclaredMethod(
+                "autoInjectExtracts", List.class);
+        method.setAccessible(true);
+        return (List<InternalStepDto>) method.invoke(orchestrator, steps);
+    }
+
+    @Test
+    void autoInjectExtracts_injectsVariableIntoPreviousStep() throws Exception {
+        InternalStepDto step1 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(1).name("initial")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/classes\"}")
+                .build();
+        InternalStepDto step2 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(2).name("fetch-course")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"GET\",\"path\":\"/api/courses/${courseId}\"}")
+                .build();
+        InternalStepDto step3 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(3).name("submit-grade")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/grades\"}")
+                .build();
+
+        List<InternalStepDto> result = invokeAutoInject(rawOrchestrator(),
+                List.of(step1, step2, step3));
+
+        // Step 1 (index 0) should get extract for courseId because Step 2 references it
+        JsonNode step1Config = new ObjectMapper().readTree(result.get(0).getConfig());
+        assertTrue(step1Config.has("extract"), "Step 1 should have extract entries");
+        JsonNode extracts = step1Config.get("extract");
+        assertEquals(1, extracts.size(), "Should have one extract entry");
+        assertEquals("courseId", extracts.get(0).path("name").asText());
+        assertEquals("response_body", extracts.get(0).path("from").asText());
+        assertEquals("$.courseId", extracts.get(0).path("expression").asText());
+
+        // Step 2 and Step 3 configs should be unchanged
+        assertEquals("GET", new ObjectMapper().readTree(result.get(1).getConfig())
+                .path("method").asText());
+        assertEquals("POST", new ObjectMapper().readTree(result.get(2).getConfig())
+                .path("method").asText());
+    }
+
+    @Test
+    void autoInjectExtracts_noDuplicateWhenAlreadyPresent() throws Exception {
+        InternalStepDto step1 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(1).name("initial")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/classes\","
+                        + "\"extract\":[{\"name\":\"courseId\",\"from\":\"response_body\","
+                        + "\"expression\":\"$.courseId\"}]}")
+                .build();
+        InternalStepDto step2 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(2).name("fetch-course")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"GET\",\"path\":\"/api/courses/${courseId}\"}")
+                .build();
+
+        List<InternalStepDto> result = invokeAutoInject(rawOrchestrator(),
+                List.of(step1, step2));
+
+        JsonNode extracts = new ObjectMapper().readTree(result.get(0).getConfig())
+                .get("extract");
+        assertEquals(1, extracts.size(),
+                "Should NOT create duplicate extract entries");
+        assertEquals("courseId", extracts.get(0).path("name").asText());
+    }
+
+    @Test
+    void autoInjectExtracts_singleStepUnchanged() throws Exception {
+        InternalStepDto step1 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(1).name("initial")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/classes\"}")
+                .build();
+
+        List<InternalStepDto> result = invokeAutoInject(rawOrchestrator(),
+                List.of(step1));
+
+        assertEquals(1, result.size());
+        assertEquals("{\"method\":\"POST\",\"path\":\"/api/classes\"}",
+                result.get(0).getConfig());
+    }
+
+    @Test
+    void autoInjectExtracts_emptyListReturnsEmpty() throws Exception {
+        List<InternalStepDto> result = invokeAutoInject(rawOrchestrator(), List.of());
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void autoInjectExtracts_multipleVariablesInjected() throws Exception {
+        InternalStepDto step1 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(1).name("initial")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/classes\"}")
+                .build();
+        InternalStepDto step2 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(2).name("multi-ref")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"GET\","
+                        + "\"path\":\"/api/grades?course=${courseId}&class=${classId}\"}")
+                .build();
+
+        List<InternalStepDto> result = invokeAutoInject(rawOrchestrator(),
+                List.of(step1, step2));
+
+        JsonNode extracts = new ObjectMapper().readTree(result.get(0).getConfig())
+                .get("extract");
+        assertEquals(2, extracts.size(), "Should have 2 extract entries");
+        Set<String> names = new HashSet<>();
+        for (JsonNode entry : extracts) {
+            names.add(entry.path("name").asText());
+        }
+        assertTrue(names.contains("courseId"), "Should extract courseId");
+        assertTrue(names.contains("classId"), "Should extract classId");
+        for (JsonNode entry : extracts) {
+            assertEquals("response_body", entry.path("from").asText());
+            assertTrue(entry.path("expression").asText().startsWith("$."),
+                    "Expression should start with $.");
+        }
+    }
+
+    @Test
+    void autoInjectExtracts_malformedConfigSkippedGracefully() throws Exception {
+        InternalStepDto step1 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(1).name("broken")
+                .stepType("HTTP_REQUEST")
+                .config("THIS IS NOT JSON{{{")
+                .build();
+        InternalStepDto step2 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(2).name("grade")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"GET\",\"path\":\"/api/grades/${courseId}\"}")
+                .build();
+
+        assertDoesNotThrow(() -> {
+            List<InternalStepDto> result = invokeAutoInject(rawOrchestrator(),
+                    List.of(step1, step2));
+            assertEquals(2, result.size(), "Should return same number of steps");
+            assertEquals("THIS IS NOT JSON{{{", result.get(0).getConfig(),
+                    "Malformed config should be preserved unchanged");
+        });
+    }
+
+    @Test
+    void autoInjectExtracts_nullConfigTreatedAsEmpty() throws Exception {
+        InternalStepDto step1 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(1).name("null-step")
+                .stepType("HTTP_REQUEST")
+                .config(null)
+                .build();
+        InternalStepDto step2 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(2).name("grade")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"GET\",\"path\":\"/api/grades/${courseId}\"}")
+                .build();
+
+        List<InternalStepDto> result = invokeAutoInject(rawOrchestrator(),
+                List.of(step1, step2));
+
+        JsonNode step1Config = new ObjectMapper().readTree(result.get(0).getConfig());
+        assertTrue(step1Config.has("extract"),
+                "Null config should be treated as empty object");
+        assertEquals("courseId", step1Config.get("extract").get(0).path("name").asText());
+    }
+
+    @Test
+    void autoInjectExtracts_findsVariableFromNonAdjacentStep() throws Exception {
+        // Step 0: explicit extract book1Id → Step 3 refs ${book1Id} → should NOT inject into Step 2
+        InternalStepDto step0 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(1).name("create-book-1")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/books\","
+                        + "\"extract\":[{\"name\":\"book1Id\",\"from\":\"response_body\",\"expression\":\"$.id\"}]}")
+                .build();
+        InternalStepDto step1 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(2).name("create-book-2")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/books\","
+                        + "\"extract\":[{\"name\":\"book2Id\",\"from\":\"response_body\",\"expression\":\"$.id\"}]}")
+                .build();
+        InternalStepDto step2 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(3).name("create-book-3")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/books\","
+                        + "\"extract\":[{\"name\":\"book3Id\",\"from\":\"response_body\",\"expression\":\"$.id\"}]}")
+                .build();
+        InternalStepDto step3 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(4).name("get-book-1")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"GET\",\"path\":\"/api/books/${book1Id}\"}")
+                .build();
+
+        List<InternalStepDto> result = invokeAutoInject(rawOrchestrator(),
+                List.of(step0, step1, step2, step3));
+
+        // Step 0 already has extract → no injection should happen
+        JsonNode step0Config = new ObjectMapper().readTree(result.get(0).getConfig());
+        assertTrue(step0Config.has("extract"));
+        assertEquals(1, step0Config.get("extract").size(), "Step 0 should have exactly 1 extract");
+        assertEquals("book1Id", step0Config.get("extract").get(0).path("name").asText());
+
+        // Step 2 should still have ONLY its original extract (book3Id), NOT book1Id
+        JsonNode step2Config = new ObjectMapper().readTree(result.get(2).getConfig());
+        assertTrue(step2Config.has("extract"), "Step 2 should keep its original extract");
+        assertEquals(1, step2Config.get("extract").size(), "Step 2 should not get book1Id inject");
+        assertEquals("book3Id", step2Config.get("extract").get(0).path("name").asText());
+    }
+
+    @Test
+    void autoInjectExtracts_multipleVariablesFromDifferentSources() throws Exception {
+        // 3 POSTs with explicit extracts + GET refs → no injection needed
+        InternalStepDto step0 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(1).name("create-1")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/books\","
+                        + "\"extract\":[{\"name\":\"book1Id\",\"from\":\"response_body\",\"expression\":\"$.id\"}]}")
+                .build();
+        InternalStepDto step1 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(2).name("create-2")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/books\","
+                        + "\"extract\":[{\"name\":\"book2Id\",\"from\":\"response_body\",\"expression\":\"$.id\"}]}")
+                .build();
+        InternalStepDto step2 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(3).name("create-3")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/books\","
+                        + "\"extract\":[{\"name\":\"book3Id\",\"from\":\"response_body\",\"expression\":\"$.id\"}]}")
+                .build();
+        InternalStepDto step3 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(4).name("get-list")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"GET\",\"path\":\"/api/books?ids=${book1Id},${book2Id},${book3Id}\"}")
+                .build();
+
+        List<InternalStepDto> result = invokeAutoInject(rawOrchestrator(),
+                List.of(step0, step1, step2, step3));
+
+        // No step should get new inject (all sources explicit)
+        for (int i = 0; i < result.size(); i++) {
+            JsonNode config = new ObjectMapper().readTree(result.get(i).getConfig());
+            if (i < 3) {
+                // Steps 0-2 have explicit extracts → should stay at 1
+                assertTrue(config.has("extract"), "Step " + i + " should keep extract");
+                assertEquals(1, config.get("extract").size(),
+                        "Step " + i + " should not get duplicate extracts");
+            } else {
+                // Step 3 has no extract → should NOT gain one (all vars mapped)
+                assertFalse(config.has("extract"),
+                        "Step " + i + " should not get any extract");
+            }
+        }
+    }
+
+    @Test
+    void autoInjectExtracts_fallbackToPreviousStep() throws Exception {
+        // No explicit extract → fallback to i-1 (old behavior)
+        InternalStepDto step0 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(1).name("create")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/books\"}")
+                .build();
+        InternalStepDto step1 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(2).name("get")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"GET\",\"path\":\"/api/books/${bookId}\"}")
+                .build();
+
+        List<InternalStepDto> result = invokeAutoInject(rawOrchestrator(),
+                List.of(step0, step1));
+
+        JsonNode step0Config = new ObjectMapper().readTree(result.get(0).getConfig());
+        assertTrue(step0Config.has("extract"), "Should fallback to inject in step 0");
+        assertEquals("bookId", step0Config.get("extract").get(0).path("name").asText());
+    }
+
+    @Test
+    void autoInjectExtracts_doesNotDuplicateMappedVariable() throws Exception {
+        // Step 0 has explicit extract → Step 1 refs it → no duplicate inject into Step 0
+        InternalStepDto step0 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(1).name("create")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"POST\",\"path\":\"/api/books\","
+                        + "\"extract\":[{\"name\":\"bookId\",\"from\":\"response_body\",\"expression\":\"$.id\"}]}")
+                .build();
+        InternalStepDto step1 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(2).name("get")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"GET\",\"path\":\"/api/books/${bookId}\"}")
+                .build();
+        InternalStepDto step2 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(3).name("get2")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"GET\",\"path\":\"/api/books/${bookId}\"}")
+                .build();
+
+        List<InternalStepDto> result = invokeAutoInject(rawOrchestrator(),
+                List.of(step0, step1, step2));
+
+        JsonNode step0Config = new ObjectMapper().readTree(result.get(0).getConfig());
+        assertEquals(1, step0Config.get("extract").size(),
+                "Should NOT duplicate extract when already mapped");
     }
 }

@@ -38,7 +38,9 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -331,6 +333,30 @@ public class GradingOrchestrator
     {
         Pattern varPattern = Pattern.compile("\\$\\{([^}]+)}");
         List<InternalStepDto> result = new ArrayList<>(steps);
+
+        // Phase 1: Build variable → source step map from existing extract entries
+        Map<String, Integer> varSourceMap = new LinkedHashMap<>();
+        for (int i = 0; i < result.size(); i++)
+        {
+            try
+            {
+                JsonNode config = objectMapper.readTree(result.get(i).getConfig() == null ? "{}" : result.get(i).getConfig());
+                if (config.hasNonNull(Constant.HttpStep.EXTRACT) && config.get(Constant.HttpStep.EXTRACT).isArray())
+                {
+                    for (JsonNode ex : config.get(Constant.HttpStep.EXTRACT))
+                    {
+                        String varName = ex.path(Constant.HttpStep.NAME).asString();
+                        varSourceMap.putIfAbsent(varName, i);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                // skip on parse error
+            }
+        }
+
+        // Phase 2: Smart injection — only inject when variable not already mapped to a source
         for (int i = result.size() - 1; i >= 1; i--)
         {
             try
@@ -338,24 +364,26 @@ public class GradingOrchestrator
                 JsonNode config = objectMapper.readTree(result.get(i).getConfig() == null ? "{}" : result.get(i).getConfig());
                 Set<String> neededVars = new HashSet<>();
                 collectVarRefs(config, varPattern, neededVars);
-                if (!neededVars.isEmpty())
+                for (String varName : neededVars)
                 {
-                    InternalStepDto prevStep = result.get(i - 1);
-                    JsonNode prevConfig = objectMapper.readTree(prevStep.getConfig() == null ? "{}" : prevStep.getConfig());
-                    ObjectNode enhanced = (ObjectNode) prevConfig;
-                    ArrayNode extractArray = enhanced.withArray(Constant.HttpStep.EXTRACT);
-                    for (String varName : neededVars)
+                    if (varSourceMap.containsKey(varName))
                     {
-                        boolean exists = false;
-                        if (enhanced.has(Constant.HttpStep.EXTRACT) && enhanced.get(Constant.HttpStep.EXTRACT).isArray())
+                        continue;
+                    }
+                    int targetStep = i - 1;
+                    InternalStepDto target = result.get(targetStep);
+                    JsonNode targetConfig = objectMapper.readTree(target.getConfig() == null ? "{}" : target.getConfig());
+                    ObjectNode enhanced = (ObjectNode) targetConfig;
+                    ArrayNode extractArray = enhanced.withArray(Constant.HttpStep.EXTRACT);
+                    boolean exists = false;
+                    if (extractArray != null)
+                    {
+                        for (JsonNode ex : extractArray)
                         {
-                            for (JsonNode ex : enhanced.get(Constant.HttpStep.EXTRACT))
+                            if (ex.path(Constant.HttpStep.NAME).asString().equals(varName))
                             {
-                                if (ex.path(Constant.HttpStep.NAME).asString().equals(varName))
-                                {
-                                    exists = true;
-                                    break;
-                                }
+                                exists = true;
+                                break;
                             }
                         }
                         if (!exists)
@@ -367,11 +395,12 @@ public class GradingOrchestrator
                             extractArray.add(entry);
                         }
                     }
-                    result.set(i - 1, new InternalStepDto(
-                            prevStep.getId(), prevStep.getStepOrder(), prevStep.getName(),
-                            prevStep.getStepType(), enhanced.toString(),
-                            prevStep.getExpectedResult(), prevStep.getWeight(),
-                            prevStep.getTimeoutMs(), prevStep.getRequired()));
+                    result.set(targetStep, new InternalStepDto(
+                            target.getId(), target.getStepOrder(), target.getName(),
+                            target.getStepType(), enhanced.toString(),
+                            target.getExpectedResult(), target.getWeight(),
+                            target.getTimeoutMs(), target.getRequired()));
+                    varSourceMap.put(varName, targetStep);
                 }
             }
             catch (Exception e)
