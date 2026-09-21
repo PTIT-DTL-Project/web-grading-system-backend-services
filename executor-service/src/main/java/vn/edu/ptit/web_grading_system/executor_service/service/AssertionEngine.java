@@ -186,8 +186,8 @@ public class AssertionEngine
             /*
              * Compare field value against expected.
              * - null actual (missing field) → always FAIL (never match "null")
-             * - numeric values → compare as doubles (1.0 == 1)
-             * - everything else → string equality
+             * - Number instances → compare via BigDecimal (1.0 == 1, exact)
+             * - non-Number types → exact string equality
              * Review: 2026-09-20, Pullfrog PR #16.
              */
             boolean passed = fieldEquals(expected, actual);
