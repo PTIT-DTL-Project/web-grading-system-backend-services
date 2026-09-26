@@ -24,6 +24,31 @@ public class Constant {
         public static final String DB_STEP_PREFIX = "DB_";
     }
 
+    /* Config keys + assertion kinds for the three DB step types.
+     * Design: design-db-v1.0.md §2.3. */
+    public static final class DbStep {
+        public static final String TYPE_QUERY = "DB_QUERY";
+        public static final String TYPE_SCHEMA_CHECK = "DB_SCHEMA_CHECK";
+        public static final String TYPE_MIGRATION = "DB_MIGRATION";
+        public static final String QUERY = "query";
+        public static final String EXPECTED = "expected";
+        public static final String CHECKS = "checks";
+        public static final String STATEMENTS = "statements";
+        public static final String ROW_COUNT = "row_count";
+        public static final String COLUMNS = "columns";
+        public static final String TABLE_NAME = "table_name";
+        public static final String COLUMN_NAME = "column_name";
+        public static final String COLUMN = "column";
+        public static final String INDEX_NAME = "index_name";
+        public static final String DATA_TYPE = "data_type";
+        public static final String KIND_TABLE_EXISTS = "TABLE_EXISTS";
+        public static final String KIND_COLUMN_EXISTS = "COLUMN_EXISTS";
+        public static final String KIND_PRIMARY_KEY = "PRIMARY_KEY";
+        public static final String KIND_INDEX_EXISTS = "INDEX_EXISTS";
+        public static final String ASSERT_ROW_COUNT = "row_count";
+        public static final String ASSERT_COLUMNS = "columns";
+    }
+
     public static final class HttpStep {
         public static final String QUERY_PARAMS = "query_params";
         public static final String HEADERS = "headers";
@@ -245,6 +270,11 @@ public class Constant {
             public static final String CONNECTION_DIALECT_SUFFIX =
                     "'. If your DB is MySQL/MariaDB, set connection.db_type";
             public static final String UNKNOWN_DIALECT = "Unknown db_type: ";
+            public static final String SQL_EXECUTION_ERROR = "DB step SQL error: ";
+            public static final String SQL_TIMEOUT_ERROR =
+                    "DB step timed out after ";
+            public static final String UNKNOWN_CHECK_KIND =
+                    "Unknown check kind: ";
         }
 
         /* --- nested: misc --- */
