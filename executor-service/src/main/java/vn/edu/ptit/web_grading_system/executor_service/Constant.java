@@ -18,10 +18,6 @@ public class Constant {
         public static final String DB_PORT_CONFIG = "db_port";
         public static final String DB_TYPE = "db_type";
         public static final String DEFAULT_DB_TYPE = "postgres";
-        /* Engines shipped in v1 — additive only. Key ∈ DbDialect.keys();
-         * mariadb rides on the mysql dialect (wire-compatible).
-         * The allow-set now lives in the registry's byKey (see
-         * DbDialectRegistry.resolve). */
         public static final String DATABASE = "database";
         public static final String USERNAME = "username";
         public static final String PASSWORD = "password";

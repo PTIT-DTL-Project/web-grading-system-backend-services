@@ -103,6 +103,12 @@ class DbDialectTest {
         // tinyint(4) (a count column) is NOT boolean — the prefix check
         // is exact so the sameType is falsy here.
         assertFalse(my.sameType("boolean", "tinyint(4)"));
+        // BIT(1) is MySQL's rarer boolean spelling; folded only
+        // when the lecturer asked for boolean, so `bit` vs `bit(1)`
+        // (same column) still matches.
+        assertTrue(my.sameType("boolean", "bit(1)"));
+        assertTrue(my.sameType("bit", "bit(1)"));
+        assertFalse(my.sameType("boolean", "bit(8)"));
     }
 
     @Test

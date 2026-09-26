@@ -80,12 +80,24 @@ public class MysqlDialect implements DbDialect
         {
             return false;
         }
+        // BIT(1) is MySQL's rarer boolean spelling: fold it to
+        // boolean only when the lecturer asked for boolean, so
+        // `bit` vs `bit(1)` (same column, different spellings)
+        // still matches. normalize alone can't do this symmetrically
+        // because it width-strips bit(1)→bit, which is correct for
+        // the bit-vs-bit case but would break boolean-vs-bit(1).
+        // Review: 2026-09-26, Pullfrog PR #17 (round 2).
+        if ("boolean".equals(normalize(expected))) {
+            String raw = actual.trim().toLowerCase(Locale.ROOT);
+            return "boolean".equals(normalize(actual)) || raw.equals("bit(1)");
+        }
         return normalize(expected).equals(normalize(actual));
     }
 
     /**
-     * MySQL naming: BOOL/BOOLEAN are aliases stored as tinyint(1); display
-     * widths ({@code varchar(255)}, {@code int(11)}) are not part of the type.
+     * MySQL naming: BOOL/BOOLEAN are aliases stored as tinyint(1);
+     * the rarer BIT(1) spelling is also boolean. Display widths
+     * ({@code varchar(255)}, {@code int(11)}) are not part of the type.
      */
     private static String normalize(String type)
     {

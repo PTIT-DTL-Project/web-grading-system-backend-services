@@ -150,7 +150,7 @@ public final class StepConfigValidator {
             }
         }
         if (conn.hasNonNull("database")) {
-            String database = conn.get("database").asText();
+            String database = conn.get("database").asString();
             if (!database.matches("[A-Za-z0-9_$]+")) {
                 throw new IllegalArgumentException(ctx
                         + ": connection.database must be a bare identifier [A-Za-z0-9_$]+");

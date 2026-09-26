@@ -25,10 +25,11 @@ public interface DbDialect
     String jdbcUrl(int hostPort, String database);
 
     /**
-     * Validates that {@code database} is a bare identifier safe to
-     * concatenate into a JDBC URL — a value containing {@code ?},
-     * {@code &}, {@code #}, {@code /} or {@code :} would inject
-     * connection properties. Review: 2026-09-26, Pullfrog PR #17 (F4).
+     * Validates that {@code database} is a URL-safe charset
+     * ({@code [A-Za-z0-9_$]+}) before concatenation into a JDBC
+     * URL — a value containing {@code ?}, {@code &}, {@code #},
+     * {@code /} or {@code :} would inject connection properties.
+     * Review: 2026-09-26, Pullfrog PR #17 (F4).
      */
     static void requireSafeDatabase(String database)
     {

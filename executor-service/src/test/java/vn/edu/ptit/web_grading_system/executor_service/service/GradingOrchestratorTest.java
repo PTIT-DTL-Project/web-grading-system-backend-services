@@ -894,4 +894,43 @@ class GradingOrchestratorTest {
         Mockito.verify(f.stepRepo(), Mockito.never()).save(Mockito.any());
         assert java.nio.file.Files.notExists(f.workDir());
     }
+
+    // ─── sameConnection normalization (round-2) ───
+
+    @Test
+    void sameConnection_normalizesAliasesCaseAndWhitespace() {
+        var o = orchestratorWithRegistry();
+        // mysql and mariadb resolve to the same singleton dialect
+        assertTrue(o.sameConnection(req("db", 3306, "mysql"), req("db", 3306, "mariadb")));
+        // resolve trims and folds case
+        assertTrue(o.sameConnection(req("db", 3306, "MySQL"), req("db", 3306, "mysql")));
+        assertTrue(o.sameConnection(req("db", 3306, " mysql "), req("db", 3306, "mysql")));
+        // null and blank both resolve to the default engine
+        assertTrue(o.sameConnection(req("db", 3306, null), req("db", 3306, "")));
+        // different engine, different service, different port all fail
+        assertFalse(o.sameConnection(req("db1", 3306, "postgres"), req("db1", 3306, "mysql")));
+        assertFalse(o.sameConnection(req("db1", 3306, "mysql"), req("db2", 3306, "mysql")));
+        assertFalse(o.sameConnection(req("db", 3306, "mysql"), req("db", 5432, "mysql")));
+    }
+
+    @Test
+    void scanDbRequirements_differingService_firstWins() throws Exception {
+        // Two steps on different services → the first wins; the
+        // mismatch WARN is logged at scan time (branch exercised).
+        InternalStepDto s1 = dbStepWithConfig("{\"connection\":{\"db_service\":\"db1\",\"db_type\":\"mysql\",\"database\":\"appdb\",\"username\":\"root\",\"password\":\"root\"},\"query\":\"SELECT 1\"}");
+        InternalStepDto s2 = dbStepWithConfig("{\"connection\":{\"db_service\":\"db2\",\"db_type\":\"postgres\",\"database\":\"appdb\",\"username\":\"root\",\"password\":\"root\"},\"query\":\"SELECT 1\"}");
+        var req = invokeScan(List.of(plan(0, List.of(s1, s2))));
+        assertEquals("db1", req.dbService());
+        assertEquals("mysql", req.dbType());
+    }
+
+    private static GradingOrchestrator orchestratorWithRegistry() {
+        return new GradingOrchestrator(null, null, null, null, null, null,
+                null, null, null, null, new ObjectMapper(), null, null,
+                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())));
+    }
+
+    private static GradingOrchestrator.DbRequirements req(String service, int port, String dbType) {
+        return new GradingOrchestrator.DbRequirements(true, service, port, dbType, null);
+    }
 }

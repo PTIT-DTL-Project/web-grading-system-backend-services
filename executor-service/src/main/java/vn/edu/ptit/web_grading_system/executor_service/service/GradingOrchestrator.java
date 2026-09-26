@@ -320,6 +320,13 @@ public class GradingOrchestrator
                 // engine default (5432 postgres / 3306 mysql). An unknown
                 // db_type throws here → grade() fails the job before any
                 // port is claimed. Review: 2026-09-26, Pullfrog PR #17 (F1).
+                // Resolve the dialect unconditionally (not only when
+                // db_port is omitted) so an unknown engine always fails
+                // the job — with an explicit valid db_port the old guard
+                // never ran, and this also gives sameConnection() the
+                // resolved identity it compares on. Review:
+                // 2026-09-26, Pullfrog PR #17 (round 2).
+                var dialect = dialectRegistry.resolve(dbType);
                 if (dbContainerPort == null || dbContainerPort < 1 || dbContainerPort > 65535)
                 {
                     if (dbContainerPort != null)
@@ -327,7 +334,7 @@ public class GradingOrchestrator
                         log.warn("Ignoring invalid connection.db_port {} (must be 1–65535) for {}",
                                 dbContainerPort, dbService);
                     }
-                    dbContainerPort = dialectRegistry.resolve(dbType).defaultPort();
+                    dbContainerPort = dialect.defaultPort();
                 }
                 DbRequirements current = new DbRequirements(true, dbService, dbContainerPort, dbType, parseError);
                 if (first == null)
@@ -337,23 +344,35 @@ public class GradingOrchestrator
                 }
                 if (!sameConnection(first, current))
                 {
-                    // Multiple DB services per assignment unsupported — the
-                    // first connection wins; log the ignored step so the
-                    // mismatch is visible instead of silently grading against
-                    // the wrong database. Review: 2026-09-26, Pullfrog PR #17 (F7).
-                    log.warn("Ignoring DB step '{}' (type {}) in favour of the first DB step '{}' — multiple DB services per assignment unsupported",
-                            scanStep.getName(), scanStep.getStepType(), first.dbService());
+                    // Multiple/conflicting DB connections per assignment
+                    // unsupported — the first connection wins. The
+                    // mismatch is logged so it is visible instead of
+                    // silently grading against the wrong database.
+                    // Review: 2026-09-26, Pullfrog PR #17 (round 2).
+                    log.warn("Ignoring DB step '{}' (type {}) — connection differs from the first DB step (first service='{}' type={} port={}; this service='{}' type={} port={}): conflicting DB connections per assignment unsupported",
+                            scanStep.getName(), scanStep.getStepType(), first.dbService(), first.dbType(), first.dbContainerPort(), current.dbService(), current.dbType(), current.dbContainerPort());
                 }
             }
         }
         return first == null ? DbRequirements.none() : first;
     }
 
-    private static boolean sameConnection(DbRequirements a, DbRequirements b)
-    {
-        return Objects.equals(a.dbService(), b.dbService())
-                && Objects.equals(a.dbType(), b.dbType());
-    }
+    // Compares resolved engine identity rather than the raw configured
+     // string — "mysql"/"mariadb"/"MySQL"/" mysql " are one engine
+     // (the registry folds case, trims, and aliases them), so raw
+     // string comparison logged a false mismatch. Identity == works
+     // because dialects are Spring singletons; resolving again is safe
+     // (both keys were resolved a few lines above) and throws on an
+     // unknown key, which is correct here since scan has resolved both.
+     // Also compares dbContainerPort: two steps on the same service
+     // with different ports would publish the same host port twice.
+     // Review: 2026-09-26, Pullfrog PR #17 (round 2).
+     boolean sameConnection(DbRequirements a, DbRequirements b)
+     {
+         return Objects.equals(a.dbService(), b.dbService())
+                 && dialectRegistry.resolve(a.dbType()) == dialectRegistry.resolve(b.dbType())
+                 && Objects.equals(a.dbContainerPort(), b.dbContainerPort());
+     }
 
     /**
      * Fully resolved DB requirements: {@code dbContainerPort} is the config value
