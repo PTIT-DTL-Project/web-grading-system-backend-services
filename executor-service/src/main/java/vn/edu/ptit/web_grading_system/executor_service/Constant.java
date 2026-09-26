@@ -271,6 +271,10 @@ public class Constant {
                     "'. If your DB is MySQL/MariaDB, set connection.db_type";
             public static final String UNKNOWN_DIALECT = "Unknown db_type: ";
             public static final String SQL_EXECUTION_ERROR = "DB step SQL error: ";
+            public static final String SQL_TIMEOUT_ERROR =
+                    "DB step timed out after ";
+            public static final String UNKNOWN_CHECK_KIND =
+                    "Unknown check kind: ";
         }
 
         /* --- nested: misc --- */

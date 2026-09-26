@@ -53,9 +53,9 @@ class DbMigrationExecutorTest {
         var ps = mock(PreparedStatement.class);
         when(conn.prepareStatement(any())).thenReturn(ps);
 
-        when(db.withConnection(any(), anyInt(), any())).thenAnswer(inv -> {
+        when(db.withConnection(any(), anyInt(), anyInt(), any())).thenAnswer(inv -> {
             @SuppressWarnings("unchecked")
-            var action = inv.getArgument(2, ConnectionAction.class);
+            var action = inv.getArgument(3, ConnectionAction.class);
             return action.apply(conn);
         });
 
@@ -89,9 +89,9 @@ class DbMigrationExecutorTest {
         when(conn.prepareStatement(any())).thenReturn(ps);
         when(ps.executeUpdate()).thenThrow(new SQLException("duplicate key"));
 
-        when(db.withConnection(any(), anyInt(), any())).thenAnswer(inv -> {
+        when(db.withConnection(any(), anyInt(), anyInt(), any())).thenAnswer(inv -> {
             @SuppressWarnings("unchecked")
-            var action = inv.getArgument(2, ConnectionAction.class);
+            var action = inv.getArgument(3, ConnectionAction.class);
             return action.apply(conn);
         });
 

@@ -18,7 +18,6 @@ import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHe
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialect;
 import vn.edu.ptit.web_grading_system.executor_service.entities.GradingStepResult;
 import vn.edu.ptit.web_grading_system.executor_service.entities.StepResultStatus;
-import vn.edu.ptit.web_grading_system.executor_service.service.AssertionEngine;
 import vn.edu.ptit.web_grading_system.executor_service.service.AssertionEngine.AssertionDetail;
 
 /**
@@ -48,21 +47,24 @@ public class DbSchemaCheckExecutor implements StepExecutor {
                 .asString(Constant.DbConnection.DEFAULT_DB_TYPE);
         Integer hostPort = (Integer) ctx.variableContext()
                 .get(Constant.VariableContext.DB_PORT);
+        int timeoutSeconds = ctx.timeoutMs() != null
+                ? (int) Math.ceil(ctx.timeoutMs() / 1000.0)
+                : 30;
         long started = System.currentTimeMillis();
         List<AssertionDetail> details = new ArrayList<>();
         try {
-            db.withConnection(config, hostPort, conn -> {
+            db.withConnection(config, hostPort, ctx.timeoutMs() != null
+                    ? ctx.timeoutMs() : 30_000, conn -> {
                 DbDialect dialect = db.resolve(dbType);
                 for (JsonNode check : config.get(Constant.DbStep.CHECKS)) {
-                    details.add(runCheck(conn, dialect, check));
+                    details.add(runCheck(conn, dialect, check, timeoutSeconds));
                 }
                 return null;
             });
-        } catch (Exception e) {
+        } catch (SQLException e) {
             return DbStepResults.buildResult(mapper, ctx, type(),
                     StepResultStatus.ERROR, details,
-                    Constant.Message.Db.SQL_EXECUTION_ERROR + e.getMessage(),
-                    started);
+                    connectionMessage(e) + e.getMessage(), started);
         }
         boolean passed = details.stream().allMatch(AssertionDetail::isPassed);
         return DbStepResults.buildResult(mapper, ctx, type(),
@@ -71,7 +73,7 @@ public class DbSchemaCheckExecutor implements StepExecutor {
     }
 
     private AssertionDetail runCheck(Connection conn, DbDialect dialect,
-            JsonNode check) throws SQLException {
+            JsonNode check, int timeoutSeconds) throws SQLException {
         String kind = check.path("kind").asText();
         return switch (kind) {
             case Constant.DbStep.KIND_TABLE_EXISTS -> {
@@ -79,6 +81,7 @@ public class DbSchemaCheckExecutor implements StepExecutor {
                 String sql = dialect.tableExistsSql();
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, table);
+                    ps.setQueryTimeout(timeoutSeconds);
                     try (ResultSet rs = ps.executeQuery()) {
                         rs.next();
                         boolean ok = rs.getInt(1) > 0;
@@ -97,6 +100,7 @@ public class DbSchemaCheckExecutor implements StepExecutor {
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, table);
                     ps.setString(2, column);
+                    ps.setQueryTimeout(timeoutSeconds);
                     try (ResultSet rs = ps.executeQuery()) {
                         rs.next();
                         String actualType = rs.getString(1);
@@ -115,6 +119,7 @@ public class DbSchemaCheckExecutor implements StepExecutor {
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, table);
                     ps.setString(2, column);
+                    ps.setQueryTimeout(timeoutSeconds);
                     try (ResultSet rs = ps.executeQuery()) {
                         rs.next();
                         boolean ok = rs.getInt(1) > 0;
@@ -133,6 +138,7 @@ public class DbSchemaCheckExecutor implements StepExecutor {
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, table);
                     ps.setString(2, index);
+                    ps.setQueryTimeout(timeoutSeconds);
                     try (ResultSet rs = ps.executeQuery()) {
                         rs.next();
                         boolean ok = rs.getInt(1) > 0;
@@ -143,8 +149,17 @@ public class DbSchemaCheckExecutor implements StepExecutor {
                     }
                 }
             }
-            default -> throw new SQLException("Unknown check kind: " + kind);
+            default -> throw new SQLException(
+                    Constant.Message.Db.UNKNOWN_CHECK_KIND + kind);
         };
+    }
+
+    /** Connection failures are wrapped by {@link
+     * DbConnectionHelper} with the dialect hint as the cause;
+     * check/statement failures are not. */
+    private static String connectionMessage(SQLException e) {
+        return (e.getCause() != null) ? ""
+                : Constant.Message.Db.SQL_EXECUTION_ERROR;
     }
 
     private static AssertionDetail assertion(String kind, Object expected,

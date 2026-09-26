@@ -44,16 +44,21 @@ public class DbMigrationExecutor implements StepExecutor {
         JsonNode config = ctx.config();
         Integer hostPort = (Integer) ctx.variableContext()
                 .get(Constant.VariableContext.DB_PORT);
+        int timeoutSeconds = ctx.timeoutMs() != null
+                ? (int) Math.ceil(ctx.timeoutMs() / 1000.0)
+                : 30;
         long started = System.currentTimeMillis();
         List<AssertionEngine.AssertionDetail> details = new ArrayList<>();
         try {
-            db.withConnection(config, hostPort, conn -> {
+            db.withConnection(config, hostPort, ctx.timeoutMs() != null
+                    ? ctx.timeoutMs() : 30_000, conn -> {
                 conn.setAutoCommit(false);
                 try {
                     for (JsonNode stmt : config.get(Constant.DbStep.STATEMENTS)) {
                         try (PreparedStatement ps = conn.prepareStatement(
                                 ctx.variableContext().substitute(
                                         stmt.asText()))) {
+                            ps.setQueryTimeout(timeoutSeconds);
                             ps.executeUpdate();
                         }
                     }
@@ -69,10 +74,17 @@ public class DbMigrationExecutor implements StepExecutor {
         } catch (SQLException e) {
             return DbStepResults.buildResult(mapper, ctx, type(),
                     StepResultStatus.ERROR, details,
-                    Constant.Message.Db.SQL_EXECUTION_ERROR + e.getMessage(),
-                    started);
+                    connectionMessage(e) + e.getMessage(), started);
         }
         return DbStepResults.buildResult(mapper, ctx, type(),
                 StepResultStatus.PASSED, details, null, started);
+    }
+
+    /** Connection failures are wrapped by {@link
+     * DbConnectionHelper} with the dialect hint as the cause;
+     * statement failures are not. */
+    private static String connectionMessage(SQLException e) {
+        return (e.getCause() != null) ? ""
+                : Constant.Message.Db.SQL_EXECUTION_ERROR;
     }
 }

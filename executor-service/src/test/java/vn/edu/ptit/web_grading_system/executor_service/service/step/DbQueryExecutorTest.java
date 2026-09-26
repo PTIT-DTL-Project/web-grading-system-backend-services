@@ -17,9 +17,6 @@ import tools.jackson.databind.ObjectMapper;
 
 import vn.edu.ptit.web_grading_system.executor_service.Constant;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHelper;
-import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialectRegistry;
-import vn.edu.ptit.web_grading_system.executor_service.service.db.PostgresDialect;
-import vn.edu.ptit.web_grading_system.executor_service.service.db.MysqlDialect;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.DbQueryExecutor;
 import vn.edu.ptit.web_grading_system.executor_service.entities.GradingStepResult;
 import vn.edu.ptit.web_grading_system.executor_service.entities.StepResultStatus;
@@ -54,8 +51,6 @@ class DbQueryExecutorTest {
         vars.put(Constant.VariableContext.DB_PORT, 23457);
         vars.put("bookId", "7");
 
-        // The executor's lambda receives a mock Connection; set up
-        // the ResultSet it returns.
         var conn = mock(Connection.class);
         var stmt = mock(Statement.class);
         var rs = mock(ResultSet.class);
@@ -68,9 +63,9 @@ class DbQueryExecutorTest {
         when(meta.getColumnLabel(2)).thenReturn("title");
         when(rs.next()).thenReturn(true).thenReturn(false); // one row
 
-        when(db.withConnection(any(), anyInt(), any())).thenAnswer(inv -> {
+        when(db.withConnection(any(), anyInt(), anyInt(), any())).thenAnswer(inv -> {
             @SuppressWarnings("unchecked")
-            var action = inv.getArgument(2, DbConnectionHelper.ConnectionAction.class);
+            var action = inv.getArgument(3, DbConnectionHelper.ConnectionAction.class);
             return action.apply(conn);
         });
 
@@ -83,6 +78,8 @@ class DbQueryExecutorTest {
         assertTrue(result.getAssertionResult().contains("row_count"));
         assertTrue(result.getAssertionResult().contains("columns"));
         assertNull(result.getErrorMessage());
+        // The substituted SQL reached the driver, not the template.
+        verify(stmt).executeQuery("SELECT id, title FROM books WHERE id = 7");
     }
 
     @Test
@@ -105,22 +102,17 @@ class DbQueryExecutorTest {
         when(stmt.executeQuery(any())).thenReturn(rs);
         when(rs.getMetaData()).thenReturn(meta);
         when(meta.getColumnCount()).thenReturn(1);
-        when(rs.next()).thenReturn(true, true, true, false); // 3 rows -> but expected 3? use 2
-        // actually 3 rows returned, expected 3 -> PASSED. Use 2 rows:
-        when(rs.next()).thenReturn(true).thenReturn(true).thenReturn(false);
+        when(rs.next()).thenReturn(true).thenReturn(true).thenReturn(false); // 2 rows
 
-        when(db.withConnection(any(), anyInt(), any())).thenAnswer(inv -> {
+        when(db.withConnection(any(), anyInt(), anyInt(), any())).thenAnswer(inv -> {
             @SuppressWarnings("unchecked")
-            var action = inv.getArgument(2, DbConnectionHelper.ConnectionAction.class);
+            var action = inv.getArgument(3, DbConnectionHelper.ConnectionAction.class);
             return action.apply(conn);
         });
 
-        // expected 3 rows, actual 2
-        var node2 = mapper.readTree(
-                "{\"query\":\"SELECT * FROM books\",\"expected\":{\"row_count\":3}}");
         var ctx = new HttpStepExecutor.StepContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
-                java.util.UUID.randomUUID(), 1, "q", node2, vars, 30000);
+                java.util.UUID.randomUUID(), 1, "q", node, vars, 30000);
         var result = exec.execute(ctx);
 
         assertEquals(StepResultStatus.FAILED, result.getStatus());
@@ -139,7 +131,7 @@ class DbQueryExecutorTest {
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, 23457);
 
-        when(db.withConnection(any(), anyInt(), any()))
+        when(db.withConnection(any(), anyInt(), anyInt(), any()))
                 .thenThrow(new SQLException("Connection refused"));
 
         var ctx = new HttpStepExecutor.StepContext(
