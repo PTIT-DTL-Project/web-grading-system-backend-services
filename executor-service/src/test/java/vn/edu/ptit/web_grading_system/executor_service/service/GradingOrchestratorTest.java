@@ -63,6 +63,7 @@ class GradingOrchestratorTest {
     record Fixture(GradingOrchestrator orchestrator, GradingJob job, AtomicInteger executions,
                    GradingStepResultRepository stepRepo, ResultServiceClient resultClient,
                    SubmissionStatusClient submissionClient, PortAllocator ports,
+                   ArtifactService artifacts, Path workDir,
                    java.util.concurrent.atomic.AtomicReference<Map<String, Object>> capturedVars) {
     }
 
@@ -177,7 +178,7 @@ class GradingOrchestratorTest {
                 Mockito.mock(SagaTracker.class),
                 new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())));
         return new Fixture(orchestrator, job, executions, stepRepo, result, submission,
-                ports, capturedVars);
+                ports, artifacts, workDir, capturedVars);
     }
 
     private static InternalStepDto step(UUID planId, int order, boolean required) {
@@ -838,9 +839,10 @@ class GradingOrchestratorTest {
 
     @Test
     void unknownDbType_failsJobBeforeAnyPortClaim() {
-        // Defense-in-depth: validator rejects unknown db_type at save time, but
-        // legacy rows must fail the job cleanly — and NOT leak ports, because
-        // the scan runs before portAllocator.claim()/claimDbPort().
+        // Defense-in-depth: validator rejects unknown db_type at save
+        // time, but legacy rows must fail the job cleanly — with no
+        // port claimed AND no artifact unzipped (scan now runs before
+        // the download). Review: 2026-09-26, Pullfrog PR #17 (F1).
         InternalStepDto s = dbStepWithConfig("{\"connection\":{\"db_service\":\"db\","
                 + "\"db_type\":\"oracle\",\"database\":\"appdb\","
                 + "\"username\":\"root\",\"password\":\"root\"},\"query\":\"SELECT 1\"}");
@@ -859,6 +861,37 @@ class GradingOrchestratorTest {
         assertEquals(GradingJobStatus.FAILED, job.getStatus());
         Mockito.verify(f.ports(), Mockito.never()).claim();
         Mockito.verify(f.ports(), Mockito.never()).claimDbPort();
+        Mockito.verify(f.artifacts(), Mockito.never()).fetchWorkDir(Mockito.any(), Mockito.any());
         Mockito.verify(f.stepRepo(), Mockito.never()).save(Mockito.any());
+    }
+
+    @Test
+    void claimDbPortThrows_appPortReleasedAndWorkDirCleaned() {
+        // If claimDbPort() throws (port exhaustion), the allocated
+        // appPort and the unzipped workDir must still be released/deleted
+        // on every exit path — no leak even when the outer try hasn't
+        // started yet... (it has: claims are inside the single try now).
+        InternalStepDto s = dbStepWithConfig("{\"connection\":{\"db_service\":\"db\","
+                + "\"db_type\":\"mysql\",\"database\":\"appdb\","
+                + "\"username\":\"root\",\"password\":\"root\"},\"query\":\"SELECT 1\"}");
+        InternalPlanDto one = plan(0, List.of(step(null, 0, false), s));
+        Fixture f;
+        try {
+            f = fixture(StepResultStatus.PASSED, List.of(one));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        Mockito.when(f.ports().claimDbPort()).thenThrow(new RuntimeException("boom"));
+        GradingJob job = f.job();
+
+        f.orchestrator().grade(job.getId(), job.getSubmissionId(), job.getAssignmentId(),
+                job.getStudentId(), null, "submissions/x.zip", "t-db-throw");
+
+        assertEquals(GradingJobStatus.FAILED, job.getStatus());
+        // appPort was claimed before claimDbPort threw
+        Mockito.verify(f.ports()).claim();
+        Mockito.verify(f.ports()).release(23456);
+        Mockito.verify(f.stepRepo(), Mockito.never()).save(Mockito.any());
+        assert java.nio.file.Files.notExists(f.workDir());
     }
 }

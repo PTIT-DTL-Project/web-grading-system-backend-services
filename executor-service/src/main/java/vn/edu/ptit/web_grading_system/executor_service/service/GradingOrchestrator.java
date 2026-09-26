@@ -42,6 +42,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -134,27 +135,9 @@ public class GradingOrchestrator
             return;
         }
 
-        job.setStatus(GradingJobStatus.BUILDING);
-        gradingJobRepository.save(job);
-        writeLog(job.getId(), submissionId, GradingLogLevel.INFO, Constant.Message.BUILDING_PREFIX + "Downloading submission and booting app");
-        Path workDir;
-        UUID downloadRow = sagaTracker.step(sagaId, Constant.Saga.DOWNLOAD_ARTIFACT, planId, null);
-        try
-        {
-            workDir = artifactService.fetchWorkDir(submissionId, rustfsPath);
-            sagaTracker.finishStep(downloadRow, SagaStepStatus.DONE, null);
-        }
-        catch (Exception e)
-        {
-            sagaTracker.finishStep(downloadRow, SagaStepStatus.FAILED, safeMessage(e));
-            fail(job, submissionId, assignmentId, studentId, planId, sagaId, 1,
-                    Constant.Message.FAILED_DOWNLOAD_SUBMISSION + safeMessage(e));
-            return;
-        }
-        // DB requirements scan (named seam — the future image-requirements scan
-        // sits beside it). Engine resolution — incl. unknown db_type →
-        // IllegalArgumentException — happens INSIDE the scan, BEFORE any port is
-        // claimed, so a bad engine fails the job without leaking the app port.
+        // Engine validation happens BEFORE the download, so an unknown
+        // db_type fails the job with no artifact unzipped and no port
+        // claimed. Review: 2026-09-26, Pullfrog PR #17 (F1).
         DbRequirements dbReq;
         try
         {
@@ -166,65 +149,103 @@ public class GradingOrchestrator
                     unknownEngine.getMessage());
             return;
         }
-        if (dbReq.parseError() != null)
-        {
-            writeLog(job.getId(), submissionId, GradingLogLevel.WARN,
-                    "Failed to parse DB step connection config: " + dbReq.parseError());
-        }
-        int appPort = portAllocator.claim();
+
+        job.setStatus(GradingJobStatus.BUILDING);
+        gradingJobRepository.save(job);
+        writeLog(job.getId(), submissionId, GradingLogLevel.INFO,
+                Constant.Message.BUILDING_PREFIX + "Downloading submission and booting app");
+        UUID downloadRow = sagaTracker.step(sagaId, Constant.Saga.DOWNLOAD_ARTIFACT, planId, null);
+        Path workDir = null;
+        int appPort = -1;
         Integer dbPort = null;
-        if (dbReq.present())
-        {
-            dbPort = portAllocator.claimDbPort();
-            writeLog(job.getId(), submissionId, GradingLogLevel.INFO,
-                    "DB port allocated: host=" + dbPort + " service=" + dbReq.dbService()
-                            + " db_type=" + dbReq.dbType());
-        }
-        long executionTimeoutMs = nz(config.getExecutionTimeoutMs(),
-                executorProperties.container().maxExecutionTimeMs());
-        long startupTimeoutMs = nz(config.getStartupTimeoutMs(),
-                executorProperties.container().startupTimeoutMs());
-        UUID bootRow = sagaTracker.step(sagaId, Constant.Saga.BOOT_COMPOSE, planId, null);
+        UUID bootRow = null;
         boolean booted = false;
         try
         {
-            DockerComposePatcher.EffectiveCompose effective = DockerComposePatcher.writeEffectiveCompose(
-                    workDir, config.getGradingStrategy(), config.getDockerComposeTemplate(),
-                    appPort, nz(config.getDockerComposePort(), 8080),
-                    config.getMaxCpu(), config.getMaxMemoryMb(),
-                    dbReq.dbService(), dbPort, dbReq.dbContainerPort());
-            try (DockerComposeRunner.RunningCompose running =
-                    composeRunner.boot(effective, startupTimeoutMs))
+            try
             {
-                booted = true;
-                sagaTracker.finishStep(bootRow, SagaStepStatus.DONE, null);
-                UUID runRow = sagaTracker.step(sagaId, Constant.Saga.RUN_STEPS, planId, null);
-                try
+                workDir = artifactService.fetchWorkDir(submissionId, rustfsPath);
+                sagaTracker.finishStep(downloadRow, SagaStepStatus.DONE, null);
+            }
+            catch (Exception e)
+            {
+                sagaTracker.finishStep(downloadRow, SagaStepStatus.FAILED, safeMessage(e));
+                fail(job, submissionId, assignmentId, studentId, planId, sagaId, 1,
+                        Constant.Message.FAILED_DOWNLOAD_SUBMISSION + safeMessage(e));
+                return;
+            }
+            if (dbReq.parseError() != null)
+            {
+                log.warn("Failed to parse DB step connection config: {}", dbReq.parseError());
+            }
+            appPort = portAllocator.claim();
+            if (dbReq.present())
+            {
+                dbPort = portAllocator.claimDbPort();
+                writeLog(job.getId(), submissionId, GradingLogLevel.INFO,
+                        "DB port allocated: host=" + dbPort + " service=" + dbReq.dbService()
+                                + " db_type=" + dbReq.dbType());
+            }
+            long executionTimeoutMs = nz(config.getExecutionTimeoutMs(),
+                    executorProperties.container().maxExecutionTimeMs());
+            long startupTimeoutMs = nz(config.getStartupTimeoutMs(),
+                    executorProperties.container().startupTimeoutMs());
+            bootRow = sagaTracker.step(sagaId, Constant.Saga.BOOT_COMPOSE, planId, null);
+            try
+            {
+                DockerComposePatcher.EffectiveCompose effective = DockerComposePatcher.writeEffectiveCompose(
+                        workDir, config.getGradingStrategy(), config.getDockerComposeTemplate(),
+                        appPort, nz(config.getDockerComposePort(), 8080),
+                        config.getMaxCpu(), config.getMaxMemoryMb(),
+                        dbReq.dbService(), dbPort, dbReq.dbContainerPort());
+                try (DockerComposeRunner.RunningCompose running =
+                        composeRunner.boot(effective, startupTimeoutMs))
                 {
-                    runSteps(job, submissionId, assignmentId, studentId, planId, sagaId, plans,
-                            running.port(), dbPort, executionTimeoutMs);
-                    sagaTracker.finishStep(runRow, SagaStepStatus.DONE, null);
+                    booted = true;
+                    sagaTracker.finishStep(bootRow, SagaStepStatus.DONE, null);
+                    UUID runRow = sagaTracker.step(sagaId, Constant.Saga.RUN_STEPS, planId, null);
+                    try
+                    {
+                        runSteps(job, submissionId, assignmentId, studentId, planId, sagaId, plans,
+                                running.port(), dbPort, executionTimeoutMs);
+                        sagaTracker.finishStep(runRow, SagaStepStatus.DONE, null);
+                    }
+                    catch (Exception inner)
+                    {
+                        sagaTracker.finishStep(runRow, SagaStepStatus.FAILED,
+                                safeMessage(inner));
+                        throw inner;
+                    }
                 }
-                catch (Exception inner)
+            }
+            catch (Exception e)
+            {
+                if (bootRow != null && !booted)
                 {
-                    sagaTracker.finishStep(runRow, SagaStepStatus.FAILED,
-                            safeMessage(inner));
-                    throw inner;
+                    sagaTracker.finishStep(bootRow, SagaStepStatus.FAILED, safeMessage(e));
                 }
+                fail(job, submissionId, assignmentId, studentId, planId, sagaId, 1,
+                        Constant.Message.FAILED_GRADING_INFRA + safeMessage(e));
             }
         }
-        catch (Exception e)
+        catch (Exception outer)
         {
-            if (!booted)
+            // Covers port claims and saga step registration that sit
+            // before the inner boot/run catch (which only covers the
+            // compose boot + runSteps phase). Review:
+            // 2026-09-26, Pullfrog PR #17 (F1).
+            if (bootRow != null && !booted)
             {
-                sagaTracker.finishStep(bootRow, SagaStepStatus.FAILED, safeMessage(e));
+                sagaTracker.finishStep(bootRow, SagaStepStatus.FAILED, safeMessage(outer));
             }
             fail(job, submissionId, assignmentId, studentId, planId, sagaId, 1,
-                    Constant.Message.FAILED_GRADING_INFRA + safeMessage(e));
+                    Constant.Message.FAILED_GRADING_INFRA + safeMessage(outer));
         }
         finally
         {
-            portAllocator.release(appPort);
+            portAllocator.release(appPort);       // appPort == -1 is a no-op
+            // (PortAllocator.release range-guards) — every claimed port is
+            // released on all exit paths. Review: 2026-09-26, Pullfrog PR #17 (F1).
             if (dbPort != null)
             {
                 portAllocator.release(dbPort);
@@ -237,15 +258,22 @@ public class GradingOrchestrator
     }
 
     /**
-     * Scans all plans for {@code DB_*} steps and reads the connection block of
-     * the first one (multiple DB services per assignment unsupported).
+     * Scans all plans for {@code DB_*} steps and reads the connection block
+     * of the first one; a later step targeting a different service/engine
+     * is logged and ignored.
      *
      * <p>Named seam: the future lecturer image-registration feature adds its
      * {@code scanImageRequirements(...)} beside this method — same pre-boot
      * phase, independent concern (Axis 2: image presence vs Axis 1: dialect).
+     *
+     * <p>{@code connection.db_port} is the <em>container-internal</em> port;
+     * the allocated <em>host</em> port is injected as {@code ${db_port}} into
+     * VariableContext — same name, opposite meaning. Review:
+     * 2026-09-26, Pullfrog PR #17 (F5).
      */
     private DbRequirements scanDbRequirements(List<InternalPlanDto> plans)
     {
+        DbRequirements first = null;
         for (InternalPlanDto scanPlan : plans)
         {
             if (scanPlan.getSteps() == null)
@@ -288,19 +316,43 @@ public class GradingOrchestrator
                 {
                     parseError = safeMessage(e);
                 }
-                if (dbContainerPort == null)
+                // Omitted or out-of-range db_port → the dialect owns the
+                // engine default (5432 postgres / 3306 mysql). An unknown
+                // db_type throws here → grade() fails the job before any
+                // port is claimed. Review: 2026-09-26, Pullfrog PR #17 (F1).
+                if (dbContainerPort == null || dbContainerPort < 1 || dbContainerPort > 65535)
                 {
-                    // Config omits db_port → the dialect owns its engine default
-                    // (5432 postgres / 3306 mysql), replacing the old hardcoded
-                    // 5432. Unknown db_type throws here → grade() fails the job
-                    // before any port is claimed.
+                    if (dbContainerPort != null)
+                    {
+                        log.warn("Ignoring invalid connection.db_port {} (must be 1–65535) for {}",
+                                dbContainerPort, dbService);
+                    }
                     dbContainerPort = dialectRegistry.resolve(dbType).defaultPort();
                 }
-                // First DB step wins — multiple DB services per assignment unsupported.
-                return new DbRequirements(true, dbService, dbContainerPort, dbType, parseError);
+                DbRequirements current = new DbRequirements(true, dbService, dbContainerPort, dbType, parseError);
+                if (first == null)
+                {
+                    first = current;
+                    continue; // keep scanning for a differing second step
+                }
+                if (!sameConnection(first, current))
+                {
+                    // Multiple DB services per assignment unsupported — the
+                    // first connection wins; log the ignored step so the
+                    // mismatch is visible instead of silently grading against
+                    // the wrong database. Review: 2026-09-26, Pullfrog PR #17 (F7).
+                    log.warn("Ignoring DB step '{}' (type {}) in favour of the first DB step '{}' — multiple DB services per assignment unsupported",
+                            scanStep.getName(), scanStep.getStepType(), first.dbService());
+                }
             }
         }
-        return DbRequirements.none();
+        return first == null ? DbRequirements.none() : first;
+    }
+
+    private static boolean sameConnection(DbRequirements a, DbRequirements b)
+    {
+        return Objects.equals(a.dbService(), b.dbService())
+                && Objects.equals(a.dbType(), b.dbType());
     }
 
     /**

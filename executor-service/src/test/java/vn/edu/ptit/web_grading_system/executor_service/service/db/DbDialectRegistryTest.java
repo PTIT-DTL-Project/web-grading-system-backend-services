@@ -52,8 +52,8 @@ class DbDialectRegistryTest {
         var e = assertThrows(IllegalArgumentException.class,
                 () -> registry.resolve("oracle"));
         assertTrue(e.getMessage().contains("oracle"));
-        // deterministic — ALLOWED_DB_TYPES is ordered
-        assertTrue(e.getMessage().contains("postgres, mysql, mariadb"),
+        // deterministic — built from sorted byKey.keySet()
+        assertTrue(e.getMessage().contains("mariadb, mysql, postgres"),
                 "message was: " + e.getMessage());
     }
 

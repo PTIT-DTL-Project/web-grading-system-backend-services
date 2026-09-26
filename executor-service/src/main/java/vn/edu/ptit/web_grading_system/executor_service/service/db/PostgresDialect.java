@@ -28,6 +28,9 @@ public class PostgresDialect implements DbDialect
     @Override
     public String jdbcUrl(int hostPort, String database)
     {
+        // Defensive: the executor reads config over an internal API.
+        // Review: 2026-09-26, Pullfrog PR #17 (F4).
+        DbDialect.requireSafeDatabase(database);
         return "jdbc:postgresql://localhost:" + hostPort + "/" + database;
     }
 
@@ -73,8 +76,11 @@ public class PostgresDialect implements DbDialect
     }
 
     /**
-     * PG reports long-form type names; lecturers write the alias (possibly
-     * with a length, e.g. varchar(50), which PG's catalog never reports).
+     * PG reports long-form type names; lecturers write the alias
+     * (possibly with a length, e.g. varchar(50), which PG's
+     * catalog never reports). Also maps the {@code character} and
+     * {@code time} families that PG reports in long form.
+     * Review: 2026-09-26, Pullfrog PR #17 (F3).
      */
     private static String normalize(String type)
     {
@@ -89,6 +95,9 @@ public class PostgresDialect implements DbDialect
             case "double precision" -> "float8";
             case "bool" -> "boolean";
             case "int" -> "integer";
+            case "character" -> "char";
+            case "time without time zone" -> "time";
+            case "time with time zone" -> "timetz";
             default -> t;
         };
     }

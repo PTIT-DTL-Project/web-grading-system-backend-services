@@ -29,6 +29,9 @@ public class MysqlDialect implements DbDialect
     @Override
     public String jdbcUrl(int hostPort, String database)
     {
+        // Defensive: the executor reads config over an internal API.
+        // Review: 2026-09-26, Pullfrog PR #17 (F4).
+        DbDialect.requireSafeDatabase(database);
         // Docker mysql:8 defaults to caching_sha2_password; with SSL off the
         // client must be allowed to retrieve the server public key, otherwise
         // every connection fails auth.
@@ -46,7 +49,10 @@ public class MysqlDialect implements DbDialect
     @Override
     public String columnExistsSql()
     {
-        return "SELECT data_type FROM information_schema.columns "
+        // column_type retains tinyint(1)/varchar(255) while data_type
+        // is the bare name, so boolean (tinyint(1)) stays distinguishable
+        // (MySQL 8 + MariaDB). Review: 2026-09-26, Pullfrog PR #17 (F2).
+        return "SELECT column_type FROM information_schema.columns "
                 + "WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?";
     }
 

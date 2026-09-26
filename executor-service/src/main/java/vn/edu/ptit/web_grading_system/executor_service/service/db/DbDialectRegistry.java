@@ -57,8 +57,13 @@ public class DbDialectRegistry
         DbDialect dialect = byKey.get(key.trim().toLowerCase(Locale.ROOT));
         if (dialect == null)
         {
+            // Built from byKey so the message is always self-maintaining —
+            // adding a dialect is one new @Component and the message follows.
+            // Deterministic: sorted alphabetically. Review: 2026-09-26, Pullfrog PR #17 (F6).
+            String allowed = byKey.keySet().stream().sorted()
+                    .collect(java.util.stream.Collectors.joining(", "));
             throw new IllegalArgumentException(Constant.Message.Db.UNKNOWN_DIALECT + key
-                    + " (allowed: " + String.join(", ", Constant.DbConnection.ALLOWED_DB_TYPES) + ")");
+                    + " (allowed: " + allowed + ")");
         }
         return dialect;
     }

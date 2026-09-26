@@ -199,7 +199,9 @@ class StepConfigValidatorTest {
         var e = assertThrows(IllegalArgumentException.class,
                 () -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, n));
         assertTrue(e.getMessage().contains("db_type"));
-        assertTrue(e.getMessage().contains("postgres, mysql, mariadb"));
+        // Deterministic — sorted engine set.
+        assertTrue(e.getMessage().contains("mariadb, mysql, postgres"),
+                "message was: " + e.getMessage());
     }
 
     @Test
@@ -224,6 +226,42 @@ class StepConfigValidatorTest {
         var e2 = assertThrows(IllegalArgumentException.class,
                 () -> StepConfigValidator.validateAndSerialize(StepType.DB_MIGRATION, migration));
         assertTrue(e2.getMessage().contains("db_type"));
+    }
+
+    @Test
+    void connection_databaseInjection_fails() {
+        ObjectNode n = node("""
+            {"connection":{"db_type":"mysql","database":"appdb?allowLoadLocalInfile=true",
+                           "username":"root","password":"root"},
+             "query":"SELECT 1"}""");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, n));
+        assertTrue(e.getMessage().contains("database"));
+        assertTrue(e.getMessage().contains("[A-Za-z0-9_$]+"));
+    }
+
+    @Test
+    void connection_dbPortRange_fails() {
+        ObjectNode zero = node("""
+            {"connection":{"db_type":"mysql","db_port":0,"database":"appdb",
+                           "username":"root","password":"root"},
+             "query":"SELECT 1"}""");
+        var e1 = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, zero));
+        assertTrue(e1.getMessage().contains("db_port"));
+        ObjectNode over = node("""
+            {"connection":{"db_type":"mysql","db_port":70000,"database":"appdb",
+                           "username":"root","password":"root"},
+             "query":"SELECT 1"}""");
+        var e2 = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, over));
+        assertTrue(e2.getMessage().contains("db_port"));
+        // Valid port still passes.
+        ObjectNode ok = node("""
+            {"connection":{"db_type":"mysql","db_port":3306,"database":"appdb",
+                           "username":"root","password":"root"},
+             "query":"SELECT 1"}""");
+        assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, ok));
     }
 
     // ---------- EXTRACT ----------

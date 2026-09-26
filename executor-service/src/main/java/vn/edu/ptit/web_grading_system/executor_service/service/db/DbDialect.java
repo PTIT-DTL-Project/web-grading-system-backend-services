@@ -25,14 +25,33 @@ public interface DbDialect
     String jdbcUrl(int hostPort, String database);
 
     /**
+     * Validates that {@code database} is a bare identifier safe to
+     * concatenate into a JDBC URL — a value containing {@code ?},
+     * {@code &}, {@code #}, {@code /} or {@code :} would inject
+     * connection properties. Review: 2026-09-26, Pullfrog PR #17 (F4).
+     */
+    static void requireSafeDatabase(String database)
+    {
+        if (database == null || database.isBlank()
+                || !database.matches("[A-Za-z0-9_$]+"))
+        {
+            throw new IllegalArgumentException(
+                    "connection.database is not a safe identifier: '" + database + "'");
+        }
+    }
+
+    /**
      * Params: (table_name). Returns COUNT(*) — exists when value &gt; 0.
      */
     String tableExistsSql();
 
     /**
-     * Params: (table_name, column_name). Returns the column's data_type
-     * (no row = column missing) — one query covers existence AND type, so a
-     * check with {@code data_type} needs no second round-trip.
+     * Params: (table_name, column_name). Returns the dialect-specific
+     * type descriptor — PG reports {@code data_type} (never a length);
+     * MySQL reports {@code column_type} (retains {@code tinyint(1)},
+     * {@code varchar(255)}). No row = column missing; one query covers
+     * existence AND type, so a check with {@code data_type} needs no
+     * second round-trip.
      */
     String columnExistsSql();
 

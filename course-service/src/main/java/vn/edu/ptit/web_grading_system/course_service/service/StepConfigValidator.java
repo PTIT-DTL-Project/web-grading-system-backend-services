@@ -26,9 +26,10 @@ public final class StepConfigValidator {
             Set.of("status", "body_structure", "body_equals", "json_path", "contains", "field_equals");
     private static final Set<String> SCHEMA_CHECK_KINDS =
             Set.of("TABLE_EXISTS", "COLUMN_EXISTS", "INDEX_EXISTS", "PRIMARY_KEY");
-    /* Kept in sync with executor Constant.DbConnection.ALLOWED_DB_TYPES —
-     * the executor fails fast on unknown engines, the validator rejects them
-     * at save time. */
+    /* Allowed engines — matches the executor's DbDialectRegistry keys
+     * (mariadb rides the mysql dialect, wire-compatible). The executor
+     * resolves its message from the same set; the two services cannot be
+     * unit-tested against each other (separate Maven projects). */
     private static final Set<String> DB_TYPES =
             Set.of("postgres", "mysql", "mariadb");
 
@@ -118,8 +119,19 @@ public final class StepConfigValidator {
 
     /**
      * The `connection` block is optional (unknown keys tolerated, forward
-     * compatible) but when present it must be an object and db_type — the
-     * engine key the executor maps to a JDBC dialect — must be a known one.
+     * compatible) but when present:
+     * <ul>
+     *   <li>{@code db_type} must be a known engine key
+     *       ({@code postgres}, {@code mysql}, {@code mariadb}) — the executor
+     *       maps it to a JDBC dialect; unknown values 400 at save time.</li>
+     *   <li>{@code database}, when present, must be a bare identifier
+     *       ({@code [A-Za-z0-9_$]+}) — it is concatenated into the JDBC URL,
+     *       so a value with {@code ?}&amp;#&amp;/&amp;:&amp;} would inject
+     *       connection properties. Review: 2026-09-26, Pullfrog PR #17 (F4).</li>
+     *   <li>{@code db_port}, when present, must be an integer in 1–65535
+     *       (mirrors the {@code expected_status} range check). Out-of-range
+     *       values are unrecoverable at boot time, so they 400 here.</li>
+     * </ul>
      */
     private static void validateConnection(JsonNode c, String ctx) {
         if (!c.hasNonNull("connection")) {
@@ -134,7 +146,21 @@ public final class StepConfigValidator {
             if (!DB_TYPES.contains(dbType)) {
                 throw new IllegalArgumentException(ctx
                         + ": unknown connection.db_type '" + conn.get("db_type").asString()
-                        + "' (allowed: postgres, mysql, mariadb)");
+                        + "' (allowed: " + String.join(", ", DB_TYPES.stream().sorted().toList()) + ")");
+            }
+        }
+        if (conn.hasNonNull("database")) {
+            String database = conn.get("database").asText();
+            if (!database.matches("[A-Za-z0-9_$]+")) {
+                throw new IllegalArgumentException(ctx
+                        + ": connection.database must be a bare identifier [A-Za-z0-9_$]+");
+            }
+        }
+        if (conn.hasNonNull("db_port")) {
+            JsonNode port = conn.get("db_port");
+            if (!port.isInt() || port.asInt() < 1 || port.asInt() > 65535) {
+                throw new IllegalArgumentException(ctx
+                        + ": connection.db_port must be an integer 1–65535");
             }
         }
     }

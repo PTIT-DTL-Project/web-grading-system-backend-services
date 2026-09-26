@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DbDialectTest {
@@ -50,6 +52,10 @@ class DbDialectTest {
         assertTrue(pg.indexExistsSql().contains("pg_indexes"));
         assertTrue(my.indexExistsSql().contains("information_schema.statistics"));
         assertTrue(my.indexExistsSql().contains("DATABASE()"));
+        // MySQL projects column_type (not data_type) so tinyint(1) stays
+        // distinguishable for boolean; PG reports data_type (no length).
+        assertTrue(pg.columnExistsSql().contains("data_type"));
+        assertTrue(my.columnExistsSql().contains("column_type"));
     }
 
     @Test
@@ -73,6 +79,11 @@ class DbDialectTest {
         assertTrue(pg.sameType("timestamptz", "timestamp with time zone"));
         assertTrue(pg.sameType("int", "integer"));
         assertTrue(pg.sameType("INTEGER", "integer"));
+        // PG reports the 'character' and 'time' families in long form
+        assertTrue(pg.sameType("char", "character"));
+        assertTrue(pg.sameType("char(1)", "character"));
+        assertTrue(pg.sameType("time", "time without time zone"));
+        assertTrue(pg.sameType("timetz", "time with time zone"));
     }
 
     @Test
@@ -89,6 +100,9 @@ class DbDialectTest {
         assertTrue(my.sameType("boolean", "tinyint(1)"));
         assertTrue(my.sameType("bool", "tinyint(1)"));
         assertTrue(my.sameType("varchar(255)", "varchar"));
+        // tinyint(4) (a count column) is NOT boolean — the prefix check
+        // is exact so the sameType is falsy here.
+        assertFalse(my.sameType("boolean", "tinyint(4)"));
     }
 
     @Test
@@ -96,6 +110,29 @@ class DbDialectTest {
         assertFalse(my.sameType("varchar", "integer"));
         assertFalse(my.sameType("text", "varchar"));
         assertFalse(my.sameType(null, "int"));
+    }
+
+    // ---- identifier guard (F4) ----
+
+    @Test
+    void requireSafeDatabase_allowsBareIdentifiers() {
+        assertDoesNotThrow(() -> DbDialect.requireSafeDatabase("appdb"));
+        assertDoesNotThrow(() -> DbDialect.requireSafeDatabase("book_store"));
+        assertDoesNotThrow(() -> DbDialect.requireSafeDatabase("db$1"));
+    }
+
+    @Test
+    void requireSafeDatabase_rejectsInjectionChars() {
+        assertThrows(IllegalArgumentException.class,
+                () -> DbDialect.requireSafeDatabase("appdb?allowLoadLocalInfile=true"));
+        assertThrows(IllegalArgumentException.class,
+                () -> DbDialect.requireSafeDatabase("a&b"));
+        assertThrows(IllegalArgumentException.class,
+                () -> DbDialect.requireSafeDatabase("a/b"));
+        assertThrows(IllegalArgumentException.class,
+                () -> DbDialect.requireSafeDatabase("a:b"));
+        assertThrows(IllegalArgumentException.class,
+                () -> DbDialect.requireSafeDatabase("a#r"));
     }
 
     private static int placeholders(String sql) {

@@ -1,7 +1,5 @@
 package vn.edu.ptit.web_grading_system.executor_service;
 
-import java.util.List;
-
 public class Constant {
 
     public static final class VariableContext {
@@ -21,9 +19,9 @@ public class Constant {
         public static final String DB_TYPE = "db_type";
         public static final String DEFAULT_DB_TYPE = "postgres";
         /* Engines shipped in v1 — additive only. Key ∈ DbDialect.keys();
-         * mariadb rides on the mysql dialect (wire-compatible). Ordered (not a
-         * Set) so the "allowed:" error message join is deterministic. */
-        public static final List<String> ALLOWED_DB_TYPES = List.of("postgres", "mysql", "mariadb");
+         * mariadb rides on the mysql dialect (wire-compatible).
+         * The allow-set now lives in the registry's byKey (see
+         * DbDialectRegistry.resolve). */
         public static final String DATABASE = "database";
         public static final String USERNAME = "username";
         public static final String PASSWORD = "password";
