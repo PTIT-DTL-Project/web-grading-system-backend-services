@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -35,7 +36,8 @@ class DockerComposePatcherTest {
         Files.writeString(workDir.resolve("docker-compose.yml"), STUDENT_COMPOSE);
 
         DockerComposePatcher.EffectiveCompose effective = DockerComposePatcher.writeEffectiveCompose(
-                workDir, "STUDENT_DOCKER_COMPOSE", null, 23456, 8080, 0.5, 256);
+                workDir, "STUDENT_DOCKER_COMPOSE", null, 23456, 8080, 0.5, 256,
+                null, null, null);
 
         assertEquals("app", effective.serviceName());
         assertEquals(8080, effective.containerPort());
@@ -45,20 +47,24 @@ class DockerComposePatcherTest {
                 deployOf(services, "app").get("resources"));
         assertEquals(Map.of("limits", Map.of("cpus", "0.5", "memory", "256M")),
                 deployOf(services, "db").get("resources"));
+        // No DB step params → db service untouched
+        assertEquals(null, serviceOf(services, "db").get("ports"));
     }
 
     @Test
     void studentStrategy_missingComposeFile_fails() {
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> DockerComposePatcher.writeEffectiveCompose(
-                        workDir, "STUDENT_DOCKER_COMPOSE", null, 23456, 8080, 0.5, 256));
+                        workDir, "STUDENT_DOCKER_COMPOSE", null, 23456, 8080, 0.5, 256,
+                        null, null, null));
         assertTrue(e.getMessage().contains("docker-compose.yml not found"));
     }
 
     @Test
     void lecturerStrategy_writesTemplate() throws IOException {
         DockerComposePatcher.EffectiveCompose effective = DockerComposePatcher.writeEffectiveCompose(
-                workDir, "LECTURER_DOCKER_COMPOSE", STUDENT_COMPOSE, 23456, 8080, null, null);
+                workDir, "LECTURER_DOCKER_COMPOSE", STUDENT_COMPOSE, 23456, 8080, null, null,
+                null, null, null);
 
         assertTrue(Files.isRegularFile(effective.composeFile()));
         assertEquals(List.of("23456:8080"), serviceOf(servicesOf(effective.composeFile()), "app").get("ports"));
@@ -68,7 +74,8 @@ class DockerComposePatcherTest {
     void lecturerStrategy_blankTemplate_fails() {
         assertThrows(IllegalStateException.class,
                 () -> DockerComposePatcher.writeEffectiveCompose(
-                        workDir, "LECTURER_DOCKER_COMPOSE", "  ", 23456, 8080, null, null));
+                        workDir, "LECTURER_DOCKER_COMPOSE", "  ", 23456, 8080, null, null,
+                        null, null, null));
     }
 
     @Test
@@ -81,7 +88,8 @@ class DockerComposePatcherTest {
                 """);
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> DockerComposePatcher.writeEffectiveCompose(
-                        workDir, "STUDENT_DOCKER_COMPOSE", null, 23456, 8080, null, null));
+                        workDir, "STUDENT_DOCKER_COMPOSE", null, 23456, 8080, null, null,
+                        null, null, null));
         assertTrue(e.getMessage().contains("privileged"));
     }
 
@@ -96,7 +104,8 @@ class DockerComposePatcherTest {
                 """);
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> DockerComposePatcher.writeEffectiveCompose(
-                        workDir, "STUDENT_DOCKER_COMPOSE", null, 23456, 8080, null, null));
+                        workDir, "STUDENT_DOCKER_COMPOSE", null, 23456, 8080, null, null,
+                        null, null, null));
         assertTrue(e.getMessage().contains("docker.sock"));
     }
 
@@ -108,8 +117,73 @@ class DockerComposePatcherTest {
                     build: .
                 """);
         DockerComposePatcher.EffectiveCompose effective = DockerComposePatcher.writeEffectiveCompose(
-                workDir, "STUDENT_DOCKER_COMPOSE", null, 23456, 8080, null, null);
+                workDir, "STUDENT_DOCKER_COMPOSE", null, 23456, 8080, null, null,
+                null, null, null);
         assertEquals("app", effective.serviceName());
+    }
+
+    // ---------- DB port patching ----------
+
+    @Test
+    void dbPortPatchedIntoCompose() throws IOException {
+        Files.writeString(workDir.resolve("docker-compose.yml"), STUDENT_COMPOSE);
+
+        DockerComposePatcher.EffectiveCompose effective = DockerComposePatcher.writeEffectiveCompose(
+                workDir, "STUDENT_DOCKER_COMPOSE", null, 23456, 8080, null, null,
+                "db", 25432, 5432);
+
+        Map<String, Object> services = servicesOf(effective.composeFile());
+        assertEquals(List.of("25432:5432"), serviceOf(services, "db").get("ports"));
+        assertEquals(List.of("23456:8080"), serviceOf(services, "app").get("ports"));
+    }
+
+    @Test
+    void dbPortAddedToExistingPorts() throws IOException {
+        Files.writeString(workDir.resolve("docker-compose.yml"), """
+                services:
+                  app:
+                    build: .
+                    ports:
+                      - "8080:8080"
+                  db:
+                    image: postgres:16
+                    ports:
+                      - "15432:5432"
+                """);
+
+        DockerComposePatcher.EffectiveCompose effective = DockerComposePatcher.writeEffectiveCompose(
+                workDir, "STUDENT_DOCKER_COMPOSE", null, 23456, 8080, null, null,
+                "db", 25432, 5432);
+
+        Map<String, Object> services = servicesOf(effective.composeFile());
+        // Existing entry preserved, allocated port appended
+        assertEquals(List.of("15432:5432", "25432:5432"), serviceOf(services, "db").get("ports"));
+    }
+
+    @Test
+    void noDbService_noChanges() throws IOException {
+        Files.writeString(workDir.resolve("docker-compose.yml"), STUDENT_COMPOSE);
+
+        DockerComposePatcher.EffectiveCompose effective = DockerComposePatcher.writeEffectiveCompose(
+                workDir, "STUDENT_DOCKER_COMPOSE", null, 23456, 8080, null, null,
+                null, null, null);
+
+        Map<String, Object> services = servicesOf(effective.composeFile());
+        assertEquals(null, serviceOf(services, "db").get("ports"));
+    }
+
+    @Test
+    void dbServiceNotFound_noCrash() throws IOException {
+        Files.writeString(workDir.resolve("docker-compose.yml"), STUDENT_COMPOSE);
+
+        DockerComposePatcher.EffectiveCompose effective = DockerComposePatcher.writeEffectiveCompose(
+                workDir, "STUDENT_DOCKER_COMPOSE", null, 23456, 8080, null, null,
+                "missing_db", 25432, 5432);
+
+        Map<String, Object> services = servicesOf(effective.composeFile());
+        // Unknown service: no ports injected anywhere, compose still produced
+        assertFalse(services.containsKey("missing_db"));
+        assertEquals(null, serviceOf(services, "db").get("ports"));
     }
 
     @SuppressWarnings("unchecked")

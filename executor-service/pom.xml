@@ -43,6 +43,20 @@
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
+		<!-- Student-app DB engine (DB grading steps) — multi-DBMS: postgres +
+		     mysql; mariadb rides the mysql driver (wire-compatible). System DB
+		     stays postgres; this driver is only for connecting to the graded
+		     app's DB. mariadb resolves to jdbc:mysql://, i.e. MySQL
+		     Connector/J — outside Oracle's support matrix for MariaDB, but
+		     fine for the default mysql_native_password accounts; ed25519/PARSEC
+		     accounts fail with MariaDB error 1251, and Spring Boot 4.1.0
+		     manages org.mariadb.jdbc:mariadb-java-client (3.5.8) if the
+		     vendor driver is ever wanted. Review: 2026-09-26, Pullfrog PR #17 (F8). -->
+		<dependency>
+			<groupId>com.mysql</groupId>
+			<artifactId>mysql-connector-j</artifactId>
+			<scope>runtime</scope>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-openfeign</artifactId>

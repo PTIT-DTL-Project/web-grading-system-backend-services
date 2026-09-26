@@ -26,6 +26,12 @@ public final class StepConfigValidator {
             Set.of("status", "body_structure", "body_equals", "json_path", "contains", "field_equals");
     private static final Set<String> SCHEMA_CHECK_KINDS =
             Set.of("TABLE_EXISTS", "COLUMN_EXISTS", "INDEX_EXISTS", "PRIMARY_KEY");
+    /* Allowed engines — matches the executor's DbDialectRegistry keys
+     * (mariadb rides the mysql dialect, wire-compatible). The executor
+     * resolves its message from the same set; the two services cannot be
+     * unit-tested against each other (separate Maven projects). */
+    private static final Set<String> DB_TYPES =
+            Set.of("postgres", "mysql", "mariadb");
 
     /** @return canonical config JSON string; throws IllegalArgumentException on invalid structure. */
     public static String validateAndSerialize(StepType type, JsonNode config) {
@@ -104,13 +110,63 @@ public final class StepConfigValidator {
     }
 
     private static void validateDbQuery(JsonNode c) {
+        validateConnection(c, "DB_QUERY");
         requireText(c, "query", "DB_QUERY");
         if (c.hasNonNull("expected") && !c.get("expected").isObject()) {
             throw new IllegalArgumentException("DB_QUERY: expected must be an object");
         }
     }
 
+    /**
+     * The `connection` block is optional (unknown keys tolerated, forward
+     * compatible) but when present:
+     * <ul>
+     *   <li>{@code db_type} must be a known engine key
+     *       ({@code postgres}, {@code mysql}, {@code mariadb}) — the executor
+     *       maps it to a JDBC dialect; unknown values 400 at save time.</li>
+     *   <li>{@code database}, when present, must be a bare identifier
+     *       ({@code [A-Za-z0-9_$]+}) — it is concatenated into the JDBC URL,
+     *       so a value with {@code ?}&amp;#&amp;/&amp;:&amp;} would inject
+     *       connection properties. Review: 2026-09-26, Pullfrog PR #17 (F4).</li>
+     *   <li>{@code db_port}, when present, must be an integer in 1–65535
+     *       (mirrors the {@code expected_status} range check). Out-of-range
+     *       values are unrecoverable at boot time, so they 400 here.</li>
+     * </ul>
+     */
+    private static void validateConnection(JsonNode c, String ctx) {
+        if (!c.hasNonNull("connection")) {
+            return;
+        }
+        JsonNode conn = c.get("connection");
+        if (!conn.isObject()) {
+            throw new IllegalArgumentException(ctx + ": connection must be an object");
+        }
+        if (conn.hasNonNull("db_type")) {
+            String dbType = conn.get("db_type").asString().trim().toLowerCase();
+            if (!DB_TYPES.contains(dbType)) {
+                throw new IllegalArgumentException(ctx
+                        + ": unknown connection.db_type '" + conn.get("db_type").asString()
+                        + "' (allowed: " + String.join(", ", DB_TYPES.stream().sorted().toList()) + ")");
+            }
+        }
+        if (conn.hasNonNull("database")) {
+            String database = conn.get("database").asString();
+            if (!database.matches("[A-Za-z0-9_$]+")) {
+                throw new IllegalArgumentException(ctx
+                        + ": connection.database must be a bare identifier [A-Za-z0-9_$]+");
+            }
+        }
+        if (conn.hasNonNull("db_port")) {
+            JsonNode port = conn.get("db_port");
+            if (!port.isInt() || port.asInt() < 1 || port.asInt() > 65535) {
+                throw new IllegalArgumentException(ctx
+                        + ": connection.db_port must be an integer 1–65535");
+            }
+        }
+    }
+
     private static void validateSchemaCheck(JsonNode c) {
+        validateConnection(c, "DB_SCHEMA_CHECK");
         JsonNode checks = c.get("checks");
         if (checks == null || !checks.isArray() || checks.isEmpty()) {
             throw new IllegalArgumentException("DB_SCHEMA_CHECK: 'checks' must be a non-empty array");
@@ -139,6 +195,7 @@ public final class StepConfigValidator {
     }
 
     private static void validateMigration(JsonNode c) {
+        validateConnection(c, "DB_MIGRATION");
         JsonNode statements = c.get("statements");
         if (statements == null || !statements.isArray() || statements.isEmpty()) {
             throw new IllegalArgumentException("DB_MIGRATION: 'statements' must be a non-empty array");

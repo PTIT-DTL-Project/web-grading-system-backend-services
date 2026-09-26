@@ -20,10 +20,14 @@ import vn.edu.ptit.web_grading_system.executor_service.entities.StepResultStatus
 import vn.edu.ptit.web_grading_system.executor_service.repositories.GradingJobRepository;
 import vn.edu.ptit.web_grading_system.executor_service.repositories.GradingLogRepository;
 import vn.edu.ptit.web_grading_system.executor_service.repositories.GradingStepResultRepository;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialectRegistry;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.MysqlDialect;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.PostgresDialect;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.HttpStepExecutor;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepExecutor;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepRegistry;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,7 +46,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+
+import vn.edu.ptit.web_grading_system.executor_service.Constant;
 
 import feign.FeignException;
 
@@ -53,7 +62,9 @@ class GradingOrchestratorTest {
 
     record Fixture(GradingOrchestrator orchestrator, GradingJob job, AtomicInteger executions,
                    GradingStepResultRepository stepRepo, ResultServiceClient resultClient,
-                   SubmissionStatusClient submissionClient) {
+                   SubmissionStatusClient submissionClient, PortAllocator ports,
+                   ArtifactService artifacts, Path workDir,
+                   java.util.concurrent.atomic.AtomicReference<Map<String, Object>> capturedVars) {
     }
 
     private Fixture fixture(StepResultStatus stubStatus, List<InternalPlanDto> plans) throws Exception {
@@ -97,6 +108,7 @@ class GradingOrchestratorTest {
                 .thenReturn(workDir);
         PortAllocator ports = Mockito.mock(PortAllocator.class);
         Mockito.when(ports.claim()).thenReturn(23456);
+        Mockito.when(ports.claimDbPort()).thenReturn(23457);
         DockerComposeRunner runner = Mockito.mock(DockerComposeRunner.class);
         Mockito.when(runner.boot(Mockito.any(), Mockito.anyLong())).thenAnswer(inv -> {
             DockerComposePatcher.EffectiveCompose effective = inv.getArgument(0);
@@ -105,6 +117,7 @@ class GradingOrchestratorTest {
         });
 
         AtomicInteger executions = new AtomicInteger();
+        java.util.concurrent.atomic.AtomicReference<Map<String, Object>> capturedVars = new java.util.concurrent.atomic.AtomicReference<>();
         StepExecutor stub = new StepExecutor() {
             @Override
             public String type() {
@@ -114,6 +127,32 @@ class GradingOrchestratorTest {
             @Override
             public GradingStepResult execute(HttpStepExecutor.StepContext ctx) {
                 executions.incrementAndGet();
+                capturedVars.set(ctx.variableContext().snapshot());
+                OffsetDateTime now = OffsetDateTime.now();
+                return GradingStepResult.builder()
+                        .jobId(ctx.jobId())
+                        .planId(ctx.planId())
+                        .stepId(ctx.stepId())
+                        .stepOrder(ctx.stepOrder())
+                        .stepName(ctx.stepName())
+                        .stepType(type())
+                        .status(stubStatus)
+                        .errorMessage(stubStatus == StepResultStatus.PASSED ? null : "boom")
+                        .startedAt(now)
+                        .completedAt(now)
+                        .build();
+            }
+        };
+        StepExecutor dbStub = new StepExecutor() {
+            @Override
+            public String type() {
+                return "DB_QUERY";
+            }
+
+            @Override
+            public GradingStepResult execute(HttpStepExecutor.StepContext ctx) {
+                executions.incrementAndGet();
+                capturedVars.set(ctx.variableContext().snapshot());
                 OffsetDateTime now = OffsetDateTime.now();
                 return GradingStepResult.builder()
                         .jobId(ctx.jobId())
@@ -135,9 +174,11 @@ class GradingOrchestratorTest {
                 new ExecutorProperties.Maven(null));
         GradingOrchestrator orchestrator = new GradingOrchestrator(jobRepo, stepRepo, logRepo,
                 course, submission, result, artifacts, ports, runner,
-                new StepRegistry(List.of(stub)), new ObjectMapper(), props,
-                Mockito.mock(SagaTracker.class));
-        return new Fixture(orchestrator, job, executions, stepRepo, result, submission);
+                new StepRegistry(List.of(stub, dbStub)), new ObjectMapper(), props,
+                Mockito.mock(SagaTracker.class),
+                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())));
+        return new Fixture(orchestrator, job, executions, stepRepo, result, submission,
+                ports, artifacts, workDir, capturedVars);
     }
 
     private static InternalStepDto step(UUID planId, int order, boolean required) {
@@ -283,7 +324,7 @@ class GradingOrchestratorTest {
 
     private GradingOrchestrator rawOrchestrator() {
         return new GradingOrchestrator(null, null, null, null, null, null, null,
-                null, null, null, new ObjectMapper(), null, null);
+                null, null, null, new ObjectMapper(), null, null, null);
     }
 
     private List<InternalStepDto> invokeAutoInject(Object orchestrator,
@@ -320,15 +361,15 @@ class GradingOrchestratorTest {
         assertTrue(step1Config.has("extract"), "Step 1 should have extract entries");
         JsonNode extracts = step1Config.get("extract");
         assertEquals(1, extracts.size(), "Should have one extract entry");
-        assertEquals("courseId", extracts.get(0).path("name").asText());
-        assertEquals("response_body", extracts.get(0).path("from").asText());
-        assertEquals("$.courseId", extracts.get(0).path("expression").asText());
+        assertEquals("courseId", extracts.get(0).path("name").asString());
+        assertEquals("response_body", extracts.get(0).path("from").asString());
+        assertEquals("$.courseId", extracts.get(0).path("expression").asString());
 
         // Step 2 and Step 3 configs should be unchanged
         assertEquals("GET", new ObjectMapper().readTree(result.get(1).getConfig())
-                .path("method").asText());
+                .path("method").asString());
         assertEquals("POST", new ObjectMapper().readTree(result.get(2).getConfig())
-                .path("method").asText());
+                .path("method").asString());
     }
 
     @Test
@@ -353,7 +394,7 @@ class GradingOrchestratorTest {
                 .get("extract");
         assertEquals(1, extracts.size(),
                 "Should NOT create duplicate extract entries");
-        assertEquals("courseId", extracts.get(0).path("name").asText());
+        assertEquals("courseId", extracts.get(0).path("name").asString());
     }
 
     @Test
@@ -400,13 +441,13 @@ class GradingOrchestratorTest {
         assertEquals(2, extracts.size(), "Should have 2 extract entries");
         Set<String> names = new HashSet<>();
         for (JsonNode entry : extracts) {
-            names.add(entry.path("name").asText());
+            names.add(entry.path("name").asString());
         }
         assertTrue(names.contains("courseId"), "Should extract courseId");
         assertTrue(names.contains("classId"), "Should extract classId");
         for (JsonNode entry : extracts) {
-            assertEquals("response_body", entry.path("from").asText());
-            assertTrue(entry.path("expression").asText().startsWith("$."),
+            assertEquals("response_body", entry.path("from").asString());
+            assertTrue(entry.path("expression").asString().startsWith("$."),
                     "Expression should start with $.");
         }
     }
@@ -452,7 +493,7 @@ class GradingOrchestratorTest {
         JsonNode step1Config = new ObjectMapper().readTree(result.get(0).getConfig());
         assertTrue(step1Config.has("extract"),
                 "Null config should be treated as empty object");
-        assertEquals("courseId", step1Config.get("extract").get(0).path("name").asText());
+        assertEquals("courseId", step1Config.get("extract").get(0).path("name").asString());
     }
 
     @Test
@@ -489,13 +530,13 @@ class GradingOrchestratorTest {
         JsonNode step0Config = new ObjectMapper().readTree(result.get(0).getConfig());
         assertTrue(step0Config.has("extract"));
         assertEquals(1, step0Config.get("extract").size(), "Step 0 should have exactly 1 extract");
-        assertEquals("book1Id", step0Config.get("extract").get(0).path("name").asText());
+        assertEquals("book1Id", step0Config.get("extract").get(0).path("name").asString());
 
         // Step 2 should still have ONLY its original extract (book3Id), NOT book1Id
         JsonNode step2Config = new ObjectMapper().readTree(result.get(2).getConfig());
         assertTrue(step2Config.has("extract"), "Step 2 should keep its original extract");
         assertEquals(1, step2Config.get("extract").size(), "Step 2 should not get book1Id inject");
-        assertEquals("book3Id", step2Config.get("extract").get(0).path("name").asText());
+        assertEquals("book3Id", step2Config.get("extract").get(0).path("name").asString());
     }
 
     @Test
@@ -563,7 +604,7 @@ class GradingOrchestratorTest {
 
         JsonNode step0Config = new ObjectMapper().readTree(result.get(0).getConfig());
         assertTrue(step0Config.has("extract"), "Should fallback to inject in step 0");
-        assertEquals("bookId", step0Config.get("extract").get(0).path("name").asText());
+        assertEquals("bookId", step0Config.get("extract").get(0).path("name").asString());
     }
 
     @Test
@@ -628,6 +669,268 @@ class GradingOrchestratorTest {
         JsonNode step0Config = new ObjectMapper().readTree(result.get(0).getConfig());
         boolean hasExtract = step0Config.has("extract");
         assertTrue(hasExtract, "S0 should get extract (producer S2 runs AFTER S1)");
-        assertEquals("token", step0Config.get("extract").get(0).path("name").asText());
+        assertEquals("token", step0Config.get("extract").get(0).path("name").asString());
+    }
+
+    // ─── DB port allocation tests ───
+
+    private static InternalStepDto dbStep(int order) {
+        return InternalStepDto.builder()
+                .id(UUID.randomUUID())
+                .stepOrder(order)
+                .name("db" + order)
+                .stepType("DB_QUERY")
+                .config("{\"connection\":{\"db_service\":\"db\",\"database\":\"appdb\","
+                        + "\"username\":\"postgres\",\"password\":\"postgres\"},"
+                        + "\"query\":\"SELECT 1\"}")
+                .weight(1)
+                .required(false)
+                .build();
+    }
+
+    @Test
+    void dbSteps_allocateAndReleaseDbPort() {
+        InternalPlanDto one = plan(0, List.of(step(null, 0, false), dbStep(1)));
+        Fixture f;
+        try {
+            f = fixture(StepResultStatus.PASSED, List.of(one));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        GradingJob job = f.job();
+
+        f.orchestrator().grade(job.getId(), job.getSubmissionId(), job.getAssignmentId(),
+                job.getStudentId(), null, "submissions/x.zip", "t-db1");
+
+        assertEquals(GradingJobStatus.DONE, job.getStatus());
+        // Plan contains a DB step → host port claimed, released in finally, and
+        // exposed to step executors as db_port in VariableContext.
+        Mockito.verify(f.ports()).claimDbPort();
+        Mockito.verify(f.ports()).release(23457);
+        assertNotNull(f.capturedVars().get());
+        assertEquals(23457, f.capturedVars().get().get(Constant.VariableContext.DB_PORT));
+    }
+
+    @Test
+    void noDbSteps_noDbPortAllocated() {
+        InternalPlanDto one = plan(0, List.of(step(null, 0, false)));
+        Fixture f;
+        try {
+            f = fixture(StepResultStatus.PASSED, List.of(one));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        GradingJob job = f.job();
+
+        f.orchestrator().grade(job.getId(), job.getSubmissionId(), job.getAssignmentId(),
+                job.getStudentId(), null, "submissions/x.zip", "t-db2");
+
+        assertEquals(GradingJobStatus.DONE, job.getStatus());
+        Mockito.verify(f.ports(), Mockito.never()).claimDbPort();
+        assertNotNull(f.capturedVars().get());
+        assertNull(f.capturedVars().get().get(Constant.VariableContext.DB_PORT));
+    }
+
+    @Test
+    void dbPortExposedInVariableContext_forAllSteps() {
+        // HTTP step first, DB step second — db_port must already be in context
+        // when the FIRST step runs (allocated in grade(), before runSteps).
+        InternalPlanDto one = plan(0, List.of(step(null, 0, false), dbStep(1)));
+        Fixture f;
+        try {
+            f = fixture(StepResultStatus.PASSED, List.of(one));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        GradingJob job = f.job();
+
+        f.orchestrator().grade(job.getId(), job.getSubmissionId(), job.getAssignmentId(),
+                job.getStudentId(), null, "submissions/x.zip", "t-db3");
+
+        assertEquals(GradingJobStatus.DONE, job.getStatus());
+        assertEquals(2, f.executions().get());
+        assertEquals(23457, f.capturedVars().get().get(Constant.VariableContext.DB_PORT));
+    }
+
+    // ─── DB requirements scan (multi-DBMS) ───
+
+    private static InternalStepDto dbStepWithConfig(String configJson) {
+        return InternalStepDto.builder()
+                .id(UUID.randomUUID())
+                .stepOrder(1)
+                .name("db-engine")
+                .stepType("DB_QUERY")
+                .config(configJson)
+                .weight(1)
+                .required(false)
+                .build();
+    }
+
+    private static GradingOrchestrator.DbRequirements invokeScan(List<InternalPlanDto> plans)
+            throws Exception {
+        GradingOrchestrator orch = new GradingOrchestrator(null, null, null, null, null, null,
+                null, null, null, null, new ObjectMapper(), null, null,
+                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())));
+        Method method = GradingOrchestrator.class.getDeclaredMethod(
+                "scanDbRequirements", List.class);
+        method.setAccessible(true);
+        return (GradingOrchestrator.DbRequirements) method.invoke(orch, plans);
+    }
+
+    @Test
+    void scanDbRequirements_mysqlWithoutPort_resolvesMysqlDefaultPort() throws Exception {
+        // db_type present, db_port omitted → dialect owns the default (3306),
+        // replacing the old hardcoded 5432.
+        InternalStepDto s = dbStepWithConfig("{\"connection\":{\"db_service\":\"db\","
+                + "\"db_type\":\"mysql\",\"database\":\"appdb\","
+                + "\"username\":\"root\",\"password\":\"root\"},\"query\":\"SELECT 1\"}");
+
+        GradingOrchestrator.DbRequirements req = invokeScan(List.of(plan(0, List.of(s))));
+
+        assertTrue(req.present());
+        assertEquals("mysql", req.dbType());
+        assertEquals(3306, req.dbContainerPort());
+        assertEquals("db", req.dbService());
+        assertNull(req.parseError());
+    }
+
+    @Test
+    void scanDbRequirements_noDbType_resolvesPostgresDefaultPort() throws Exception {
+        // Legacy config without db_type → default engine (postgres), 5432.
+        GradingOrchestrator.DbRequirements req =
+                invokeScan(List.of(plan(0, List.of(dbStep(1)))));
+
+        assertTrue(req.present());
+        assertNull(req.dbType());
+        assertEquals(5432, req.dbContainerPort());
+        assertEquals("db", req.dbService());
+    }
+
+    @Test
+    void scanDbRequirements_explicitPortWinsOverDialectDefault() throws Exception {
+        InternalStepDto s = dbStepWithConfig("{\"connection\":{\"db_service\":\"db\","
+                + "\"db_type\":\"mariadb\",\"db_port\":4406,\"database\":\"appdb\","
+                + "\"username\":\"root\",\"password\":\"root\"},\"query\":\"SELECT 1\"}");
+
+        GradingOrchestrator.DbRequirements req = invokeScan(List.of(plan(0, List.of(s))));
+
+        assertEquals(4406, req.dbContainerPort());
+        assertEquals("mariadb", req.dbType());
+    }
+
+    @Test
+    void scanDbRequirements_noDbSteps_returnsAbsent() throws Exception {
+        InternalPlanDto one = plan(0, List.of(step(null, 0, false)));
+
+        assertFalse(invokeScan(List.of(one)).present());
+    }
+
+    @Test
+    void scanDbRequirements_unknownDbType_throws() throws Exception {
+        InternalStepDto s = dbStepWithConfig("{\"connection\":{\"db_service\":\"db\","
+                + "\"db_type\":\"oracle\",\"database\":\"appdb\","
+                + "\"username\":\"root\",\"password\":\"root\"},\"query\":\"SELECT 1\"}");
+
+        var e = assertThrows(InvocationTargetException.class,
+                () -> invokeScan(List.of(plan(0, List.of(s)))));
+        assertInstanceOf(IllegalArgumentException.class, e.getCause());
+        assertTrue(e.getCause().getMessage().contains("oracle"));
+    }
+
+    @Test
+    void unknownDbType_failsJobBeforeAnyPortClaim() {
+        // Defense-in-depth: validator rejects unknown db_type at save
+        // time, but legacy rows must fail the job cleanly — with no
+        // port claimed AND no artifact unzipped (scan now runs before
+        // the download). Review: 2026-09-26, Pullfrog PR #17 (F1).
+        InternalStepDto s = dbStepWithConfig("{\"connection\":{\"db_service\":\"db\","
+                + "\"db_type\":\"oracle\",\"database\":\"appdb\","
+                + "\"username\":\"root\",\"password\":\"root\"},\"query\":\"SELECT 1\"}");
+        InternalPlanDto one = plan(0, List.of(step(null, 0, false), s));
+        Fixture f;
+        try {
+            f = fixture(StepResultStatus.PASSED, List.of(one));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        GradingJob job = f.job();
+
+        f.orchestrator().grade(job.getId(), job.getSubmissionId(), job.getAssignmentId(),
+                job.getStudentId(), null, "submissions/x.zip", "t-db-oracle");
+
+        assertEquals(GradingJobStatus.FAILED, job.getStatus());
+        Mockito.verify(f.ports(), Mockito.never()).claim();
+        Mockito.verify(f.ports(), Mockito.never()).claimDbPort();
+        Mockito.verify(f.artifacts(), Mockito.never()).fetchWorkDir(Mockito.any(), Mockito.any());
+        Mockito.verify(f.stepRepo(), Mockito.never()).save(Mockito.any());
+    }
+
+    @Test
+    void claimDbPortThrows_appPortReleasedAndWorkDirCleaned() {
+        // If claimDbPort() throws (port exhaustion), the allocated
+        // appPort and the unzipped workDir must still be released/deleted
+        // on every exit path — no leak even when the outer try hasn't
+        // started yet... (it has: claims are inside the single try now).
+        InternalStepDto s = dbStepWithConfig("{\"connection\":{\"db_service\":\"db\","
+                + "\"db_type\":\"mysql\",\"database\":\"appdb\","
+                + "\"username\":\"root\",\"password\":\"root\"},\"query\":\"SELECT 1\"}");
+        InternalPlanDto one = plan(0, List.of(step(null, 0, false), s));
+        Fixture f;
+        try {
+            f = fixture(StepResultStatus.PASSED, List.of(one));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        Mockito.when(f.ports().claimDbPort()).thenThrow(new RuntimeException("boom"));
+        GradingJob job = f.job();
+
+        f.orchestrator().grade(job.getId(), job.getSubmissionId(), job.getAssignmentId(),
+                job.getStudentId(), null, "submissions/x.zip", "t-db-throw");
+
+        assertEquals(GradingJobStatus.FAILED, job.getStatus());
+        // appPort was claimed before claimDbPort threw
+        Mockito.verify(f.ports()).claim();
+        Mockito.verify(f.ports()).release(23456);
+        Mockito.verify(f.stepRepo(), Mockito.never()).save(Mockito.any());
+        assert java.nio.file.Files.notExists(f.workDir());
+    }
+
+    // ─── sameConnection normalization (round-2) ───
+
+    @Test
+    void sameConnection_normalizesAliasesCaseAndWhitespace() {
+        var o = orchestratorWithRegistry();
+        // mysql and mariadb resolve to the same singleton dialect
+        assertTrue(o.sameConnection(req("db", 3306, "mysql"), req("db", 3306, "mariadb")));
+        // resolve trims and folds case
+        assertTrue(o.sameConnection(req("db", 3306, "MySQL"), req("db", 3306, "mysql")));
+        assertTrue(o.sameConnection(req("db", 3306, " mysql "), req("db", 3306, "mysql")));
+        // null and blank both resolve to the default engine
+        assertTrue(o.sameConnection(req("db", 3306, null), req("db", 3306, "")));
+        // different engine, different service, different port all fail
+        assertFalse(o.sameConnection(req("db1", 3306, "postgres"), req("db1", 3306, "mysql")));
+        assertFalse(o.sameConnection(req("db1", 3306, "mysql"), req("db2", 3306, "mysql")));
+        assertFalse(o.sameConnection(req("db", 3306, "mysql"), req("db", 5432, "mysql")));
+    }
+
+    @Test
+    void scanDbRequirements_differingService_firstWins() throws Exception {
+        // Two steps on different services → the first wins; the
+        // mismatch WARN is logged at scan time (branch exercised).
+        InternalStepDto s1 = dbStepWithConfig("{\"connection\":{\"db_service\":\"db1\",\"db_type\":\"mysql\",\"database\":\"appdb\",\"username\":\"root\",\"password\":\"root\"},\"query\":\"SELECT 1\"}");
+        InternalStepDto s2 = dbStepWithConfig("{\"connection\":{\"db_service\":\"db2\",\"db_type\":\"postgres\",\"database\":\"appdb\",\"username\":\"root\",\"password\":\"root\"},\"query\":\"SELECT 1\"}");
+        var req = invokeScan(List.of(plan(0, List.of(s1, s2))));
+        assertEquals("db1", req.dbService());
+        assertEquals("mysql", req.dbType());
+    }
+
+    private static GradingOrchestrator orchestratorWithRegistry() {
+        return new GradingOrchestrator(null, null, null, null, null, null,
+                null, null, null, null, new ObjectMapper(), null, null,
+                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())));
+    }
+
+    private static GradingOrchestrator.DbRequirements req(String service, int port, String dbType) {
+        return new GradingOrchestrator.DbRequirements(true, service, port, dbType, null);
     }
 }

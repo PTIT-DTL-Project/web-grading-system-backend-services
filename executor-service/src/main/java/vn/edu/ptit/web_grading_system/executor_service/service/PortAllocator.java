@@ -29,6 +29,16 @@ public class PortAllocator
         return MIN_PORT + idx;
     }
 
+    /**
+     * Hands out a host port for the student app's DB service (DB step types).
+     * Deliberately reuses the same BitSet as {@link #claim()} — both ports live
+     * in the same pod, so sharing one range guarantees no app/DB collision.
+     */
+    public synchronized int claimDbPort()
+    {
+        return claim();
+    }
+
     public synchronized void release(int port)
     {
         if (port >= MIN_PORT && port <= MAX_PORT)

@@ -4,9 +4,24 @@ public class Constant {
 
     public static final class VariableContext {
         public static final String APP_PORT = "app_port";
+        public static final String DB_PORT = "db_port";
         public static final String SUBMISSION_ID = "submission_id";
         public static final String ASSIGNMENT_ID = "assignment_id";
         public static final String STUDENT_ID = "student_id";
+    }
+
+    /* Keys of the `connection` block in DB step configs (DB_QUERY /
+     * DB_SCHEMA_CHECK / DB_MIGRATION). Design: design-db-v1.0.md §2.3. */
+    public static final class DbConnection {
+        public static final String CONNECTION = "connection";
+        public static final String DB_SERVICE = "db_service";
+        public static final String DB_PORT_CONFIG = "db_port";
+        public static final String DB_TYPE = "db_type";
+        public static final String DEFAULT_DB_TYPE = "postgres";
+        public static final String DATABASE = "database";
+        public static final String USERNAME = "username";
+        public static final String PASSWORD = "password";
+        public static final String DB_STEP_PREFIX = "DB_";
     }
 
     public static final class HttpStep {
@@ -222,6 +237,14 @@ public class Constant {
             public static final String JSON_PATH_NOT_FOUND = "json_path correctly not found";
             public static final String BODY_NOT_EQUAL_PREFIX = "Body not equal. Expected: ";
             public static final String BODY_STRUCTURE_MISMATCH_PREFIX = "Body structure mismatch. Expected keys: ";
+        }
+
+        /* --- nested: DB step dialect (multi-DBMS) --- */
+        public static final class Db {
+            public static final String CONNECTION_DIALECT_PREFIX = "Connection failed using dialect '";
+            public static final String CONNECTION_DIALECT_SUFFIX =
+                    "'. If your DB is MySQL/MariaDB, set connection.db_type";
+            public static final String UNKNOWN_DIALECT = "Unknown db_type: ";
         }
 
         /* --- nested: misc --- */
