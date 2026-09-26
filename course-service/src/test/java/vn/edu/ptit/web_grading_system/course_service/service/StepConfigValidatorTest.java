@@ -173,6 +173,59 @@ class StepConfigValidatorTest {
         assertTrue(e.getMessage().contains("non-empty strings"));
     }
 
+    // ---------- connection block (multi-DBMS) ----------
+
+    @ParameterizedTest
+    @ValueSource(strings = {"postgres", "mysql", "mariadb", "MYSQL", "Postgres"})
+    void connection_knownDbType_passes(String dbType) {
+        ObjectNode n = node("""
+            {"connection":{"db_type":"%s","db_service":"db","database":"appdb",
+                           "username":"root","password":"root"},
+             "query":"SELECT 1"}""".formatted(dbType));
+        assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, n));
+    }
+
+    @Test
+    void connection_absent_passes_defaultsToPostgres() {
+        ObjectNode n = node("{\"query\":\"SELECT 1\"}");
+        assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, n));
+    }
+
+    @Test
+    void connection_unknownDbType_failsNamingAllowedValues() {
+        ObjectNode n = node("""
+            {"connection":{"db_type":"oracle"},
+             "query":"SELECT 1"}""");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, n));
+        assertTrue(e.getMessage().contains("db_type"));
+        assertTrue(e.getMessage().contains("postgres, mysql, mariadb"));
+    }
+
+    @Test
+    void connection_notAnObject_fails() {
+        ObjectNode n = node("{\"connection\":[],\"query\":\"SELECT 1\"}");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, n));
+        assertTrue(e.getMessage().contains("connection must be an object"));
+    }
+
+    @Test
+    void connection_unknownDbType_failsOnSchemaCheckAndMigrationToo() {
+        ObjectNode schema = node("""
+            {"connection":{"db_type":"oracle"},
+             "checks":[{"kind":"TABLE_EXISTS","table_name":"books"}]}""");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.DB_SCHEMA_CHECK, schema));
+        assertTrue(e.getMessage().contains("db_type"));
+        ObjectNode migration = node("""
+            {"connection":{"db_type":"oracle"},
+             "statements":["INSERT INTO books VALUES (1)"]}""");
+        var e2 = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.DB_MIGRATION, migration));
+        assertTrue(e2.getMessage().contains("db_type"));
+    }
+
     // ---------- EXTRACT ----------
 
     @Test

@@ -26,6 +26,11 @@ public final class StepConfigValidator {
             Set.of("status", "body_structure", "body_equals", "json_path", "contains", "field_equals");
     private static final Set<String> SCHEMA_CHECK_KINDS =
             Set.of("TABLE_EXISTS", "COLUMN_EXISTS", "INDEX_EXISTS", "PRIMARY_KEY");
+    /* Kept in sync with executor Constant.DbConnection.ALLOWED_DB_TYPES —
+     * the executor fails fast on unknown engines, the validator rejects them
+     * at save time. */
+    private static final Set<String> DB_TYPES =
+            Set.of("postgres", "mysql", "mariadb");
 
     /** @return canonical config JSON string; throws IllegalArgumentException on invalid structure. */
     public static String validateAndSerialize(StepType type, JsonNode config) {
@@ -104,13 +109,38 @@ public final class StepConfigValidator {
     }
 
     private static void validateDbQuery(JsonNode c) {
+        validateConnection(c, "DB_QUERY");
         requireText(c, "query", "DB_QUERY");
         if (c.hasNonNull("expected") && !c.get("expected").isObject()) {
             throw new IllegalArgumentException("DB_QUERY: expected must be an object");
         }
     }
 
+    /**
+     * The `connection` block is optional (unknown keys tolerated, forward
+     * compatible) but when present it must be an object and db_type — the
+     * engine key the executor maps to a JDBC dialect — must be a known one.
+     */
+    private static void validateConnection(JsonNode c, String ctx) {
+        if (!c.hasNonNull("connection")) {
+            return;
+        }
+        JsonNode conn = c.get("connection");
+        if (!conn.isObject()) {
+            throw new IllegalArgumentException(ctx + ": connection must be an object");
+        }
+        if (conn.hasNonNull("db_type")) {
+            String dbType = conn.get("db_type").asString().trim().toLowerCase();
+            if (!DB_TYPES.contains(dbType)) {
+                throw new IllegalArgumentException(ctx
+                        + ": unknown connection.db_type '" + conn.get("db_type").asString()
+                        + "' (allowed: postgres, mysql, mariadb)");
+            }
+        }
+    }
+
     private static void validateSchemaCheck(JsonNode c) {
+        validateConnection(c, "DB_SCHEMA_CHECK");
         JsonNode checks = c.get("checks");
         if (checks == null || !checks.isArray() || checks.isEmpty()) {
             throw new IllegalArgumentException("DB_SCHEMA_CHECK: 'checks' must be a non-empty array");
@@ -139,6 +169,7 @@ public final class StepConfigValidator {
     }
 
     private static void validateMigration(JsonNode c) {
+        validateConnection(c, "DB_MIGRATION");
         JsonNode statements = c.get("statements");
         if (statements == null || !statements.isArray() || statements.isEmpty()) {
             throw new IllegalArgumentException("DB_MIGRATION: 'statements' must be a non-empty array");

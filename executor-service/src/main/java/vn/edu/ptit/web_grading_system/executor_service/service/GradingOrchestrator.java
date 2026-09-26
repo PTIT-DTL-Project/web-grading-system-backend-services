@@ -30,6 +30,7 @@ import vn.edu.ptit.web_grading_system.executor_service.repositories.GradingStepR
 import vn.edu.ptit.web_grading_system.executor_service.service.step.HttpStepExecutor;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepExecutor;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepRegistry;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialectRegistry;
 
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -71,6 +72,7 @@ public class GradingOrchestrator
     private final ObjectMapper objectMapper;
     private final ExecutorProperties executorProperties;
     private final SagaTracker sagaTracker;
+    private final DbDialectRegistry dialectRegistry;
 
     @Async("gradingTaskExecutor")
     public void gradeAsync(UUID jobId, UUID submissionId, UUID assignmentId, UUID studentId,
@@ -149,7 +151,35 @@ public class GradingOrchestrator
                     Constant.Message.FAILED_DOWNLOAD_SUBMISSION + safeMessage(e));
             return;
         }
-        int port = portAllocator.claim();
+        // DB requirements scan (named seam — the future image-requirements scan
+        // sits beside it). Engine resolution — incl. unknown db_type →
+        // IllegalArgumentException — happens INSIDE the scan, BEFORE any port is
+        // claimed, so a bad engine fails the job without leaking the app port.
+        DbRequirements dbReq;
+        try
+        {
+            dbReq = scanDbRequirements(plans);
+        }
+        catch (IllegalArgumentException unknownEngine)
+        {
+            fail(job, submissionId, assignmentId, studentId, planId, sagaId, 1,
+                    unknownEngine.getMessage());
+            return;
+        }
+        if (dbReq.parseError() != null)
+        {
+            writeLog(job.getId(), submissionId, GradingLogLevel.WARN,
+                    "Failed to parse DB step connection config: " + dbReq.parseError());
+        }
+        int appPort = portAllocator.claim();
+        Integer dbPort = null;
+        if (dbReq.present())
+        {
+            dbPort = portAllocator.claimDbPort();
+            writeLog(job.getId(), submissionId, GradingLogLevel.INFO,
+                    "DB port allocated: host=" + dbPort + " service=" + dbReq.dbService()
+                            + " db_type=" + dbReq.dbType());
+        }
         long executionTimeoutMs = nz(config.getExecutionTimeoutMs(),
                 executorProperties.container().maxExecutionTimeMs());
         long startupTimeoutMs = nz(config.getStartupTimeoutMs(),
@@ -160,8 +190,9 @@ public class GradingOrchestrator
         {
             DockerComposePatcher.EffectiveCompose effective = DockerComposePatcher.writeEffectiveCompose(
                     workDir, config.getGradingStrategy(), config.getDockerComposeTemplate(),
-                    port, nz(config.getDockerComposePort(), 8080),
-                    config.getMaxCpu(), config.getMaxMemoryMb());
+                    appPort, nz(config.getDockerComposePort(), 8080),
+                    config.getMaxCpu(), config.getMaxMemoryMb(),
+                    dbReq.dbService(), dbPort, dbReq.dbContainerPort());
             try (DockerComposeRunner.RunningCompose running =
                     composeRunner.boot(effective, startupTimeoutMs))
             {
@@ -171,7 +202,7 @@ public class GradingOrchestrator
                 try
                 {
                     runSteps(job, submissionId, assignmentId, studentId, planId, sagaId, plans,
-                            running.port(), executionTimeoutMs);
+                            running.port(), dbPort, executionTimeoutMs);
                     sagaTracker.finishStep(runRow, SagaStepStatus.DONE, null);
                 }
                 catch (Exception inner)
@@ -193,7 +224,11 @@ public class GradingOrchestrator
         }
         finally
         {
-            portAllocator.release(port);
+            portAllocator.release(appPort);
+            if (dbPort != null)
+            {
+                portAllocator.release(dbPort);
+            }
             if (workDir != null)
             {
                 cleanupWorkDir(workDir);
@@ -201,14 +236,109 @@ public class GradingOrchestrator
         }
     }
 
+    /**
+     * Scans all plans for {@code DB_*} steps and reads the connection block of
+     * the first one (multiple DB services per assignment unsupported).
+     *
+     * <p>Named seam: the future lecturer image-registration feature adds its
+     * {@code scanImageRequirements(...)} beside this method — same pre-boot
+     * phase, independent concern (Axis 2: image presence vs Axis 1: dialect).
+     */
+    private DbRequirements scanDbRequirements(List<InternalPlanDto> plans)
+    {
+        for (InternalPlanDto scanPlan : plans)
+        {
+            if (scanPlan.getSteps() == null)
+            {
+                continue;
+            }
+            for (InternalStepDto scanStep : scanPlan.getSteps())
+            {
+                String stepType = scanStep.getStepType();
+                if (stepType == null || !stepType.startsWith(Constant.DbConnection.DB_STEP_PREFIX))
+                {
+                    continue;
+                }
+                String dbService = null;
+                Integer dbContainerPort = null;
+                String dbType = null;
+                String parseError = null;
+                try
+                {
+                    JsonNode scanCfg = objectMapper.readTree(
+                            scanStep.getConfig() == null ? "{}" : scanStep.getConfig());
+                    if (scanCfg.hasNonNull(Constant.DbConnection.CONNECTION))
+                    {
+                        JsonNode conn = scanCfg.get(Constant.DbConnection.CONNECTION);
+                        if (conn.hasNonNull(Constant.DbConnection.DB_SERVICE))
+                        {
+                            dbService = conn.path(Constant.DbConnection.DB_SERVICE).asString();
+                        }
+                        if (conn.hasNonNull(Constant.DbConnection.DB_PORT_CONFIG))
+                        {
+                            dbContainerPort = conn.path(Constant.DbConnection.DB_PORT_CONFIG).asInt();
+                        }
+                        if (conn.hasNonNull(Constant.DbConnection.DB_TYPE))
+                        {
+                            dbType = conn.path(Constant.DbConnection.DB_TYPE).asString();
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    parseError = safeMessage(e);
+                }
+                if (dbContainerPort == null)
+                {
+                    // Config omits db_port → the dialect owns its engine default
+                    // (5432 postgres / 3306 mysql), replacing the old hardcoded
+                    // 5432. Unknown db_type throws here → grade() fails the job
+                    // before any port is claimed.
+                    dbContainerPort = dialectRegistry.resolve(dbType).defaultPort();
+                }
+                // First DB step wins — multiple DB services per assignment unsupported.
+                return new DbRequirements(true, dbService, dbContainerPort, dbType, parseError);
+            }
+        }
+        return DbRequirements.none();
+    }
+
+    /**
+     * Fully resolved DB requirements: {@code dbContainerPort} is the config value
+     * or the resolved dialect default (5432 postgres / 3306 mysql) — never null
+     * when {@code present}.
+     *
+     * @param present        at least one {@code DB_*} step exists in the plans
+     * @param dbService      compose service exposing the DB (null → no port patching)
+     * @param dbContainerPort container-internal port (config value or dialect default)
+     * @param dbType         engine key as configured; null → default engine (postgres)
+     * @param parseError     connection-block JSON parse failure, surfaced as a WARN log
+     * @throws IllegalArgumentException from {@link #scanDbRequirements} on unknown db_type
+     */
+    record DbRequirements(boolean present, String dbService, Integer dbContainerPort,
+            String dbType, String parseError)
+    {
+        static DbRequirements none()
+        {
+            return new DbRequirements(false, null, null, null, null);
+        }
+    }
+
     private void runSteps(GradingJob job, UUID submissionId, UUID assignmentId, UUID studentId,
-            UUID planId, UUID sagaId, List<InternalPlanDto> plans, int appPort, long executionTimeoutMs)
+            UUID planId, UUID sagaId, List<InternalPlanDto> plans, int appPort, Integer dbPort,
+            long executionTimeoutMs)
     {
         job.setStatus(GradingJobStatus.RUNNING);
         gradingJobRepository.save(job);
         writeLog(job.getId(), submissionId, GradingLogLevel.INFO, Constant.Message.RUNNING_PREFIX + plans.size() + Constant.Message.PLAN_SUFFIX);
         VariableContext vars = new VariableContext();
         vars.put(Constant.VariableContext.APP_PORT, appPort);
+        // DB step executors build their JDBC URL from this port; absent when the
+        // assignment has no DB steps.
+        if (dbPort != null)
+        {
+            vars.put(Constant.VariableContext.DB_PORT, dbPort);
+        }
         vars.put(Constant.VariableContext.SUBMISSION_ID, submissionId.toString());
         vars.put(Constant.VariableContext.ASSIGNMENT_ID, assignmentId.toString());
         vars.put(Constant.VariableContext.STUDENT_ID, studentId.toString());
