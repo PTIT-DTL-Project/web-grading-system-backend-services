@@ -11,19 +11,21 @@ spring:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/ptit-wgs}
   cloud:
     gateway:
-      routes:
-        - id: course-service
-          uri: ${COURSE_SERVICE_URI:http://grading-course-service:8081}
-          predicates:
-            - Path=/api/v1/classes/**,/api/v1/assignments/**,/api/v1/docker-images/**,/api/v1/student/**
-        - id: submission-service
-          uri: ${SUBMISSION_SERVICE_URI:http://grading-submission-service:8082}
-          predicates:
-            - Path=/api/v1/submissions/**
-        - id: result-service
-          uri: ${RESULT_SERVICE_URI:http://grading-result-service:8084}
-          predicates:
-            - Path=/api/v1/results/**
+      server:
+        webflux:
+          routes:
+            - id: course-service
+              uri: ${COURSE_SERVICE_URI:http://localhost:8081}
+              predicates:
+                - Path=/api/v1/classes/**,/api/v1/assignments/**,/api/v1/docker-images/**,/api/v1/student/**
+            - id: submission-service
+              uri: ${SUBMISSION_SERVICE_URI:http://localhost:8082}
+              predicates:
+                - Path=/api/v1/submissions/**
+            - id: result-service
+              uri: ${RESULT_SERVICE_URI:http://localhost:8084}
+              predicates:
+                - Path=/api/v1/results/**
 
 management:
   endpoints:
