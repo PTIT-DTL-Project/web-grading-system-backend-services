@@ -20,15 +20,17 @@ import vn.edu.ptit.web_grading_system.course_service.repositories.DockerImageRep
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
  * Lecturer-facing library of Docker images (DB images, Java SDK, ...).
  * <p>
- * Mutations are scoped to the owning lecturer (mirroring assignments.owner_id /
- * requireOwnedAssignment). Legacy images backfilled to the system principal remain
- * shared and editable by any authenticated lecturer so the picker stays usable.
+ * Reads ({@link #list}, {@link #getById}, {@link #listActiveUrls}) return the entire
+ * library — it is a shared picker. Writes are owner-scoped (mirroring assignments.owner_id /
+ * requireOwnedAssignment): {@link #create} stamps the requester's {@code X-User-Id} as
+ * {@code ownerId}, and {@link #update}/{@link #delete} require the requester to own the image
+ * (or be the system principal for backfilled defaults).
  * Soft delete is enforced by the entity's {@code @SQLRestriction}.
  */
 @Slf4j
@@ -49,20 +51,20 @@ public class DockerImageService {
                     "image_url must carry an explicit tag; ':latest' is forbidden");
         }
         if (!imageUrl.matches(Constant.Image.IMAGE_URL_REGEX)) {
-            throw new BadRequestException(
-                    "image_url must be registry/repo:tag (explicit tag, ':latest' forbidden) " +
-                    "or name@sha256:<digest>");
+            throw new BadRequestException(Constant.Image.INVALID_URL_MESSAGE);
         }
     }
 
     private DockerImage requireOwnedImage(UUID id, UUID requesterId) {
-        // Review: 2026-09-27, Pullfrog PR #N — ownership scope mirrors assignments.owner_id.
+        // Review: 2026-09-27, Pullfrog PR #20 — ownership scope mirrors assignments.owner_id.
         // Legacy system-principal images stay editable by any lecturer so the shared library
-        // (backfilled defaults) remains usable.
+        // (backfilled defaults) remains usable. Objects.equals keeps the gate safe when an
+        // ownerId is absent (V4 rolling-deploy window), degrading to a clean 404 instead of
+        // a 500.
         DockerImage image = dockerImageRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Docker image not found: " + id));
-        if (image.getOwnerId().equals(requesterId)
-                || image.getOwnerId().equals(Constant.IMAGE_LIBRARY_SYSTEM_OWNER)) {
+        if (Objects.equals(image.getOwnerId(), requesterId)
+                || Objects.equals(image.getOwnerId(), Constant.IMAGE_LIBRARY_SYSTEM_OWNER)) {
             return image;
         }
         throw new ResourceNotFoundException("Docker image not found: " + id);
@@ -122,7 +124,11 @@ public class DockerImageService {
     @Transactional
     public void delete(UUID id, UUID requesterId) {
         DockerImage image = requireOwnedImage(id, requesterId);
-        // Review: 2026-09-27, Pullfrog PR #N — refuse to delete an image still referenced by
+        // Review: 2026-09-27, Pullfrog PR #20 — clean the links first so deleting an
+        // assignment does not permanently orphan its images (which would otherwise make the
+        // images undisletable via the 409 guard).
+        assignmentDockerImageRepository.softDeleteByAssignmentId(id, OffsetDateTime.now());
+        // Review: 2026-09-27, Pullfrog PR #20 — refuse to delete an image still referenced by
         // an assignment so the executor's grading-config fetch does not silently lose an image.
         if (!assignmentDockerImageRepository.findByDockerImageIdIn(List.of(id)).isEmpty()) {
             throw new ConflictException(

@@ -16,6 +16,7 @@ import vn.edu.ptit.web_grading_system.course_service.entities.CourseClass;
 import vn.edu.ptit.web_grading_system.course_service.entities.DockerImage;
 import vn.edu.ptit.web_grading_system.course_service.entities.GradingStrategy;
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
+import vn.edu.ptit.web_grading_system.course_service.Constant;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.course_service.mapper.AssignmentMapper;
 import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentDockerImageRepository;
@@ -25,6 +26,7 @@ import vn.edu.ptit.web_grading_system.course_service.repositories.DockerImageRep
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -170,6 +172,15 @@ public class AssignmentService {
                 throw new BadRequestException(
                         "One or more docker image ids are unknown or soft-deleted");
             }
+            // Review: 2026-09-27, Pullfrog PR #20 — a lecturer may only attach images
+            // they own (or system-principal defaults); attaching another's image would
+            // permanently block its owner via the 409 delete guard.
+            for (DockerImage image : active) {
+                if (!Objects.equals(image.getOwnerId(), ownerId)
+                        && !Objects.equals(image.getOwnerId(), Constant.IMAGE_LIBRARY_SYSTEM_OWNER)) {
+                    throw new ResourceNotFoundException("Docker image not found: " + image.getId());
+                }
+            }
         }
         assignmentDockerImageRepository.softDeleteByAssignmentId(
                 assignmentId, OffsetDateTime.now());
@@ -194,6 +205,10 @@ public class AssignmentService {
     @Transactional
     public void delete(UUID id, UUID ownerId) {
         Assignment assignment = requireOwnedAssignment(id, ownerId);
+        // Review: 2026-09-27, Pullfrog PR #20 — clean the links so deleting an assignment
+        // does not permanently orphan its images (which would otherwise make the images
+        // undisletable via the 409 guard).
+        assignmentDockerImageRepository.softDeleteByAssignmentId(id, OffsetDateTime.now());
         assignment.setDeletedAt(OffsetDateTime.now());
         assignmentRepository.save(assignment);
         log.info("Assignment soft-deleted: id={}, title={}", id, assignment.getTitle());

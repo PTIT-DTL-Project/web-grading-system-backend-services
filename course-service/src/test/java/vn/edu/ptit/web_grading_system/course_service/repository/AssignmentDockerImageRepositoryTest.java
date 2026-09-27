@@ -17,7 +17,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Review: 2026-09-27, Pullfrog PR #N — {@link AssignmentDockerImageRepository#findDockerImageIdsByAssignmentId}
+ * Review: 2026-09-27, Pullfrog PR #20 — {@link AssignmentDockerImageRepository#findDockerImageIdsByAssignmentId}
  * must return scalar {@link java.util.UUID}s. The fix replaces the unparseable derived
  * query name with an explicit JPQL projection; this slice verifies the query actually
  * builds and returns UUIDs against a real database (the only layer that catches the
@@ -65,14 +65,13 @@ class AssignmentDockerImageRepositoryTest {
 
     @Test
     @Transactional
-    void findByNameContainingIgnoreCase_filters() {
+    void findByAssignmentId_returnsLinks() {
         UUID owner = UUID.randomUUID();
-        dockerImageRepo.save(DockerImage.builder().name("My App").imageUrl("a:1").ownerId(owner).build());
-        dockerImageRepo.save(DockerImage.builder().name("my image").imageUrl("b:2").ownerId(owner).build());
-
-        assertThat(dockerImageRepo.findByNameContainingIgnoreCase("my", org.springframework.data.domain.Pageable.unpaged())
-                        .getContent()).hasSize(2);
-        assertThat(dockerImageRepo.findByNameContainingIgnoreCase("app", org.springframework.data.domain.Pageable.unpaged())
-                        .getContent()).hasSize(1);
+        DockerImage img = dockerImageRepo.save(DockerImage.builder()
+                .name("db").imageUrl("db:16").ownerId(owner).build());
+        UUID assignmentId = UUID.randomUUID();
+        linkRepo.save(AssignmentDockerImage.builder()
+                .assignmentId(assignmentId).dockerImageId(img.getId()).build());
+        assertThat(linkRepo.findByAssignmentId(assignmentId)).hasSize(1);
     }
 }

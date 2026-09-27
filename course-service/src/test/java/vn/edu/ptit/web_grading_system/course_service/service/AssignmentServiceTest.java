@@ -194,7 +194,7 @@ class AssignmentServiceTest {
         stubOwnedAssignment(true);
         UUID img = UUID.randomUUID();
         Mockito.when(dockerImageRepo.findAllByIdIn(List.of(img)))
-                .thenReturn(List.of(DockerImage.builder().id(img).build()));
+                .thenReturn(List.of(DockerImage.builder().id(img).ownerId(OWNER).build()));
         service.syncAssignmentImages(ASSIGNMENT_ID, OWNER, List.of(img, img));
         Mockito.verify(imageLinkRepo, Mockito.times(1)).save(any());
     }
@@ -203,6 +203,30 @@ class AssignmentServiceTest {
     void syncAssignmentImages_emptyClearsLinks() {
         stubOwnedAssignment(true);
         service.syncAssignmentImages(ASSIGNMENT_ID, OWNER, List.of());
+        Mockito.verify(imageLinkRepo).softDeleteByAssignmentId(
+                eq(ASSIGNMENT_ID), any(java.time.OffsetDateTime.class));
+    }
+
+    // Review: 2026-09-27, Pullfrog PR #20 — sync must refuse to attach a
+    // lecturer's image to another lecturer's assignment.
+    @Test
+    void syncAssignmentImages_foreignImage_throws404() {
+        stubOwnedAssignment(true);
+        UUID foreign = UUID.randomUUID();
+        Mockito.when(dockerImageRepo.findAllByIdIn(List.of(foreign)))
+                .thenReturn(List.of(DockerImage.builder()
+                        .id(foreign).name("foreign").imageUrl("foreign:1")
+                        .ownerId(UUID.randomUUID()).build()));
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.syncAssignmentImages(ASSIGNMENT_ID, OWNER, List.of(foreign)));
+    }
+
+    // Review: 2026-09-27, Pullfrog PR #20 — deleting an assignment must also
+    // remove its image links so the images remain deletable.
+    @Test
+    void delete_softDeletesLinks() {
+        stubOwnedAssignment(false);
+        service.delete(ASSIGNMENT_ID, OWNER);
         Mockito.verify(imageLinkRepo).softDeleteByAssignmentId(
                 eq(ASSIGNMENT_ID), any(java.time.OffsetDateTime.class));
     }

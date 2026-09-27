@@ -16,7 +16,6 @@ import vn.edu.ptit.web_grading_system.course_service.entities.TestPlan;
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentRepository;
-import vn.edu.ptit.web_grading_system.course_service.service.AssignmentService;
 import vn.edu.ptit.web_grading_system.course_service.repositories.TestPlanRepository;
 import vn.edu.ptit.web_grading_system.course_service.repositories.TestStepRepository;
 
@@ -47,8 +46,6 @@ class TestPlanServiceTest {
                 .thenReturn(Optional.of(full));
         Mockito.when(assignmentRepo.findById(ASSIGNMENT_ID))
                 .thenReturn(Optional.of(full));
-        // internal exists path shares findById; give it a published row too
-        Mockito.when(assignmentRepo.existsByIdAndPublished(ASSIGNMENT_ID, true)).thenReturn(true);
     }
 
     private TestPlan plan(int seq) {
@@ -184,6 +181,8 @@ class TestPlanServiceTest {
     @Test
     void internal_exists_reflectsPublishedFlag() {
         stubOwnedAssignment();
+        // internalGradingConfig reads via findById; the published check is separate
+        Mockito.when(assignmentRepo.existsByIdAndPublished(ASSIGNMENT_ID, true)).thenReturn(true);
         AssignmentExistsResponse res = service.internalExists(ASSIGNMENT_ID);
         assertTrue(res.exists());
     }

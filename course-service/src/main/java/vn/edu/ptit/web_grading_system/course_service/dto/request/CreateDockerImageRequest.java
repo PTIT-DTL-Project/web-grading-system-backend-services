@@ -22,8 +22,7 @@ public class CreateDockerImageRequest {
     @NotBlank
     @Size(max = Constant.Image.IMAGE_URL_MAX)
     @Pattern(regexp = Constant.Image.IMAGE_URL_REGEX,
-            message = "image_url must be registry/repo:tag (explicit tag, ':latest' forbidden) "
-                    + "or name@sha256:<digest>")
+            message = Constant.Image.INVALID_URL_MESSAGE)
     private String imageUrl;
 
     private String description;

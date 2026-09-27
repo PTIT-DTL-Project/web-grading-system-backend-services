@@ -17,6 +17,6 @@ public interface DockerImageRepository extends JpaRepository<DockerImage, UUID> 
 
     List<DockerImage> findAllByIdIn(List<UUID> ids);
 
-    /** Case-insensitive prefix-ish filter used by the lecturer picker. */
+    /** Case-insensitive substring filter used by the lecturer picker. */
     Page<DockerImage> findByNameContainingIgnoreCase(String name, Pageable pageable);
 }
