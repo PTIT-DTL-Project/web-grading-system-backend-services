@@ -110,6 +110,16 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, "Missing required header: " + e.getHeaderName(), null);
     }
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(org.springframework.security.access.AccessDeniedException e) {
+        return build(HttpStatus.FORBIDDEN, "Forbidden: Access denied", e.getMessage());
+    }
+
+    @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAuthentication(org.springframework.security.core.AuthenticationException e) {
+        return build(HttpStatus.UNAUTHORIZED, "Unauthorized", e.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception e) {
         log.error("Unhandled exception", e);
