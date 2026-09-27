@@ -19,4 +19,8 @@ public interface CourseInternalClient {
 
     @GetMapping("/api/v1/internal/assignments/{id}/plans")
     List<InternalPlanDto> plans(@PathVariable("id") UUID id);
+
+    /** Active image URLs for the async pre-pull scanner. */
+    @GetMapping("/api/v1/internal/docker-images")
+    List<String> images();
 }

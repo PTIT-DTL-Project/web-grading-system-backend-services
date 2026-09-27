@@ -11,16 +11,25 @@ import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateAssignmen
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateAssignmentRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResponse;
 import vn.edu.ptit.web_grading_system.course_service.entities.Assignment;
+import vn.edu.ptit.web_grading_system.course_service.entities.AssignmentDockerImage;
 import vn.edu.ptit.web_grading_system.course_service.entities.CourseClass;
+import vn.edu.ptit.web_grading_system.course_service.entities.DockerImage;
 import vn.edu.ptit.web_grading_system.course_service.entities.GradingStrategy;
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
+import vn.edu.ptit.web_grading_system.course_service.Constant;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.course_service.mapper.AssignmentMapper;
+import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentDockerImageRepository;
 import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentRepository;
 import vn.edu.ptit.web_grading_system.course_service.repositories.CourseClassRepository;
+import vn.edu.ptit.web_grading_system.course_service.repositories.DockerImageRepository;
 
 import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -30,6 +39,8 @@ public class AssignmentService {
     private final CourseClassRepository courseClassRepository;
     private final AssignmentRepository assignmentRepository;
     private final AssignmentMapper assignmentMapper;
+    private final AssignmentDockerImageRepository assignmentDockerImageRepository;
+    private final DockerImageRepository dockerImageRepository;
 
     private CourseClass requireOwnedClass(UUID ownerId, UUID classId) {
         return courseClassRepository.findByIdAndOwnerId(classId, ownerId)
@@ -140,9 +151,64 @@ public class AssignmentService {
         return assignmentMapper.toResponse(assignmentRepository.save(assignment));
     }
 
+    /**
+     * Full-sync replace the images attached to an assignment. Old links are
+     * soft-deleted; only the supplied image ids are kept.
+     * <p>
+     * Review: 2026-09-27, Pullfrog PR #20 — de-duplicate the incoming list once so
+     * the partial unique index (WHERE deleted_at IS NULL) is never tripped by a
+     * repeated id, and an unknown/soft-deleted id is caught against the distinct set.
+     * A null or empty list clears all images (documented PUT semantics).
+     */
+    @Transactional
+    public void syncAssignmentImages(UUID assignmentId, UUID ownerId, List<UUID> dockerImageIds) {
+        requireOwnedAssignment(assignmentId, ownerId);
+        List<UUID> ids = dockerImageIds != null
+                ? dockerImageIds.stream().distinct().toList()
+                : List.of();
+        if (!ids.isEmpty()) {
+            List<DockerImage> active = dockerImageRepository.findAllByIdIn(ids);
+            if (active.size() != ids.size()) {
+                throw new BadRequestException(
+                        "One or more docker image ids are unknown or soft-deleted");
+            }
+            // Review: 2026-09-27, Pullfrog PR #20 — a lecturer may only attach images
+            // they own (or system-principal defaults); attaching another's image would
+            // permanently block its owner via the 409 delete guard.
+            for (DockerImage image : active) {
+                if (!Objects.equals(image.getOwnerId(), ownerId)
+                        && !Objects.equals(image.getOwnerId(), Constant.IMAGE_LIBRARY_SYSTEM_OWNER)) {
+                    throw new ResourceNotFoundException("Docker image not found: " + image.getId());
+                }
+            }
+        }
+        assignmentDockerImageRepository.softDeleteByAssignmentId(
+                assignmentId, OffsetDateTime.now());
+        for (UUID imageId : ids) {
+            assignmentDockerImageRepository.save(
+                    AssignmentDockerImage.builder()
+                            .assignmentId(assignmentId)
+                            .dockerImageId(imageId)
+                            .build());
+        }
+        log.info("Assignment images synced: id={}, count={}", assignmentId, ids.size());
+    }
+
+    /** Returns the image URLs currently attached to an assignment (used by executor). */
+    @Transactional(readOnly = true)
+    public List<String> getAssignmentImageUrls(UUID assignmentId) {
+        List<UUID> ids = assignmentDockerImageRepository.findDockerImageIdsByAssignmentId(assignmentId);
+        List<DockerImage> images = dockerImageRepository.findAllByIdIn(ids);
+        return images.stream().map(DockerImage::getImageUrl).toList();
+    }
+
     @Transactional
     public void delete(UUID id, UUID ownerId) {
         Assignment assignment = requireOwnedAssignment(id, ownerId);
+        // Review: 2026-09-27, Pullfrog PR #20 — clean the links so deleting an assignment
+        // does not permanently orphan its images (which would otherwise make the images
+        // undisletable via the 409 guard).
+        assignmentDockerImageRepository.softDeleteByAssignmentId(id, OffsetDateTime.now());
         assignment.setDeletedAt(OffsetDateTime.now());
         assignmentRepository.save(assignment);
         log.info("Assignment soft-deleted: id={}, title={}", id, assignment.getTitle());

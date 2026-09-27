@@ -10,6 +10,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
+import java.util.UUID;
+
 @SQLRestriction("deleted_at IS NULL")
 @Entity
 @Table(name = "docker_images")
@@ -19,6 +21,9 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 @SuperBuilder
 public class DockerImage extends BaseEntity {
+
+    @Column(nullable = false)
+    private UUID ownerId;
 
     @Column(nullable = false)
     private String name;

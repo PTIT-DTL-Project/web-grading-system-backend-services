@@ -10,6 +10,7 @@ import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdatePlanReque
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateStepRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
 import vn.edu.ptit.web_grading_system.course_service.entities.Assignment;
+import vn.edu.ptit.web_grading_system.course_service.entities.GradingStrategy;
 import vn.edu.ptit.web_grading_system.course_service.entities.StepType;
 import vn.edu.ptit.web_grading_system.course_service.entities.TestPlan;
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
@@ -33,16 +34,18 @@ class TestPlanServiceTest {
     private static final UUID PLAN_ID = UUID.randomUUID();
 
     private final AssignmentRepository assignmentRepo = Mockito.mock(AssignmentRepository.class);
+    private final AssignmentService assignmentService = Mockito.mock(AssignmentService.class);
     private final TestPlanRepository planRepo = Mockito.mock(TestPlanRepository.class);
     private final TestStepRepository stepRepo = Mockito.mock(TestStepRepository.class);
     private final TestPlanService service =
-            new TestPlanService(assignmentRepo, planRepo, stepRepo, new ObjectMapper());
+            new TestPlanService(assignmentRepo, assignmentService, planRepo, stepRepo, new ObjectMapper());
 
     private void stubOwnedAssignment() {
+        Assignment full = Assignment.builder().gradingStrategy(GradingStrategy.STUDENT_DOCKER_COMPOSE).build();
         Mockito.when(assignmentRepo.findByIdAndOwnerId(ASSIGNMENT_ID, OWNER))
-                .thenReturn(Optional.of(Assignment.builder().build()));
-        // internal exists path shares findById; give it a published row too
-        Mockito.when(assignmentRepo.existsByIdAndPublished(ASSIGNMENT_ID, true)).thenReturn(true);
+                .thenReturn(Optional.of(full));
+        Mockito.when(assignmentRepo.findById(ASSIGNMENT_ID))
+                .thenReturn(Optional.of(full));
     }
 
     private TestPlan plan(int seq) {
@@ -178,6 +181,8 @@ class TestPlanServiceTest {
     @Test
     void internal_exists_reflectsPublishedFlag() {
         stubOwnedAssignment();
+        // internalGradingConfig reads via findById; the published check is separate
+        Mockito.when(assignmentRepo.existsByIdAndPublished(ASSIGNMENT_ID, true)).thenReturn(true);
         AssignmentExistsResponse res = service.internalExists(ASSIGNMENT_ID);
         assertTrue(res.exists());
     }
@@ -221,5 +226,16 @@ class TestPlanServiceTest {
 
         var stepRes = service.updateStep(ASSIGNMENT_ID, OWNER, PLAN_ID, UUID.randomUUID(), req);
         assertEquals("old note", stepRes.getDescription());
+    }
+
+    // Review: 2026-09-27, Pullfrog PR #20 — dockerImageUrls must be populated
+    // in the grading config that the executor fetches.
+    @Test
+    void internalGradingConfig_populatesDockerImageUrls() {
+        stubOwnedAssignment();
+        Mockito.when(assignmentService.getAssignmentImageUrls(ASSIGNMENT_ID))
+                .thenReturn(List.of("postgres:16"));
+        var res = service.internalGradingConfig(ASSIGNMENT_ID);
+        assertEquals(List.of("postgres:16"), res.getDockerImageUrls());
     }
 }
