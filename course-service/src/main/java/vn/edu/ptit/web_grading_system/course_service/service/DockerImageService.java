@@ -124,12 +124,13 @@ public class DockerImageService {
     @Transactional
     public void delete(UUID id, UUID requesterId) {
         DockerImage image = requireOwnedImage(id, requesterId);
-        // Review: 2026-09-27, Pullfrog PR #20 — clean the links first so deleting an
-        // assignment does not permanently orphan its images (which would otherwise make the
-        // images undisletable via the 409 guard).
-        assignmentDockerImageRepository.softDeleteByAssignmentId(id, OffsetDateTime.now());
         // Review: 2026-09-27, Pullfrog PR #20 — refuse to delete an image still referenced by
         // an assignment so the executor's grading-config fetch does not silently lose an image.
+        // Deliberately no link cascade here: findByDockerImageIdIn is @SQLRestriction-filtered,
+        // so a passing guard means there are zero live links to clean (a cascade would write
+        // nothing), and orphan cleanup belongs to AssignmentService.delete, which soft-deletes
+        // its own links. The key spaces are independent — docker_images.id and assignments.id
+        // are unrelated UUID sequences, so never key a link cleanup on the image id.
         if (!assignmentDockerImageRepository.findByDockerImageIdIn(List.of(id)).isEmpty()) {
             throw new ConflictException(
                     "Cannot delete an image still referenced by an assignment");

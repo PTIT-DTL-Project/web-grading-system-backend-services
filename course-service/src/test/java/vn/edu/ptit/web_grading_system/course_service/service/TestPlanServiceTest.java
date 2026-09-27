@@ -228,7 +228,7 @@ class TestPlanServiceTest {
         assertEquals("old note", stepRes.getDescription());
     }
 
-    // Review: 2026-09-27, Pullfrog PR #N — dockerImageUrls must be populated
+    // Review: 2026-09-27, Pullfrog PR #20 — dockerImageUrls must be populated
     // in the grading config that the executor fetches.
     @Test
     void internalGradingConfig_populatesDockerImageUrls() {

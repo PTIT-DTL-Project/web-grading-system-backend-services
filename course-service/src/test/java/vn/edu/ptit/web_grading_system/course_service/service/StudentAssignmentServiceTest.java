@@ -107,7 +107,7 @@ class StudentAssignmentServiceTest {
         assertThrows(ResourceNotFoundException.class, () -> service.listPlans(STUDENT, ASSIGNMENT_ID));
     }
 
-    // Review: 2026-09-27, Pullfrog PR #N — student visibility must resolve
+    // Review: 2026-09-27, Pullfrog PR #20 — student visibility must resolve
     // linked image IDs through the join table even when links exist.
     @Test
     void getStudentImages_returnsImagesForEnrolledPublishedAssignment() {

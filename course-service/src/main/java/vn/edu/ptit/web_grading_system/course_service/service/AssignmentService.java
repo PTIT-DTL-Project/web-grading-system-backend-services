@@ -155,7 +155,7 @@ public class AssignmentService {
      * Full-sync replace the images attached to an assignment. Old links are
      * soft-deleted; only the supplied image ids are kept.
      * <p>
-     * Review: 2026-09-27, Pullfrog PR #N — de-duplicate the incoming list once so
+     * Review: 2026-09-27, Pullfrog PR #20 — de-duplicate the incoming list once so
      * the partial unique index (WHERE deleted_at IS NULL) is never tripped by a
      * repeated id, and an unknown/soft-deleted id is caught against the distinct set.
      * A null or empty list clears all images (documented PUT semantics).

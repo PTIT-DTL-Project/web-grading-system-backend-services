@@ -176,7 +176,7 @@ class AssignmentServiceTest {
         Mockito.verify(assignmentRepo, Mockito.never()).delete(Mockito.any());
     }
 
-    // Review: 2026-09-27, Pullfrog PR #N — sync must de-duplicate and never
+    // Review: 2026-09-27, Pullfrog PR #20 — sync must de-duplicate and never
     // misreport an unknown id as "unknown or soft-deleted" (IN-clause dedup).
     @Test
     void syncAssignmentImages_unknownId_throws400() {

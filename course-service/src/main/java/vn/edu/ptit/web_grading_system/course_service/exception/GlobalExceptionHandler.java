@@ -126,7 +126,7 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred", null);
     }
 
-    // Review: 2026-09-27, Pullfrog PR #N — 409 when a mutation conflicts with live state.
+    // Review: 2026-09-27, Pullfrog PR #20 — 409 when a mutation conflicts with live state.
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiResponse<Void>> handleConflict(ConflictException e) {
         return build(HttpStatus.CONFLICT, e.getMessage(), null);
