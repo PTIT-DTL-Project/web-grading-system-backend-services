@@ -152,27 +152,35 @@ public class AssignmentService {
     /**
      * Full-sync replace the images attached to an assignment. Old links are
      * soft-deleted; only the supplied image ids are kept.
+     * <p>
+     * Review: 2026-09-27, Pullfrog PR #N — de-duplicate the incoming list once so
+     * the partial unique index (WHERE deleted_at IS NULL) is never tripped by a
+     * repeated id, and an unknown/soft-deleted id is caught against the distinct set.
+     * A null or empty list clears all images (documented PUT semantics).
      */
     @Transactional
     public void syncAssignmentImages(UUID assignmentId, UUID ownerId, List<UUID> dockerImageIds) {
         requireOwnedAssignment(assignmentId, ownerId);
-        if (dockerImageIds != null && !dockerImageIds.isEmpty()) {
-            List<DockerImage> active = dockerImageRepository.findAllByIdIn(dockerImageIds);
-            if (active.size() != dockerImageIds.size()) {
+        List<UUID> ids = dockerImageIds != null
+                ? dockerImageIds.stream().distinct().toList()
+                : List.of();
+        if (!ids.isEmpty()) {
+            List<DockerImage> active = dockerImageRepository.findAllByIdIn(ids);
+            if (active.size() != ids.size()) {
                 throw new BadRequestException(
                         "One or more docker image ids are unknown or soft-deleted");
             }
         }
         assignmentDockerImageRepository.softDeleteByAssignmentId(
                 assignmentId, OffsetDateTime.now());
-        for (UUID imageId : dockerImageIds) {
+        for (UUID imageId : ids) {
             assignmentDockerImageRepository.save(
                     AssignmentDockerImage.builder()
                             .assignmentId(assignmentId)
                             .dockerImageId(imageId)
                             .build());
         }
-        log.info("Assignment images synced: id={}, count={}", assignmentId, dockerImageIds.size());
+        log.info("Assignment images synced: id={}, count={}", assignmentId, ids.size());
     }
 
     /** Returns the image URLs currently attached to an assignment (used by executor). */

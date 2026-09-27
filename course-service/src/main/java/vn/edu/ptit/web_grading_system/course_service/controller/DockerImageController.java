@@ -15,7 +15,6 @@ import vn.edu.ptit.web_grading_system.course_service.dto.response.DockerImageRes
 import vn.edu.ptit.web_grading_system.course_service.service.DockerImageService;
 import vn.edu.ptit.web_grading_system.course_service.util.annotation.ApiMessage;
 
-import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -32,7 +31,7 @@ public class DockerImageController {
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId,
             @Valid @RequestBody CreateDockerImageRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(dockerImageService.create(request));
+                .body(dockerImageService.create(UUID.fromString(ownerId), request));
     }
 
     @GetMapping
@@ -41,7 +40,7 @@ public class DockerImageController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(dockerImageService.list(pageable));
+        return ResponseEntity.ok(dockerImageService.list(name, pageable));
     }
 
     @GetMapping("/{id}")
@@ -55,7 +54,8 @@ public class DockerImageController {
             @PathVariable UUID id,
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId,
             @Valid @RequestBody UpdateDockerImageRequest request) {
-        return ResponseEntity.ok(dockerImageService.update(id, request));
+        return ResponseEntity.ok(
+                dockerImageService.update(id, UUID.fromString(ownerId), request));
     }
 
     @DeleteMapping("/{id}")
@@ -63,7 +63,7 @@ public class DockerImageController {
     public ResponseEntity<Void> delete(
             @PathVariable UUID id,
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId) {
-        dockerImageService.delete(id);
+        dockerImageService.delete(id, UUID.fromString(ownerId));
         return ResponseEntity.ok().build();
     }
 }

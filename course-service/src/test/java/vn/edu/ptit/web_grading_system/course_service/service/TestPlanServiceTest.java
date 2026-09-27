@@ -10,6 +10,7 @@ import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdatePlanReque
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateStepRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
 import vn.edu.ptit.web_grading_system.course_service.entities.Assignment;
+import vn.edu.ptit.web_grading_system.course_service.entities.GradingStrategy;
 import vn.edu.ptit.web_grading_system.course_service.entities.StepType;
 import vn.edu.ptit.web_grading_system.course_service.entities.TestPlan;
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
@@ -41,8 +42,11 @@ class TestPlanServiceTest {
             new TestPlanService(assignmentRepo, assignmentService, planRepo, stepRepo, new ObjectMapper());
 
     private void stubOwnedAssignment() {
+        Assignment full = Assignment.builder().gradingStrategy(GradingStrategy.STUDENT_DOCKER_COMPOSE).build();
         Mockito.when(assignmentRepo.findByIdAndOwnerId(ASSIGNMENT_ID, OWNER))
-                .thenReturn(Optional.of(Assignment.builder().build()));
+                .thenReturn(Optional.of(full));
+        Mockito.when(assignmentRepo.findById(ASSIGNMENT_ID))
+                .thenReturn(Optional.of(full));
         // internal exists path shares findById; give it a published row too
         Mockito.when(assignmentRepo.existsByIdAndPublished(ASSIGNMENT_ID, true)).thenReturn(true);
     }
@@ -223,5 +227,16 @@ class TestPlanServiceTest {
 
         var stepRes = service.updateStep(ASSIGNMENT_ID, OWNER, PLAN_ID, UUID.randomUUID(), req);
         assertEquals("old note", stepRes.getDescription());
+    }
+
+    // Review: 2026-09-27, Pullfrog PR #N — dockerImageUrls must be populated
+    // in the grading config that the executor fetches.
+    @Test
+    void internalGradingConfig_populatesDockerImageUrls() {
+        stubOwnedAssignment();
+        Mockito.when(assignmentService.getAssignmentImageUrls(ASSIGNMENT_ID))
+                .thenReturn(List.of("postgres:16"));
+        var res = service.internalGradingConfig(ASSIGNMENT_ID);
+        assertEquals(List.of("postgres:16"), res.getDockerImageUrls());
     }
 }

@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import vn.edu.ptit.web_grading_system.course_service.Constant;
 
 @Data
 @Builder
@@ -15,13 +16,14 @@ import lombok.NoArgsConstructor;
 public class CreateDockerImageRequest {
 
     @NotBlank
-    @Size(max = 255)
+    @Size(max = Constant.Image.NAME_MAX)
     private String name;
 
     @NotBlank
-    @Size(max = 500)
-    @Pattern(regexp = "^(?!.*:latest$).*[A-Za-z0-9][A-Za-z0-9._/-]*:[A-Za-z0-9._-]+$",
-            message = "image_url must be a registry/repo:tag with an explicit tag (':latest' is forbidden)")
+    @Size(max = Constant.Image.IMAGE_URL_MAX)
+    @Pattern(regexp = Constant.Image.IMAGE_URL_REGEX,
+            message = "image_url must be registry/repo:tag (explicit tag, ':latest' forbidden) "
+                    + "or name@sha256:<digest>")
     private String imageUrl;
 
     private String description;

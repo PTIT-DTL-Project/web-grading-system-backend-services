@@ -4,8 +4,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import tools.jackson.databind.ObjectMapper;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
+import vn.edu.ptit.web_grading_system.course_service.dto.response.DockerImageResponse;
 import vn.edu.ptit.web_grading_system.course_service.entities.Assignment;
 import vn.edu.ptit.web_grading_system.course_service.entities.ClassStudent;
+import vn.edu.ptit.web_grading_system.course_service.entities.DockerImage;
 import vn.edu.ptit.web_grading_system.course_service.entities.StepType;
 import vn.edu.ptit.web_grading_system.course_service.entities.TestPlan;
 import vn.edu.ptit.web_grading_system.course_service.entities.TestStep;
@@ -22,6 +24,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -102,5 +105,22 @@ class StudentAssignmentServiceTest {
                 .thenReturn(List.of()); // student in no class
 
         assertThrows(ResourceNotFoundException.class, () -> service.listPlans(STUDENT, ASSIGNMENT_ID));
+    }
+
+    // Review: 2026-09-27, Pullfrog PR #N — student visibility must resolve
+    // linked image IDs through the join table even when links exist.
+    @Test
+    void getStudentImages_returnsImagesForEnrolledPublishedAssignment() {
+        stubVisible();
+        UUID img = UUID.randomUUID();
+        Mockito.when(imageLinkRepo.findDockerImageIdsByAssignmentId(ASSIGNMENT_ID))
+                .thenReturn(List.of(img));
+        Mockito.when(dockerImageRepo.findAllByIdIn(List.of(img)))
+                .thenReturn(List.of(DockerImage.builder().id(img).name("db").imageUrl("db:16").build()));
+
+        List<DockerImageResponse> images = service.getStudentImages(STUDENT, ASSIGNMENT_ID);
+
+        assertThat(images).hasSize(1);
+        assertThat(images.get(0).getName()).isEqualTo("db");
     }
 }

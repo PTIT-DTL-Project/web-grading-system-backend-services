@@ -7,6 +7,7 @@ import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateAssignmen
 import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResponse;
 import vn.edu.ptit.web_grading_system.course_service.entities.Assignment;
 import vn.edu.ptit.web_grading_system.course_service.entities.CourseClass;
+import vn.edu.ptit.web_grading_system.course_service.entities.DockerImage;
 import vn.edu.ptit.web_grading_system.course_service.entities.GradingStrategy;
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
@@ -16,10 +17,14 @@ import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentRepo
 import vn.edu.ptit.web_grading_system.course_service.repositories.CourseClassRepository;
 import vn.edu.ptit.web_grading_system.course_service.repositories.DockerImageRepository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -169,5 +174,36 @@ class AssignmentServiceTest {
 
         Mockito.verify(assignmentRepo).save(Mockito.argThat(a -> a.getDeletedAt() != null));
         Mockito.verify(assignmentRepo, Mockito.never()).delete(Mockito.any());
+    }
+
+    // Review: 2026-09-27, Pullfrog PR #N — sync must de-duplicate and never
+    // misreport an unknown id as "unknown or soft-deleted" (IN-clause dedup).
+    @Test
+    void syncAssignmentImages_unknownId_throws400() {
+        stubOwnedAssignment(true);
+        UUID unknown = UUID.randomUUID();
+        Mockito.when(dockerImageRepo.findAllByIdIn(List.of(unknown)))
+                .thenReturn(List.of());
+        BadRequestException e = assertThrows(BadRequestException.class,
+                () -> service.syncAssignmentImages(ASSIGNMENT_ID, OWNER, List.of(unknown)));
+        assertTrue(e.getMessage().contains("unknown or soft-deleted"));
+    }
+
+    @Test
+    void syncAssignmentImages_duplicateCollapsed_insertsOnce() {
+        stubOwnedAssignment(true);
+        UUID img = UUID.randomUUID();
+        Mockito.when(dockerImageRepo.findAllByIdIn(List.of(img)))
+                .thenReturn(List.of(DockerImage.builder().id(img).build()));
+        service.syncAssignmentImages(ASSIGNMENT_ID, OWNER, List.of(img, img));
+        Mockito.verify(imageLinkRepo, Mockito.times(1)).save(any());
+    }
+
+    @Test
+    void syncAssignmentImages_emptyClearsLinks() {
+        stubOwnedAssignment(true);
+        service.syncAssignmentImages(ASSIGNMENT_ID, OWNER, List.of());
+        Mockito.verify(imageLinkRepo).softDeleteByAssignmentId(
+                eq(ASSIGNMENT_ID), any(java.time.OffsetDateTime.class));
     }
 }

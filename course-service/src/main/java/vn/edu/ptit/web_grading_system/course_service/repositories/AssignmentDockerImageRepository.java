@@ -16,6 +16,9 @@ public interface AssignmentDockerImageRepository extends JpaRepository<Assignmen
 
     List<AssignmentDockerImage> findByAssignmentId(UUID assignmentId);
 
+    @Query("""
+            select a.dockerImageId from AssignmentDockerImage a
+            where a.assignmentId = :assignmentId""")
     List<UUID> findDockerImageIdsByAssignmentId(UUID assignmentId);
 
     List<AssignmentDockerImage> findByDockerImageIdIn(List<UUID> dockerImageIds);

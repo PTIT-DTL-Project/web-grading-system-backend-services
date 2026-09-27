@@ -19,6 +19,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.ApiResponse;
+import vn.edu.ptit.web_grading_system.course_service.exception.ConflictException;
 
 @Slf4j
 @RestControllerAdvice
@@ -123,6 +124,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception e) {
         log.error("Unhandled exception", e);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred", null);
+    }
+
+    // Review: 2026-09-27, Pullfrog PR #N — 409 when a mutation conflicts with live state.
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConflict(ConflictException e) {
+        return build(HttpStatus.CONFLICT, e.getMessage(), null);
     }
 
     private ResponseEntity<ApiResponse<Void>> build(HttpStatus status, String message, String errorDetail) {
