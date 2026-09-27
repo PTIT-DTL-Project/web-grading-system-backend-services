@@ -5,7 +5,7 @@ import java.sql.DriverManager;
 import java.sql.Statement;
 import java.time.Duration;
 
-import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.mysql.MySQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -14,10 +14,16 @@ import org.testcontainers.utility.DockerImageName;
  * tests with {@code DELETE FROM books}. MySQL 8 defaults to
  * {@code caching_sha2_password}, which exercises the dialect's
  * {@code useSSL=false&allowPublicKeyRetrieval=true} URL flags.
+ *
+ * Review: 2026-09-27, Pullfrog PR #19 — migrated off the deprecated
+ * {@code org.testcontainers.containers.MySQLContainer} shim to the
+ * supported {@code org.testcontainers.mysql.MySQLContainer}, which is
+ * non-generic (so the {@code <?>} goes too). The index is declared
+ * inline because MySQL has no {@code CREATE INDEX IF NOT EXISTS}.
  */
 class TestMysqlContainer {
 
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>(
+    static final MySQLContainer MYSQL = new MySQLContainer(
             DockerImageName.parse("mysql:8"))
             .withStartupTimeout(Duration.ofSeconds(120));
 
@@ -55,12 +61,9 @@ class TestMysqlContainer {
                         id CHAR(36) PRIMARY KEY,
                         title VARCHAR(100) NOT NULL,
                         author VARCHAR(100) NOT NULL,
-                        year INT NOT NULL
+                        year INT NOT NULL,
+                        KEY idx_books_title (title)
                     )""");
-            // MySQL lacks CREATE INDEX IF NOT EXISTS; drop/recreate
-            // keeps the seeding idempotent across repeated starts.
-            try { s.execute("CREATE INDEX idx_books_title ON books(title)"); }
-            catch (java.sql.SQLException e) { /* index already exists */ }
         } catch (Exception e) {
             throw new RuntimeException("failed to seed books schema", e);
         }
