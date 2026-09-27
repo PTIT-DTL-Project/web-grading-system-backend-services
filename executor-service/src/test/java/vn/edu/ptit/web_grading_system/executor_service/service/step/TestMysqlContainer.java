@@ -62,6 +62,7 @@ class TestMysqlContainer {
                         title VARCHAR(100) NOT NULL,
                         author VARCHAR(100) NOT NULL,
                         year INT NOT NULL,
+                        is_active BOOL NOT NULL DEFAULT 1,
                         KEY idx_books_title (title)
                     )""");
         } catch (Exception e) {

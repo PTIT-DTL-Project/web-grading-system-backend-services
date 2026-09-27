@@ -152,6 +152,25 @@ class DbMysqlContainerTest {
     }
 
     @Test
+    void tc_columnExists_booleanNeedsColumnType() throws Exception {
+        assumeDocker();
+        // The fixture declares is_active BOOL, which MySQL stores as
+        // tinyint(1). columnExistsSql() projects column_type, so the
+        // check only passes via column_type (data_type would give bare
+        // tinyint, which normalize() does not map to boolean). Pinning
+        // actual to "tinyint(1)" proves the projection observationally.
+        var config = configSchemaCheck("COLUMN_EXISTS", "books", "is_active", "BOOLEAN");
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, TestMysqlContainer.port());
+        var result = new DbSchemaCheckExecutor(db, mapper).execute(stepContext("s", config, vars));
+        assertEquals(StepResultStatus.PASSED, result.getStatus());
+        var details = mapper.readTree(result.getAssertionResult());
+        assertEquals(1, details.size());
+        assertEquals("tinyint(1)", details.get(0).path("actual").asString());
+        assertNull(result.getErrorMessage());
+    }
+
+    @Test
     void tc_primaryKey() throws Exception {
         assumeDocker();
         var config = new ObjectMapper().readTree("""
