@@ -2,14 +2,9 @@ package vn.edu.ptit.web_grading_system.executor_service.service.step;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,7 +21,6 @@ import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHe
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialectRegistry;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.MysqlDialect;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.PostgresDialect;
-import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionException;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.DbMigrationExecutor;
 import vn.edu.ptit.web_grading_system.executor_service.entities.StepResultStatus;
 import vn.edu.ptit.web_grading_system.executor_service.service.VariableContext;
@@ -37,6 +31,9 @@ import vn.edu.ptit.web_grading_system.executor_service.service.VariableContext;
  * including the {@code caching_sha2_password} auth negotiated by
  * the dialect's {@code useSSL=false&allowPublicKeyRetrieval=true}
  * URL flags.
+ *
+ * Review: 2026-09-27, Pullfrog PR #19 — nitpicks: dead imports removed,
+ * clearBooks scoped to the one test that mutates a row, one call per line.
  */
 class DbMysqlContainerTest {
 
@@ -120,7 +117,7 @@ class DbMysqlContainerTest {
 
     @Test
     void tc_queryAuth_works() throws Exception {
-        assumeDocker(); clearBooks();
+        assumeDocker();
         var config = configQuery();
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, TestMysqlContainer.port());
@@ -132,7 +129,7 @@ class DbMysqlContainerTest {
 
     @Test
     void tc_tableExists_true() throws Exception {
-        assumeDocker(); clearBooks();
+        assumeDocker();
         var config = configSchemaCheck("TABLE_EXISTS", "books", null, null);
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, TestMysqlContainer.port());
@@ -144,7 +141,7 @@ class DbMysqlContainerTest {
 
     @Test
     void tc_columnExists_varcharNormalizes() throws Exception {
-        assumeDocker(); clearBooks();
+        assumeDocker();
         var config = configSchemaCheck("COLUMN_EXISTS", "books", "title", "VARCHAR");
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, TestMysqlContainer.port());
@@ -156,7 +153,7 @@ class DbMysqlContainerTest {
 
     @Test
     void tc_primaryKey() throws Exception {
-        assumeDocker(); clearBooks();
+        assumeDocker();
         var config = new ObjectMapper().readTree("""
                 {"connection":{"db_type":"mysql","database":"%s",
                 "username":"%s","password":"%s"},
@@ -173,7 +170,7 @@ class DbMysqlContainerTest {
 
     @Test
     void tc_indexExists() throws Exception {
-        assumeDocker(); clearBooks();
+        assumeDocker();
         var config = new ObjectMapper().readTree("""
                 {"connection":{"db_type":"mysql","database":"%s",
                 "username":"%s","password":"%s"},
@@ -190,7 +187,8 @@ class DbMysqlContainerTest {
 
     @Test
     void tc_migrationCommit() throws Exception {
-        assumeDocker(); clearBooks();
+        assumeDocker();
+        clearBooks();
         var config = configMigration(
                 "INSERT INTO books (id,title,author,year) VALUES ('00000000-0000-0000-0000-000000000004','A','B',2000)");
         var vars = new VariableContext();
