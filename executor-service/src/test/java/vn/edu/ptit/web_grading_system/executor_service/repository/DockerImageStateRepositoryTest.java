@@ -12,7 +12,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -27,20 +26,15 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * H2 slice that validates the V7 {@code docker_image_state} DDL, the
- * entity's {@code @SQLRestriction} and the age-based prune query. Runs
- * with flyway disabled and ddl-auto=create-drop; no Flyway is executed
- * by any test in this repo, so the partial unique index is a production-PG
- * concern that is <em>not</em> covered by any automated test.
+ * H2 slice over the {@code docker_image_state} entity mapping: it covers
+ * the entity's {@code @SQLRestriction} and the age-based prune query.
+ * V7 is never executed by any test in this repo, so migration drift from
+ * the entity is not caught here, and the partial unique index remains a
+ * production-PG concern that is <em>not</em> covered by any automated test.
  *
  * Review: 2026-09-27, Pullfrog PR #21
  */
 @SpringBootTest(classes = DockerImageStateRepositoryTest.JpaSlice.class)
-@TestPropertySource(properties = {
-        "spring.flyway.enabled=false",
-        "spring.jpa.hibernate.ddl-auto=create-drop",
-        "spring.datasource.url=jdbc:h2:mem:test"
-})
 class DockerImageStateRepositoryTest {
 
     @Autowired private DockerImageStateRepository repo;
