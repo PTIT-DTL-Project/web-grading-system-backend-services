@@ -114,7 +114,7 @@ Port: 8082
 Xử lý việc submit bài tập từ students.
 
 ### executor-service
-Thực thi code trong môi trường sandbox an toàn.
+Thực thi code trong môi trường sandbox an toàn. Hỗ trợ 4 loại step: `HTTP_REQUEST`, `DB_QUERY`, `DB_SCHEMA_CHECK`, `DB_MIGRATION` (đa-DBMS qua dialect layer).
 
 ### api-gateway
 Port: 8080  
