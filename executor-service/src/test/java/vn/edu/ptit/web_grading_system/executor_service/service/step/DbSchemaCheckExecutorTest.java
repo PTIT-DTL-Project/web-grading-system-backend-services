@@ -1,6 +1,7 @@
 package vn.edu.ptit.web_grading_system.executor_service.service.step;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -8,14 +9,23 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.UUID;
+
+import java.util.List;
+
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.testcontainers.DockerClientFactory;
 
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import vn.edu.ptit.web_grading_system.executor_service.Constant;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHelper;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionException;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialectRegistry;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialect;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.PostgresDialect;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.DbSchemaCheckExecutor;
@@ -310,5 +320,161 @@ class DbSchemaCheckExecutorTest {
         assertFalse(result.getErrorMessage()
                 .contains(Constant.Message.Db.CONNECTION_DIALECT_PREFIX));
         verify(conn, never()).prepareStatement(any());
+    }
+
+
+    // Review: 2026-09-27, Pullfrog PR #19 — scope the Docker assumption
+    // to the container-backed tests only. A class-level @BeforeAll
+    // assumeTrue aborts the whole class container, so the pre-existing
+    // Mockito tests in this class vanish (Tests run: 0, Skipped: 0) on a
+    // Docker-less runner.
+    private static void assumeDocker() {
+        assumeTrue(DockerClientFactory.instance().isDockerAvailable());
+    }
+
+    // ---- container-backed (live PostgreSQL) tests ----
+    @BeforeAll
+    static void startContainer() {
+        if (DockerClientFactory.instance().isDockerAvailable()) TestPostgresContainer.start();
+    }
+
+    @AfterAll
+    static void stopContainer() {
+        TestPostgresContainer.stop();
+    }
+
+    private static JsonNode configSchemaCheck(String kind, String table, String col, String dtype) {
+        try {
+            return new ObjectMapper().readTree("""
+                    {"connection":{"db_type":"postgres","database":"%s",
+                    "username":"%s","password":"%s"},
+                    "checks":[{"kind":"%s","table_name":"%s"%s}],
+                    "timeoutMs":30000}"""
+                    .formatted(TestPostgresContainer.database(),
+                            TestPostgresContainer.username(), TestPostgresContainer.password(),
+                            kind, table,
+                            (col == null) ? "" : ",\"column_name\":\"%s\",\"data_type\":\"%s\"".formatted(col, dtype)));
+        } catch (Exception e) { throw new RuntimeException(e); }
+    }
+
+    private static JsonNode configSchemaCheck(String kind, String table) {
+        try {
+            return new ObjectMapper().readTree("""
+                    {"connection":{"db_type":"postgres","database":"%s",
+                    "username":"%s","password":"%s"},
+                    "checks":[{"kind":"%s","table_name":"%s"}],
+                    "timeoutMs":30000}"""
+                    .formatted(TestPostgresContainer.database(),
+                            TestPostgresContainer.username(), TestPostgresContainer.password(),
+                            kind, table));
+        } catch (Exception e) { throw new RuntimeException(e); }
+    }
+
+    private static DbSchemaCheckExecutor realSchemaExecutor() {
+        return new DbSchemaCheckExecutor(new DbConnectionHelper(
+                new DbDialectRegistry(List.of(new PostgresDialect()))), new ObjectMapper());
+    }
+
+    private HttpStepExecutor.StepContext stepContext(String name, JsonNode config, VariableContext vars) {
+        return new HttpStepExecutor.StepContext(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                1, name, config, vars, 30000);
+    }
+
+    @Test
+    void tc_tableExists_true() throws Exception {
+        assumeDocker();
+        var config = configSchemaCheck("TABLE_EXISTS", "books");
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
+        var result = realSchemaExecutor().execute(stepContext("s", config, vars));
+        assertEquals(StepResultStatus.PASSED, result.getStatus());
+        assertTrue(result.getAssertionResult().contains("TABLE_EXISTS"));
+        assertNull(result.getErrorMessage());
+    }
+
+    @Test
+    void tc_tableExists_false() throws Exception {
+        assumeDocker();
+        var config = configSchemaCheck("TABLE_EXISTS", "no_such_table");
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
+        var result = realSchemaExecutor().execute(stepContext("s", config, vars));
+        assertEquals(StepResultStatus.FAILED, result.getStatus());
+        assertTrue(result.getAssertionResult().contains("TABLE_EXISTS"));
+        assertNull(result.getErrorMessage());
+    }
+
+    @Test
+    void tc_columnExists_normalizesVarchar() throws Exception {
+        assumeDocker();
+        var config = configSchemaCheck("COLUMN_EXISTS", "books", "title", "VARCHAR");
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
+        var result = realSchemaExecutor().execute(stepContext("s", config, vars));
+        assertEquals(StepResultStatus.PASSED, result.getStatus());
+        assertTrue(result.getAssertionResult().contains("COLUMN_EXISTS"));
+        assertNull(result.getErrorMessage());
+    }
+
+    @Test
+    void tc_primaryKey() throws Exception {
+        assumeDocker();
+        var config = new ObjectMapper().readTree("""
+                {"connection":{"db_type":"postgres","database":"%s",
+                "username":"%s","password":"%s"},
+                "checks":[{"kind":"PRIMARY_KEY","table_name":"books","column":"id"}],
+                "timeoutMs":30000}""".formatted(TestPostgresContainer.database(),
+                        TestPostgresContainer.username(), TestPostgresContainer.password()));
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
+        var result = realSchemaExecutor().execute(stepContext("s", config, vars));
+        assertEquals(StepResultStatus.PASSED, result.getStatus());
+        assertTrue(result.getAssertionResult().contains("PRIMARY_KEY"));
+        assertNull(result.getErrorMessage());
+    }
+
+    @Test
+    void tc_indexExists() throws Exception {
+        assumeDocker();
+        var config = new ObjectMapper().readTree("""
+                {"connection":{"db_type":"postgres","database":"%s",
+                "username":"%s","password":"%s"},
+                "checks":[{"kind":"INDEX_EXISTS","table_name":"books","index_name":"idx_books_title"}],
+                "timeoutMs":30000}""".formatted(TestPostgresContainer.database(),
+                        TestPostgresContainer.username(), TestPostgresContainer.password()));
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
+        var result = realSchemaExecutor().execute(stepContext("s", config, vars));
+        assertEquals(StepResultStatus.PASSED, result.getStatus());
+        assertTrue(result.getAssertionResult().contains("INDEX_EXISTS"));
+        assertNull(result.getErrorMessage());
+    }
+
+    @Test
+    void tc_mixedChecks_firstFail_marksFailed() throws Exception {
+        assumeDocker();
+        // first check (type mismatch) fails without throwing; second passes.
+        var config = new ObjectMapper().readTree("""
+                {"connection":{"db_type":"postgres","database":"%s",
+                "username":"%s","password":"%s"},
+                "checks":[{"kind":"COLUMN_EXISTS","table_name":"books",
+                           "column_name":"title","data_type":"INT"},
+                          {"kind":"TABLE_EXISTS","table_name":"books"}],
+                "timeoutMs":30000}""".formatted(TestPostgresContainer.database(),
+                        TestPostgresContainer.username(), TestPostgresContainer.password()));
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
+        var result = realSchemaExecutor().execute(stepContext("s", config, vars));
+        assertEquals(StepResultStatus.FAILED, result.getStatus());
+        // Review: 2026-09-27, Pullfrog PR #19 — prove the executor evaluated
+        // BOTH checks (aggregation), not just the first failing one: exactly
+        // two details, the first (type-mismatch) fails and the second
+        // (TABLE_EXISTS) passes, so short-circuiting cannot satisfy this test.
+        var details = new ObjectMapper().readTree(result.getAssertionResult());
+        assertEquals(2, details.size());
+        assertFalse(details.get(0).path("passed").asBoolean());
+        assertTrue(details.get(1).path("passed").asBoolean());
+        assertNull(result.getErrorMessage());
     }
 }
