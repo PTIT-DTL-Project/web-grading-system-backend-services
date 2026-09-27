@@ -37,6 +37,7 @@ import java.util.UUID;
 public class TestPlanService {
 
     private final AssignmentRepository assignmentRepository;
+    private final AssignmentService assignmentService;
     private final TestPlanRepository testPlanRepository;
     private final TestStepRepository testStepRepository;
     private final tools.jackson.databind.ObjectMapper objectMapper;
@@ -255,6 +256,7 @@ public class TestPlanService {
                 .executionTimeoutMs(a.getExecutionTimeoutMs())
                 .maxMemoryMb(a.getMaxMemoryMb())
                 .maxCpu(a.getMaxCpu())
+                .dockerImageUrls(assignmentService.getAssignmentImageUrls(assignmentId))
                 .build();
     }
 

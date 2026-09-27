@@ -11,8 +11,10 @@ import vn.edu.ptit.web_grading_system.course_service.entities.GradingStrategy;
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.course_service.mapper.AssignmentMapper;
+import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentDockerImageRepository;
 import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentRepository;
 import vn.edu.ptit.web_grading_system.course_service.repositories.CourseClassRepository;
+import vn.edu.ptit.web_grading_system.course_service.repositories.DockerImageRepository;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -31,7 +33,9 @@ class AssignmentServiceTest {
     private final CourseClassRepository classRepo = Mockito.mock(CourseClassRepository.class);
     private final AssignmentRepository assignmentRepo = Mockito.mock(AssignmentRepository.class);
     private final AssignmentMapper mapper = Mockito.mock(AssignmentMapper.class);
-    private final AssignmentService service = new AssignmentService(classRepo, assignmentRepo, mapper);
+    private final AssignmentDockerImageRepository imageLinkRepo = Mockito.mock(AssignmentDockerImageRepository.class);
+    private final DockerImageRepository dockerImageRepo = Mockito.mock(DockerImageRepository.class);
+    private final AssignmentService service = new AssignmentService(classRepo, assignmentRepo, mapper, imageLinkRepo, dockerImageRepo);
 
     private CreateAssignmentRequest createRequest(GradingStrategy strategy) {
         CreateAssignmentRequest req = new CreateAssignmentRequest();

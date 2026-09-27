@@ -10,8 +10,11 @@ import vn.edu.ptit.web_grading_system.course_service.entities.StepType;
 import vn.edu.ptit.web_grading_system.course_service.entities.TestPlan;
 import vn.edu.ptit.web_grading_system.course_service.entities.TestStep;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
+import vn.edu.ptit.web_grading_system.course_service.mapper.AssignmentMapper;
+import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentDockerImageRepository;
 import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentRepository;
 import vn.edu.ptit.web_grading_system.course_service.repositories.ClassStudentRepository;
+import vn.edu.ptit.web_grading_system.course_service.repositories.DockerImageRepository;
 import vn.edu.ptit.web_grading_system.course_service.repositories.TestPlanRepository;
 import vn.edu.ptit.web_grading_system.course_service.repositories.TestStepRepository;
 
@@ -35,11 +38,14 @@ class StudentAssignmentServiceTest {
 
     private final AssignmentRepository assignmentRepo = Mockito.mock(AssignmentRepository.class);
     private final ClassStudentRepository classStudentRepo = Mockito.mock(ClassStudentRepository.class);
+    private final AssignmentDockerImageRepository imageLinkRepo = Mockito.mock(AssignmentDockerImageRepository.class);
+    private final DockerImageRepository dockerImageRepo = Mockito.mock(DockerImageRepository.class);
     private final TestPlanRepository planRepo = Mockito.mock(TestPlanRepository.class);
     private final TestStepRepository stepRepo = Mockito.mock(TestStepRepository.class);
     private final StudentAssignmentService service = new StudentAssignmentService(
-            assignmentRepo, classStudentRepo, planRepo, stepRepo,
-            Mockito.mock(vn.edu.ptit.web_grading_system.course_service.mapper.AssignmentMapper.class),
+            assignmentRepo, classStudentRepo, imageLinkRepo, dockerImageRepo,
+            planRepo, stepRepo,
+            Mockito.mock(AssignmentMapper.class),
             new ObjectMapper());
 
     private void stubVisible() {

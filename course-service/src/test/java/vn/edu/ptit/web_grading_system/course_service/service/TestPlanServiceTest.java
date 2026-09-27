@@ -15,6 +15,7 @@ import vn.edu.ptit.web_grading_system.course_service.entities.TestPlan;
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentRepository;
+import vn.edu.ptit.web_grading_system.course_service.service.AssignmentService;
 import vn.edu.ptit.web_grading_system.course_service.repositories.TestPlanRepository;
 import vn.edu.ptit.web_grading_system.course_service.repositories.TestStepRepository;
 
@@ -33,10 +34,11 @@ class TestPlanServiceTest {
     private static final UUID PLAN_ID = UUID.randomUUID();
 
     private final AssignmentRepository assignmentRepo = Mockito.mock(AssignmentRepository.class);
+    private final AssignmentService assignmentService = Mockito.mock(AssignmentService.class);
     private final TestPlanRepository planRepo = Mockito.mock(TestPlanRepository.class);
     private final TestStepRepository stepRepo = Mockito.mock(TestStepRepository.class);
     private final TestPlanService service =
-            new TestPlanService(assignmentRepo, planRepo, stepRepo, new ObjectMapper());
+            new TestPlanService(assignmentRepo, assignmentService, planRepo, stepRepo, new ObjectMapper());
 
     private void stubOwnedAssignment() {
         Mockito.when(assignmentRepo.findByIdAndOwnerId(ASSIGNMENT_ID, OWNER))

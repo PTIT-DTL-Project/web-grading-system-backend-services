@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.UUID;
 
 /** Raw internal contract from course-service. No envelope. */
@@ -22,4 +23,7 @@ public class AssignmentGradingConfigDto {
     private Integer executionTimeoutMs;
     private Integer maxMemoryMb;
     private Double maxCpu;
+
+    /** Image URLs the lecturer attached to this assignment (populated by course-service). */
+    private List<String> dockerImageUrls;
 }

@@ -11,16 +11,23 @@ import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateAssignmen
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateAssignmentRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResponse;
 import vn.edu.ptit.web_grading_system.course_service.entities.Assignment;
+import vn.edu.ptit.web_grading_system.course_service.entities.AssignmentDockerImage;
 import vn.edu.ptit.web_grading_system.course_service.entities.CourseClass;
+import vn.edu.ptit.web_grading_system.course_service.entities.DockerImage;
 import vn.edu.ptit.web_grading_system.course_service.entities.GradingStrategy;
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.course_service.mapper.AssignmentMapper;
+import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentDockerImageRepository;
 import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentRepository;
 import vn.edu.ptit.web_grading_system.course_service.repositories.CourseClassRepository;
+import vn.edu.ptit.web_grading_system.course_service.repositories.DockerImageRepository;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
+
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -30,6 +37,8 @@ public class AssignmentService {
     private final CourseClassRepository courseClassRepository;
     private final AssignmentRepository assignmentRepository;
     private final AssignmentMapper assignmentMapper;
+    private final AssignmentDockerImageRepository assignmentDockerImageRepository;
+    private final DockerImageRepository dockerImageRepository;
 
     private CourseClass requireOwnedClass(UUID ownerId, UUID classId) {
         return courseClassRepository.findByIdAndOwnerId(classId, ownerId)
@@ -138,6 +147,40 @@ public class AssignmentService {
         }
         log.info("Assignment updated: id={}, title={}", id, title);
         return assignmentMapper.toResponse(assignmentRepository.save(assignment));
+    }
+
+    /**
+     * Full-sync replace the images attached to an assignment. Old links are
+     * soft-deleted; only the supplied image ids are kept.
+     */
+    @Transactional
+    public void syncAssignmentImages(UUID assignmentId, UUID ownerId, List<UUID> dockerImageIds) {
+        requireOwnedAssignment(assignmentId, ownerId);
+        if (dockerImageIds != null && !dockerImageIds.isEmpty()) {
+            List<DockerImage> active = dockerImageRepository.findAllByIdIn(dockerImageIds);
+            if (active.size() != dockerImageIds.size()) {
+                throw new BadRequestException(
+                        "One or more docker image ids are unknown or soft-deleted");
+            }
+        }
+        assignmentDockerImageRepository.softDeleteByAssignmentId(
+                assignmentId, OffsetDateTime.now());
+        for (UUID imageId : dockerImageIds) {
+            assignmentDockerImageRepository.save(
+                    AssignmentDockerImage.builder()
+                            .assignmentId(assignmentId)
+                            .dockerImageId(imageId)
+                            .build());
+        }
+        log.info("Assignment images synced: id={}, count={}", assignmentId, dockerImageIds.size());
+    }
+
+    /** Returns the image URLs currently attached to an assignment (used by executor). */
+    @Transactional(readOnly = true)
+    public List<String> getAssignmentImageUrls(UUID assignmentId) {
+        List<UUID> ids = assignmentDockerImageRepository.findDockerImageIdsByAssignmentId(assignmentId);
+        List<DockerImage> images = dockerImageRepository.findAllByIdIn(ids);
+        return images.stream().map(DockerImage::getImageUrl).toList();
     }
 
     @Transactional
