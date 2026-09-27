@@ -25,6 +25,7 @@ import vn.edu.ptit.web_grading_system.executor_service.Constant;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHelper;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialectRegistry;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.MysqlDialect;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.PostgresDialect;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionException;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.DbMigrationExecutor;
 import vn.edu.ptit.web_grading_system.executor_service.entities.StepResultStatus;
@@ -40,8 +41,11 @@ import vn.edu.ptit.web_grading_system.executor_service.service.VariableContext;
 class DbMysqlContainerTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
+    // Registry MUST contain the default engine (postgres) or its
+    // constructor rejects the registry; the tests below resolve
+    // mysql explicitly, so MysqlDialect is exercised end-to-end.
     private final DbConnectionHelper db = new DbConnectionHelper(
-            new DbDialectRegistry(List.of(new MysqlDialect())));
+            new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())));
 
     @BeforeAll
     static void startContainer() {

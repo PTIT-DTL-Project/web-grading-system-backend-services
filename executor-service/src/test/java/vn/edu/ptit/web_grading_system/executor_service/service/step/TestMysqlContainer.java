@@ -34,7 +34,7 @@ class TestMysqlContainer {
     static String database() { return MYSQL.getDatabaseName(); }
     static String username() { return MYSQL.getUsername(); }
     static String password() { return MYSQL.getPassword(); }
-    static String jdbcUrl() { return MYSQL.getJdbcUrl(); }
+    static String jdbcUrl() { return "jdbc:mysql://localhost:" + port() + "/" + database() + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"; }
 
     static void clearBooks() {
         try (Connection c = DriverManager.getConnection(
@@ -57,7 +57,10 @@ class TestMysqlContainer {
                         author VARCHAR(100) NOT NULL,
                         year INT NOT NULL
                     )""");
-            s.execute("CREATE INDEX IF NOT EXISTS idx_books_title ON books(title)");
+            // MySQL lacks CREATE INDEX IF NOT EXISTS; drop/recreate
+            // keeps the seeding idempotent across repeated starts.
+            try { s.execute("CREATE INDEX idx_books_title ON books(title)"); }
+            catch (java.sql.SQLException e) { /* index already exists */ }
         } catch (Exception e) {
             throw new RuntimeException("failed to seed books schema", e);
         }
