@@ -1,6 +1,7 @@
 package vn.edu.ptit.web_grading_system.executor_service.service.step;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -8,15 +9,28 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.sql.DriverManager;
 import java.util.List;
+import java.util.UUID;
+import tools.jackson.databind.JsonNode;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Assumptions;
+import org.testcontainers.DockerClientFactory;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.utility.DockerImageName;
 
 import tools.jackson.databind.ObjectMapper;
 
 import vn.edu.ptit.web_grading_system.executor_service.Constant;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionException;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialectRegistry;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.PostgresDialect;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHelper;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.DbQueryExecutor;
 import vn.edu.ptit.web_grading_system.executor_service.entities.StepResultStatus;
@@ -212,5 +226,117 @@ class DbQueryExecutorTest {
         assertEquals(Constant.Message.Db.SQL_EXECUTION_ERROR
                 + "relation \"books\" does not exist",
                 result.getErrorMessage());
+    }
+
+
+    // ---- container-backed (live PostgreSQL) tests ----
+    @BeforeAll
+    static void startContainer() {
+        assumeTrue(DockerClientFactory.instance().isDockerAvailable());
+        TestPostgresContainer.start();
+    }
+
+    @AfterAll
+    static void stopContainer() {
+        TestPostgresContainer.stop();
+    }
+
+    @BeforeEach
+    void clearBooks() {
+        TestPostgresContainer.clearBooks();
+    }
+
+    private static String colsToJson(String[] cols) {
+        var sb = new StringBuilder("[");
+        for (int i = 0; i < cols.length; i++) {
+            if (i > 0) sb.append(',');
+            sb.append('"').append(cols[i]).append('"');
+        }
+        return sb.append(']').toString();
+    }
+    private static JsonNode configQuery(String bookId, int expRows, String[] cols) {
+        try {
+            return new ObjectMapper().readTree("""
+                    {"connection":{"db_type":"postgres","database":"%s",
+                    "username":"%s","password":"%s"},
+                    "query":"SELECT id, title, author FROM books WHERE id = '${bookId}'",
+                    "expected":{"row_count":%d,"columns":%s}}"""
+                    .formatted(TestPostgresContainer.database(),
+                            TestPostgresContainer.username(), TestPostgresContainer.password(),
+                            expRows, colsToJson(cols)));
+        } catch (Exception e) { throw new RuntimeException(e); }
+    }
+
+    private static void seedBook(UUID id, String title, String author, int year) throws Exception {
+        try (Connection c = DriverManager.getConnection(TestPostgresContainer.jdbcUrl(),
+                TestPostgresContainer.username(), TestPostgresContainer.password());
+             PreparedStatement ps = c.prepareStatement("INSERT INTO books (id,title,author,year) VALUES (?,?,?,?)")) {
+            ps.setObject(1, id); ps.setString(2, title); ps.setString(3, author); ps.setInt(4, year);
+            ps.executeUpdate();
+        }
+    }
+
+    private static DbQueryExecutor realQueryExecutor() {
+        return new DbQueryExecutor(new DbConnectionHelper(
+                new DbDialectRegistry(List.of(new PostgresDialect()))), new ObjectMapper());
+    }
+
+    private HttpStepExecutor.StepContext stepContext(String name, JsonNode config, VariableContext vars) {
+        return new HttpStepExecutor.StepContext(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                1, name, config, vars, 30000);
+    }
+
+    @Test
+    void tc_rowCountMatch_passes() throws Exception {
+        UUID id = UUID.randomUUID();
+        seedBook(id, "Dè Mèn", "Tâi", 1941);
+        var config = configQuery(id.toString(), 1, new String[]{"id","title","author"});
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
+        vars.put("bookId", id.toString());
+        var result = realQueryExecutor().execute(stepContext("q", config, vars));
+        assertEquals(StepResultStatus.PASSED, result.getStatus());
+        assertTrue(result.getAssertionResult().contains("row_count"));
+        assertTrue(result.getAssertionResult().contains("columns"));
+        assertNull(result.getErrorMessage());
+    }
+
+    @Test
+    void tc_rowCountMismatch_fails() throws Exception {
+        var config = configQuery("00000000-0000-0000-0000-000000000003", 1, new String[]{"id","title","author"});
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
+        vars.put("bookId", "00000000-0000-0000-0000-000000000003");
+        var result = realQueryExecutor().execute(stepContext("q", config, vars));
+        assertEquals(StepResultStatus.FAILED, result.getStatus());
+        assertFalse(result.getAssertionResult().isEmpty());
+        assertNull(result.getErrorMessage());
+    }
+
+    @Test
+    void tc_emptyResultSet_rowCountZero_passes() throws Exception {
+        var config = configQuery("00000000-0000-0000-0000-000000000003", 0, new String[]{"id","title","author"});
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
+        vars.put("bookId", "00000000-0000-0000-0000-000000000003");
+        var result = realQueryExecutor().execute(stepContext("q", config, vars));
+        assertEquals(StepResultStatus.PASSED, result.getStatus());
+        assertTrue(result.getAssertionResult().contains("row_count"));
+        assertNull(result.getErrorMessage());
+    }
+
+    @Test
+    void tc_columnsCaseInsensitive_passes() throws Exception {
+        UUID id = UUID.randomUUID();
+        seedBook(id, "Dè Mèn", "Tâi", 1941);
+        var config = configQuery(id.toString(), 1, new String[]{"ID","TITLE","AUTHOR"});
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
+        vars.put("bookId", id.toString());
+        var result = realQueryExecutor().execute(stepContext("q", config, vars));
+        assertEquals(StepResultStatus.PASSED, result.getStatus());
+        assertTrue(result.getAssertionResult().contains("columns"));
+        assertNull(result.getErrorMessage());
     }
 }

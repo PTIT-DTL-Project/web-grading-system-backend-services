@@ -1,19 +1,35 @@
 package vn.edu.ptit.web_grading_system.executor_service.service.step;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.util.List;
+import tools.jackson.databind.JsonNode;
 import java.sql.SQLException;
+import java.sql.DriverManager;
+import java.sql.Statement;
+import java.util.UUID;
+
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Assumptions;
+import org.testcontainers.DockerClientFactory;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.utility.DockerImageName;
 
 import tools.jackson.databind.ObjectMapper;
 
 import vn.edu.ptit.web_grading_system.executor_service.Constant;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHelper;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialectRegistry;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.PostgresDialect;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHelper.ConnectionAction;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.DbMigrationExecutor;
 import vn.edu.ptit.web_grading_system.executor_service.entities.StepResultStatus;
@@ -175,5 +191,102 @@ class DbMigrationExecutorTest {
                 result.getErrorMessage());
         verify(conn).rollback();
         verify(conn).setAutoCommit(true);
+    }
+
+
+    // ---- container-backed (live PostgreSQL) tests ----
+    @BeforeAll
+    static void startContainer() {
+        assumeTrue(DockerClientFactory.instance().isDockerAvailable());
+        TestPostgresContainer.start();
+    }
+
+    @AfterAll
+    static void stopContainer() {
+        TestPostgresContainer.stop();
+    }
+
+    @BeforeEach
+    void clearBooks() {
+        TestPostgresContainer.clearBooks();
+    }
+
+    private static JsonNode configMigration(String... statements) {
+        try {
+            var sb = new StringBuilder();
+            for (int i = 0; i < statements.length; i++) {
+                if (i > 0) sb.append(',');
+                sb.append('"').append(statements[i].replace("\"", "\\\"")).append('"');
+            }
+            return new ObjectMapper().readTree("""
+                    {"connection":{"db_type":"postgres","database":"%s",
+                    "username":"%s","password":"%s"},
+                    "statements":[%s],"timeoutMs":30000}"""
+                    .formatted(TestPostgresContainer.database(),
+                            TestPostgresContainer.username(), TestPostgresContainer.password(),
+                            sb));
+        } catch (Exception e) { throw new RuntimeException(e); }
+    }
+
+    private static DbMigrationExecutor realMigrationExecutor() {
+        return new DbMigrationExecutor(new DbConnectionHelper(
+                new DbDialectRegistry(List.of(new PostgresDialect()))), new ObjectMapper());
+    }
+
+    private HttpStepExecutor.StepContext stepContext(String name, JsonNode config, VariableContext vars) {
+        return new HttpStepExecutor.StepContext(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                1, name, config, vars, 30000);
+    }
+
+    @Test
+    void tc_allStatementsSucceed_commits() throws Exception {
+        var config = configMigration("INSERT INTO books (id,title,author,year) VALUES ('00000000-0000-0000-0000-000000000001','A','B',2000)");
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
+        var result = realMigrationExecutor().execute(stepContext("m", config, vars));
+        assertEquals(StepResultStatus.PASSED, result.getStatus());
+        assertNull(result.getErrorMessage());
+        try (Connection c = DriverManager.getConnection(TestPostgresContainer.jdbcUrl(),
+                TestPostgresContainer.username(), TestPostgresContainer.password());
+             var rs = c.prepareStatement("SELECT COUNT(*) FROM books WHERE id='00000000-0000-0000-0000-000000000001'").executeQuery()) {
+            rs.next();
+            assertEquals(1, rs.getInt(1));
+        }
+    }
+
+    @Test
+    void tc_statementFails_rollsBack() throws Exception {
+        var config = configMigration("INSERT INTO books (id,title,author,year) VALUES ('00000000-0000-0000-0000-000000000002','A','B',2000)",
+                "INSERT INTO books (id,title,author,year) VALUES ('00000000-0000-0000-0000-000000000002','C','D',2001)");
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
+        var result = realMigrationExecutor().execute(stepContext("m", config, vars));
+        assertEquals(StepResultStatus.ERROR, result.getStatus());
+        assertTrue(result.getErrorMessage().startsWith(Constant.Message.Db.SQL_EXECUTION_ERROR));
+        try (Connection c = DriverManager.getConnection(TestPostgresContainer.jdbcUrl(),
+                TestPostgresContainer.username(), TestPostgresContainer.password());
+             var rs = c.prepareStatement("SELECT COUNT(*) FROM books WHERE id='00000000-0000-0000-0000-000000000002'").executeQuery()) {
+            rs.next();
+            assertEquals(0, rs.getInt(1));
+        }
+    }
+
+    @Test
+    void tc_ddlRollbackOnPg_atomic() throws Exception {
+        var config = configMigration("CREATE TABLE ddl_tmp (x int)", "INSERT INTO ddl_tmp (x) VALUES ('not_an_int')");
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
+        var result = realMigrationExecutor().execute(stepContext("m", config, vars));
+        assertEquals(StepResultStatus.ERROR, result.getStatus());
+        assertTrue(result.getErrorMessage().startsWith(Constant.Message.Db.SQL_EXECUTION_ERROR));
+        // DDL must be rolled back too: the table must not exist.
+        assertThrows(Exception.class, () -> {
+            try (Connection c = DriverManager.getConnection(TestPostgresContainer.jdbcUrl(),
+                    TestPostgresContainer.username(), TestPostgresContainer.password());
+                 var stmt = c.prepareStatement("SELECT COUNT(*) FROM ddl_tmp")) {
+                stmt.executeQuery();
+            }
+        });
     }
 }
