@@ -85,10 +85,14 @@ jobs:
         run: |
           cd ${{ matrix.service }}
           mvn clean package -DskipTests -U
-      # Review: 2026-09-27, Pullfrog PR #19 — exercises the DB
-      # container tests (PostgreSQL + MySQL) on ubuntu-latest which
-      # has a Docker daemon; excludes the pre-existing infra-failing
-      # *ApplicationTests (contextLoads) so the signal stays clean.
+      # Review: 2026-09-27, Pullfrog PR #19 — runs the DB container tests
+      # (PostgreSQL + MySQL) for each service selected by the
+      # dorny/paths-filter matrix. The flag excludes the pre-existing
+      # infra-failing *ApplicationTests (contextLoads); it is required
+      # because api-gateway has exactly one test class, itself an
+      # *ApplicationTests, so without the flag the entry selects zero
+      # classes and would fail. Widened to each service as its suite
+      # is confirmed green in CI.
       - name: Run tests
         run: |
           cd ${{ matrix.service }}
