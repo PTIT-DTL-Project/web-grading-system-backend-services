@@ -1,7 +1,6 @@
 package vn.edu.ptit.web_grading_system.executor_service.service;
 
 import com.github.dockerjava.api.DockerClient;
-import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.command.PullImageCmd;
 import com.github.dockerjava.api.command.PullImageResultCallback;
 import org.springframework.stereotype.Service;
@@ -27,9 +26,9 @@ public class DockerImageGatewayImpl implements DockerImageGateway {
         try {
             client().inspectImageCmd(imageRef).exec();
             return true;
-        } catch (NotFoundException e) {
-            return false;
-        }
+        } catch (Exception e) { // NotFoundException -> absent; daemon-down or auth
+            return false;          // also degrades here so pull() records a FAILED
+        }                          // row instead of aborting the whole cycle (PR #21)
     }
 
     @Override
