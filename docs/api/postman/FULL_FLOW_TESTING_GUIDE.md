@@ -237,7 +237,7 @@ X-User-Id: {{ownerLecturer1}}
 > `assertions[]` (`contains` kind above).
 
 **Order 3 — search**, **order 4 — DB_SCHEMA_CHECK**, **order 5 — DB_QUERY**
-(copy configs verbatim from `docs/db/README.md` §8.1).
+(copy configs verbatim from the deploy repo `docs/db/README.md` §8.1).
 
 All → `201`; response echoes parsed `config` object.
 

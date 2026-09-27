@@ -6,8 +6,8 @@ import vn.edu.ptit.web_grading_system.executor_service.Constant;
 
 /**
  * Signalled when a step's {@code timeoutMs} budget is exhausted —
- * either while establishing the connection or between statements
- * inside a {@code DB_MIGRATION}. The message already carries the
+ * between entries of a list-based step ({@code DB_MIGRATION}
+ * statements, {@code DB_SCHEMA_CHECK} checks). The message already carries the
  * {@link Constant.Message.Db#SQL_TIMEOUT_ERROR} prefix; callers
  * surface it verbatim.
  */

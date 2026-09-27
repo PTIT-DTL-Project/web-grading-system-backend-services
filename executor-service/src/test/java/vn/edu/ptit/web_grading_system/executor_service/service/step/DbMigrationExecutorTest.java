@@ -16,7 +16,6 @@ import vn.edu.ptit.web_grading_system.executor_service.Constant;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHelper;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHelper.ConnectionAction;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.DbMigrationExecutor;
-import vn.edu.ptit.web_grading_system.executor_service.entities.GradingStepResult;
 import vn.edu.ptit.web_grading_system.executor_service.entities.StepResultStatus;
 import vn.edu.ptit.web_grading_system.executor_service.service.VariableContext;
 
@@ -99,8 +98,8 @@ class DbMigrationExecutorTest {
         var result = exec.execute(ctx);
 
         assertEquals(StepResultStatus.ERROR, result.getStatus());
-        assertTrue(result.getErrorMessage()
-                .contains(Constant.Message.Db.SQL_EXECUTION_ERROR));
+        assertEquals(Constant.Message.Db.SQL_EXECUTION_ERROR + "duplicate key",
+                result.getErrorMessage());
         verify(conn).rollback();
         verify(conn).setAutoCommit(true); // restore even after rollback
     }

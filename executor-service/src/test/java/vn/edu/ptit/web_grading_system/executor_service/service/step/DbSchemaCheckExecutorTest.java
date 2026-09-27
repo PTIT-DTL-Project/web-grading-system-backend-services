@@ -15,6 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import vn.edu.ptit.web_grading_system.executor_service.Constant;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHelper;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionException;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialect;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.PostgresDialect;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.DbSchemaCheckExecutor;
@@ -191,13 +192,41 @@ class DbSchemaCheckExecutorTest {
     }
 
     @Test
-    void connectionFailure_returnsError() throws Exception {
+    void connectionFailure_returnsDialectHintVerbatim() throws Exception {
+        // DbConnectionException is surfaced verbatim — no prefix,
+        // no doubling.
         var config = """
                 {"connection":{"db_type":"mysql","database":"appdb",
                 "username":"u","password":"p"},
                 "checks":[{"kind":"TABLE_EXISTS","table_name":"books"}]}"""
                 .stripIndent();
         var node = mapper.readTree(config);
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, 23457);
+
+        when(db.withConnection(any(), anyInt(), anyInt(), any()))
+                .thenThrow(new DbConnectionException(
+                        "dialect hint: set connection.db_type",
+                        new SQLException("no driver")));
+
+        var ctx = new HttpStepExecutor.StepContext(
+                java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+                java.util.UUID.randomUUID(), 1, "s", node, vars, 30000);
+        var result = exec.execute(ctx);
+
+        assertEquals(StepResultStatus.ERROR, result.getStatus());
+        assertEquals("dialect hint: set connection.db_type",
+                result.getErrorMessage());
+    }
+
+    @Test
+    void statementFailure_returnsErrorWithPrefixOnce() throws Exception {
+        // Every non-connection, non-timeout SQLException gets
+        // SQL_EXECUTION_ERROR exactly once.
+        var node = mapper.readTree("""
+                {"connection":{"db_type":"postgres","database":"appdb",
+                "username":"u","password":"p"},
+                "checks":[{"kind":"TABLE_EXISTS","table_name":"books"}]}""");
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, 23457);
 
@@ -210,8 +239,8 @@ class DbSchemaCheckExecutorTest {
         var result = exec.execute(ctx);
 
         assertEquals(StepResultStatus.ERROR, result.getStatus());
-        assertTrue(result.getErrorMessage()
-                .contains(Constant.Message.Db.SQL_EXECUTION_ERROR));
+        assertEquals(Constant.Message.Db.SQL_EXECUTION_ERROR + "no such host",
+                result.getErrorMessage());
     }
     @Test
     void configTimeoutMs_isHonouredOverCtxTimeoutMs() throws Exception {
