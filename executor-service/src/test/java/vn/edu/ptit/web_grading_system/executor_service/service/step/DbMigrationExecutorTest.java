@@ -15,8 +15,6 @@ import tools.jackson.databind.ObjectMapper;
 import vn.edu.ptit.web_grading_system.executor_service.Constant;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHelper;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHelper.ConnectionAction;
-import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialectRegistry;
-import vn.edu.ptit.web_grading_system.executor_service.service.db.MysqlDialect;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.DbMigrationExecutor;
 import vn.edu.ptit.web_grading_system.executor_service.entities.GradingStepResult;
 import vn.edu.ptit.web_grading_system.executor_service.entities.StepResultStatus;
@@ -174,6 +172,8 @@ class DbMigrationExecutorTest {
                 .contains(Constant.Message.Db.SQL_TIMEOUT_ERROR));
         assertFalse(result.getErrorMessage()
                 .contains(Constant.Message.Db.CONNECTION_DIALECT_PREFIX));
+        assertEquals(Constant.Message.Db.SQL_TIMEOUT_ERROR + "0ms",
+                result.getErrorMessage());
         verify(conn).rollback();
         verify(conn).setAutoCommit(true);
     }

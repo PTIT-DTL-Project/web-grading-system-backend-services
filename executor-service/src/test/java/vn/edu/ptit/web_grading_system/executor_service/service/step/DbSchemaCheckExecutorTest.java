@@ -56,7 +56,6 @@ class DbSchemaCheckExecutorTest {
         var node = mapper.readTree(config);
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, 23457);
-        vars.put(Constant.VariableContext.DB_PORT, 23457);
 
         var conn = mock(Connection.class);
         var tablePs = mock(PreparedStatement.class);
@@ -123,7 +122,6 @@ class DbSchemaCheckExecutorTest {
         var node = mapper.readTree(config);
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, 23457);
-        vars.put(Constant.VariableContext.DB_PORT, 23457);
 
         var conn = mock(Connection.class);
         var tablePs = mock(PreparedStatement.class);
@@ -166,7 +164,6 @@ class DbSchemaCheckExecutorTest {
                 .stripIndent();
         var node = mapper.readTree(config);
         var vars = new VariableContext();
-        vars.put(Constant.VariableContext.DB_PORT, 23457);
         vars.put(Constant.VariableContext.DB_PORT, 23457);
 
         var conn = mock(Connection.class);
@@ -249,4 +246,40 @@ class DbSchemaCheckExecutorTest {
         verify(ps).setQueryTimeout(2);
     }
 
+    @Test
+    void budgetExhausted_throwsTimeout() throws Exception {
+        // A spent budget is checked before any statement runs, so
+        // no PreparedStatement is created and the error carries
+        // the timeout label without a dialect hint.
+        var config = """
+                {"connection":{"db_type":"postgres","database":"appdb",
+                "username":"u","password":"p"},
+                "checks":[{"kind":"TABLE_EXISTS","table_name":"books"}],
+                "timeoutMs":0}"""
+                .stripIndent();
+        var node = mapper.readTree(config);
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, 23457);
+
+        var conn = mock(Connection.class);
+        when(db.withConnection(any(), anyInt(), anyInt(), any()))
+                .thenAnswer(inv -> {
+                    @SuppressWarnings("unchecked")
+                    var action = inv.getArgument(3, DbConnectionHelper.ConnectionAction.class);
+                    return action.apply(conn);
+                });
+        when(db.resolve("postgres")).thenReturn(new PostgresDialect());
+
+        var ctx = new HttpStepExecutor.StepContext(
+                java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+                java.util.UUID.randomUUID(), 1, "s", node, vars, null);
+        var result = exec.execute(ctx);
+
+        assertEquals(StepResultStatus.ERROR, result.getStatus());
+        assertTrue(result.getErrorMessage()
+                .contains(Constant.Message.Db.SQL_TIMEOUT_ERROR));
+        assertFalse(result.getErrorMessage()
+                .contains(Constant.Message.Db.CONNECTION_DIALECT_PREFIX));
+        verify(conn, never()).prepareStatement(any());
+    }
 }

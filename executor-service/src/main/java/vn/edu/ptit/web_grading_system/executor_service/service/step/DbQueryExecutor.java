@@ -106,7 +106,7 @@ public class DbQueryExecutor implements StepExecutor {
         } catch (SQLException e) {
             return DbStepResults.buildResult(mapper, ctx, type(),
                     StepResultStatus.ERROR, details,
-                    DbStepResults.message(e) + e.getMessage(), started);
+                    DbStepResults.message(e), started);
         }
         boolean passed = details.stream().allMatch(AssertionDetail::isPassed);
         return DbStepResults.buildResult(mapper, ctx, type(),

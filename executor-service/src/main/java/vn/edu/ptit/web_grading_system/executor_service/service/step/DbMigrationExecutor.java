@@ -21,8 +21,20 @@ import vn.edu.ptit.web_grading_system.executor_service.entities.StepResultStatus
 
 /**
  * Executes a {@code DB_MIGRATION} step: runs each lecturer
- * statement in a single transaction and commits only when every
+ * statement in a transaction and commits only when every
  * statement succeeds.
+ *
+ * <p><b>Atomicity is engine-dependent.</b> PostgreSQL honours
+ * the guarantee for both DDL and DML. MySQL and MariaDB force
+ * an implicit commit on DDL statements
+ * ({@code CREATE TABLE}, {@code ALTER TABLE}, {@code DROP TABLE},
+ * {@code CREATE/DROP INDEX}, {@code TRUNCATE} — see MySQL §15.3.3
+ * and MariaDB "SQL statements Causing an Implicit Commit"), so a
+ * migration containing DDL followed by a failing statement is
+ * <em>best-effort</em>: the DDL is already durably applied,
+ * {@code rollback()} has nothing to undo, and the step reports
+ * {@code ERROR} without indicating the schema is partially
+ * migrated.
  *
  * <p>Connection failure returns {@link StepResultStatus#ERROR}
  * with a dialect hint; a statement failure rolls back and
@@ -90,7 +102,7 @@ public class DbMigrationExecutor implements StepExecutor {
         } catch (SQLException e) {
             return DbStepResults.buildResult(mapper, ctx, type(),
                     StepResultStatus.ERROR, details,
-                    DbStepResults.message(e) + e.getMessage(), started);
+                    DbStepResults.message(e), started);
         }
         return DbStepResults.buildResult(mapper, ctx, type(),
                 StepResultStatus.PASSED, details, null, started);

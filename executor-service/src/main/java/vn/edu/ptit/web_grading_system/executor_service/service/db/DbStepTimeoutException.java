@@ -2,7 +2,7 @@ package vn.edu.ptit.web_grading_system.executor_service.service.db;
 
 import java.sql.SQLException;
 
-import lombok.RequiredArgsConstructor;
+import vn.edu.ptit.web_grading_system.executor_service.Constant;
 
 /**
  * Signalled when a step's {@code timeoutMs} budget is exhausted —
@@ -11,14 +11,9 @@ import lombok.RequiredArgsConstructor;
  * {@link Constant.Message.Db#SQL_TIMEOUT_ERROR} prefix; callers
  * surface it verbatim.
  */
-@RequiredArgsConstructor
 public class DbStepTimeoutException extends SQLException {
 
     public DbStepTimeoutException(String message) {
         super(message);
-    }
-
-    public DbStepTimeoutException(String message, Throwable cause) {
-        super(message, cause);
     }
 }

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 
 import vn.edu.ptit.web_grading_system.executor_service.Constant;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionException;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHelper;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.DbQueryExecutor;
 import vn.edu.ptit.web_grading_system.executor_service.entities.GradingStepResult;
@@ -160,7 +161,9 @@ class DbQueryExecutorTest {
     }
 
     @Test
-    void connectionFailure_returnsErrorWithDialectHint() throws Exception {
+    void connectionFailure_returnsDialectHintVerbatim() throws Exception {
+        // DbConnectionException is surfaced verbatim — no
+        // SQL_EXECUTION_ERROR prefix and no doubling.
         var config = """
                 {"connection":{"db_type":"mysql","database":"appdb",
                 "username":"u","password":"p"},
@@ -171,7 +174,9 @@ class DbQueryExecutorTest {
         vars.put(Constant.VariableContext.DB_PORT, 23457);
 
         when(db.withConnection(any(), anyInt(), anyInt(), any()))
-                .thenThrow(new SQLException("Connection refused"));
+                .thenThrow(new DbConnectionException(
+                        "dialect hint: set connection.db_type",
+                        new SQLException("no driver")));
 
         var ctx = new HttpStepExecutor.StepContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
@@ -179,9 +184,34 @@ class DbQueryExecutorTest {
         var result = exec.execute(ctx);
 
         assertEquals(StepResultStatus.ERROR, result.getStatus());
-        assertTrue(result.getErrorMessage()
-                .contains(Constant.Message.Db.SQL_EXECUTION_ERROR));
-        assertTrue(result.getErrorMessage().contains("Connection refused"));
+        assertEquals("dialect hint: set connection.db_type",
+                result.getErrorMessage());
         assertNull(result.getAssertionResult());
+    }
+
+    @Test
+    void statementFailure_returnsErrorWithPrefixOnce() throws Exception {
+        // Every non-connection, non-timeout SQLException gets
+        // SQL_EXECUTION_ERROR exactly once.
+        var node = mapper.readTree("""
+                {"connection":{"db_type":"postgres","database":"appdb",
+                "username":"u","password":"p"},
+                "query":"SELECT 1"}""");
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, 23457);
+
+        when(db.withConnection(any(), anyInt(), anyInt(), any()))
+                .thenThrow(new SQLException(
+                        "relation \"books\" does not exist"));
+
+        var ctx = new HttpStepExecutor.StepContext(
+                java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+                java.util.UUID.randomUUID(), 1, "q", node, vars, 30000);
+        var result = exec.execute(ctx);
+
+        assertEquals(StepResultStatus.ERROR, result.getStatus());
+        assertEquals(Constant.Message.Db.SQL_EXECUTION_ERROR
+                + "relation \"books\" does not exist",
+                result.getErrorMessage());
     }
 }

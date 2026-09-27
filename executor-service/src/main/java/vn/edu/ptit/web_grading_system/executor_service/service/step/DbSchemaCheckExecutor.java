@@ -15,6 +15,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import vn.edu.ptit.web_grading_system.executor_service.Constant;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHelper;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.DbStepTimeoutException;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialect;
 import vn.edu.ptit.web_grading_system.executor_service.entities.GradingStepResult;
 import vn.edu.ptit.web_grading_system.executor_service.entities.StepResultStatus;
@@ -49,21 +50,28 @@ public class DbSchemaCheckExecutor implements StepExecutor {
                 .get(Constant.VariableContext.DB_PORT);
         int timeoutMs = ctx.config().path(Constant.DbStep.TIMEOUT_MS)
                 .asInt(ctx.timeoutMs() != null ? ctx.timeoutMs() : 30_000);
-        int timeoutSeconds = (int) Math.ceil(timeoutMs / 1000.0);
+        long deadline = System.currentTimeMillis() + timeoutMs;
         long started = System.currentTimeMillis();
         List<AssertionDetail> details = new ArrayList<>();
         try {
             db.withConnection(config, hostPort, timeoutMs, conn -> {
                 DbDialect dialect = db.resolve(dbType);
                 for (JsonNode check : config.get(Constant.DbStep.CHECKS)) {
-                    details.add(runCheck(conn, dialect, check, timeoutSeconds));
+                    int remaining = (int) (deadline - System.currentTimeMillis());
+                    if (remaining <= 0) {
+                        throw new DbStepTimeoutException(
+                                Constant.Message.Db.SQL_TIMEOUT_ERROR
+                                        + timeoutMs + "ms");
+                    }
+                    details.add(runCheck(conn, dialect, check,
+                            Math.max(1, (int) Math.ceil(remaining / 1000.0))));
                 }
                 return null;
             });
         } catch (SQLException e) {
             return DbStepResults.buildResult(mapper, ctx, type(),
                     StepResultStatus.ERROR, details,
-                    DbStepResults.message(e) + e.getMessage(), started);
+                    DbStepResults.message(e), started);
         }
         boolean passed = details.stream().allMatch(AssertionDetail::isPassed);
         return DbStepResults.buildResult(mapper, ctx, type(),

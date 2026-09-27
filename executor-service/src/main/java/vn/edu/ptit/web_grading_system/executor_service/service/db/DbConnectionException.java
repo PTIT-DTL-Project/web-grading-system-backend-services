@@ -2,7 +2,7 @@ package vn.edu.ptit.web_grading_system.executor_service.service.db;
 
 import java.sql.SQLException;
 
-import lombok.RequiredArgsConstructor;
+import vn.edu.ptit.web_grading_system.executor_service.Constant;
 
 /**
  * Signalled by {@link DbConnectionHelper} when the connect-retry
@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
  * callers ({@link vn.edu.ptit.web_grading_system.executor_service.service.step.DbStepResults#message(SQLException)})
  * surface it verbatim — never wrapped in {@code SQL_EXECUTION_ERROR}.
  */
-@RequiredArgsConstructor
 public class DbConnectionException extends SQLException {
 
     public DbConnectionException(String message, Throwable cause) {
