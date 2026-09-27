@@ -97,11 +97,7 @@ jobs:
       # a service's suite only when its paths change (each green run at
       # this head contained only Build executor-service), so the four
       # others have no CI signal yet.
-      # DockerImageStateRepositoryTest is also excluded on CI: it is a
-      # full-app-context test that needs executor-service/docker/kafka-ca.pem,
-      # which is gitignored (.gitignore:48) and therefore absent on runners; it
-      # passes locally. Same class of failure as *ApplicationTests (contextLoads).
       - name: Run tests
         run: |
           cd ${{ matrix.service }}
-          mvn test -Dtest='!*ApplicationTests,!DockerImageStateRepositoryTest' -Dsurefire.failIfNoSpecifiedTests=false
+          mvn test -Dtest='!*ApplicationTests' -Dsurefire.failIfNoSpecifiedTests=false
