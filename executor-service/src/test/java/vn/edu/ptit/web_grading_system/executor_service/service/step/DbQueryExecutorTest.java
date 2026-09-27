@@ -19,11 +19,7 @@ import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Assumptions;
 import org.testcontainers.DockerClientFactory;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -229,21 +225,24 @@ class DbQueryExecutorTest {
     }
 
 
+    // Review: 2026-09-27, Pullfrog PR #19 — scope the Docker assumption
+    // to the container-backed tests only. A class-level @BeforeAll
+    // assumeTrue aborts the whole class container, so the pre-existing
+    // Mockito tests in this class vanish (Tests run: 0, Skipped: 0) on a
+    // Docker-less runner.
+    private static void assumeDocker() {
+        assumeTrue(DockerClientFactory.instance().isDockerAvailable());
+    }
+
     // ---- container-backed (live PostgreSQL) tests ----
     @BeforeAll
     static void startContainer() {
-        assumeTrue(DockerClientFactory.instance().isDockerAvailable());
-        TestPostgresContainer.start();
+        if (DockerClientFactory.instance().isDockerAvailable()) TestPostgresContainer.start();
     }
 
     @AfterAll
     static void stopContainer() {
         TestPostgresContainer.stop();
-    }
-
-    @BeforeEach
-    void clearBooks() {
-        TestPostgresContainer.clearBooks();
     }
 
     private static String colsToJson(String[] cols) {
@@ -289,6 +288,8 @@ class DbQueryExecutorTest {
 
     @Test
     void tc_rowCountMatch_passes() throws Exception {
+        assumeDocker();
+        TestPostgresContainer.clearBooks();
         UUID id = UUID.randomUUID();
         seedBook(id, "Dè Mèn", "Tâi", 1941);
         var config = configQuery(id.toString(), 1, new String[]{"id","title","author"});
@@ -304,6 +305,8 @@ class DbQueryExecutorTest {
 
     @Test
     void tc_rowCountMismatch_fails() throws Exception {
+        assumeDocker();
+        TestPostgresContainer.clearBooks();
         var config = configQuery("00000000-0000-0000-0000-000000000003", 1, new String[]{"id","title","author"});
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
@@ -316,6 +319,8 @@ class DbQueryExecutorTest {
 
     @Test
     void tc_emptyResultSet_rowCountZero_passes() throws Exception {
+        assumeDocker();
+        TestPostgresContainer.clearBooks();
         var config = configQuery("00000000-0000-0000-0000-000000000003", 0, new String[]{"id","title","author"});
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
@@ -328,6 +333,8 @@ class DbQueryExecutorTest {
 
     @Test
     void tc_columnsCaseInsensitive_passes() throws Exception {
+        assumeDocker();
+        TestPostgresContainer.clearBooks();
         UUID id = UUID.randomUUID();
         seedBook(id, "Dè Mèn", "Tâi", 1941);
         var config = configQuery(id.toString(), 1, new String[]{"ID","TITLE","AUTHOR"});

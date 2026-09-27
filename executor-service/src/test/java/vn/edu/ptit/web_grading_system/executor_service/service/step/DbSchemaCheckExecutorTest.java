@@ -9,8 +9,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.DriverManager;
-import java.sql.Statement;
 import java.util.UUID;
 
 import java.util.List;
@@ -19,13 +17,8 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Assumptions;
 import org.testcontainers.DockerClientFactory;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -330,21 +323,24 @@ class DbSchemaCheckExecutorTest {
     }
 
 
+    // Review: 2026-09-27, Pullfrog PR #19 — scope the Docker assumption
+    // to the container-backed tests only. A class-level @BeforeAll
+    // assumeTrue aborts the whole class container, so the pre-existing
+    // Mockito tests in this class vanish (Tests run: 0, Skipped: 0) on a
+    // Docker-less runner.
+    private static void assumeDocker() {
+        assumeTrue(DockerClientFactory.instance().isDockerAvailable());
+    }
+
     // ---- container-backed (live PostgreSQL) tests ----
     @BeforeAll
     static void startContainer() {
-        assumeTrue(DockerClientFactory.instance().isDockerAvailable());
-        TestPostgresContainer.start();
+        if (DockerClientFactory.instance().isDockerAvailable()) TestPostgresContainer.start();
     }
 
     @AfterAll
     static void stopContainer() {
         TestPostgresContainer.stop();
-    }
-
-    @BeforeEach
-    void clearBooks() {
-        TestPostgresContainer.clearBooks();
     }
 
     private static JsonNode configSchemaCheck(String kind, String table, String col, String dtype) {
@@ -387,6 +383,7 @@ class DbSchemaCheckExecutorTest {
 
     @Test
     void tc_tableExists_true() throws Exception {
+        assumeDocker();
         var config = configSchemaCheck("TABLE_EXISTS", "books");
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
@@ -398,6 +395,7 @@ class DbSchemaCheckExecutorTest {
 
     @Test
     void tc_tableExists_false() throws Exception {
+        assumeDocker();
         var config = configSchemaCheck("TABLE_EXISTS", "no_such_table");
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
@@ -409,6 +407,7 @@ class DbSchemaCheckExecutorTest {
 
     @Test
     void tc_columnExists_normalizesVarchar() throws Exception {
+        assumeDocker();
         var config = configSchemaCheck("COLUMN_EXISTS", "books", "title", "VARCHAR");
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
@@ -420,6 +419,7 @@ class DbSchemaCheckExecutorTest {
 
     @Test
     void tc_primaryKey() throws Exception {
+        assumeDocker();
         var config = new ObjectMapper().readTree("""
                 {"connection":{"db_type":"postgres","database":"%s",
                 "username":"%s","password":"%s"},
@@ -436,6 +436,7 @@ class DbSchemaCheckExecutorTest {
 
     @Test
     void tc_indexExists() throws Exception {
+        assumeDocker();
         var config = new ObjectMapper().readTree("""
                 {"connection":{"db_type":"postgres","database":"%s",
                 "username":"%s","password":"%s"},
@@ -452,6 +453,7 @@ class DbSchemaCheckExecutorTest {
 
     @Test
     void tc_mixedChecks_firstFail_marksFailed() throws Exception {
+        assumeDocker();
         // first check (type mismatch) fails without throwing; second passes.
         var config = new ObjectMapper().readTree("""
                 {"connection":{"db_type":"postgres","database":"%s",
@@ -465,7 +467,15 @@ class DbSchemaCheckExecutorTest {
         vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
         var result = realSchemaExecutor().execute(stepContext("s", config, vars));
         assertEquals(StepResultStatus.FAILED, result.getStatus());
-        assertFalse(result.getAssertionResult().isEmpty());
+        // Review: 2026-09-27, Pullfrog PR #19 — assert both checks' passed
+        // flags so a short-circuit aggregation cannot satisfy this test.
+        // prove the executor evaluated BOTH checks (aggregation), not just the
+        // first failing one: the assertion list has exactly two entries, the
+        // first (type-mismatch) fails and the second (TABLE_EXISTS) passes.
+        var details = new ObjectMapper().readTree(result.getAssertionResult());
+        assertEquals(2, details.size());
+        assertFalse(details.get(0).path("passed").asBoolean());
+        assertTrue(details.get(1).path("passed").asBoolean());
         assertNull(result.getErrorMessage());
     }
 }

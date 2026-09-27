@@ -11,18 +11,13 @@ import java.util.List;
 import tools.jackson.databind.JsonNode;
 import java.sql.SQLException;
 import java.sql.DriverManager;
-import java.sql.Statement;
 import java.util.UUID;
 
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Assumptions;
 import org.testcontainers.DockerClientFactory;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -194,21 +189,24 @@ class DbMigrationExecutorTest {
     }
 
 
+    // Review: 2026-09-27, Pullfrog PR #19 — scope the Docker assumption
+    // to the container-backed tests only. A class-level @BeforeAll
+    // assumeTrue aborts the whole class container, so the pre-existing
+    // Mockito tests in this class vanish (Tests run: 0, Skipped: 0) on a
+    // Docker-less runner.
+    private static void assumeDocker() {
+        assumeTrue(DockerClientFactory.instance().isDockerAvailable());
+    }
+
     // ---- container-backed (live PostgreSQL) tests ----
     @BeforeAll
     static void startContainer() {
-        assumeTrue(DockerClientFactory.instance().isDockerAvailable());
-        TestPostgresContainer.start();
+        if (DockerClientFactory.instance().isDockerAvailable()) TestPostgresContainer.start();
     }
 
     @AfterAll
     static void stopContainer() {
         TestPostgresContainer.stop();
-    }
-
-    @BeforeEach
-    void clearBooks() {
-        TestPostgresContainer.clearBooks();
     }
 
     private static JsonNode configMigration(String... statements) {
@@ -241,6 +239,8 @@ class DbMigrationExecutorTest {
 
     @Test
     void tc_allStatementsSucceed_commits() throws Exception {
+        assumeDocker();
+        TestPostgresContainer.clearBooks();
         var config = configMigration("INSERT INTO books (id,title,author,year) VALUES ('00000000-0000-0000-0000-000000000001','A','B',2000)");
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
@@ -257,6 +257,8 @@ class DbMigrationExecutorTest {
 
     @Test
     void tc_statementFails_rollsBack() throws Exception {
+        assumeDocker();
+        TestPostgresContainer.clearBooks();
         var config = configMigration("INSERT INTO books (id,title,author,year) VALUES ('00000000-0000-0000-0000-000000000002','A','B',2000)",
                 "INSERT INTO books (id,title,author,year) VALUES ('00000000-0000-0000-0000-000000000002','C','D',2001)");
         var vars = new VariableContext();
@@ -274,6 +276,8 @@ class DbMigrationExecutorTest {
 
     @Test
     void tc_ddlRollbackOnPg_atomic() throws Exception {
+        assumeDocker();
+        TestPostgresContainer.clearBooks();
         var config = configMigration("CREATE TABLE ddl_tmp (x int)", "INSERT INTO ddl_tmp (x) VALUES ('not_an_int')");
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
@@ -281,12 +285,18 @@ class DbMigrationExecutorTest {
         assertEquals(StepResultStatus.ERROR, result.getStatus());
         assertTrue(result.getErrorMessage().startsWith(Constant.Message.Db.SQL_EXECUTION_ERROR));
         // DDL must be rolled back too: the table must not exist.
-        assertThrows(Exception.class, () -> {
+        // Review: 2026-09-27, Pullfrog PR #19 — narrow to the missing-relation
+        // error so a connection failure (which also throws SQLException) cannot
+        // assert the missing-relation error specifically so a connection failure
+        // (which also throws SQLException) cannot satisfy this check.
+        var ex = assertThrows(java.sql.SQLException.class, () -> {
             try (Connection c = DriverManager.getConnection(TestPostgresContainer.jdbcUrl(),
                     TestPostgresContainer.username(), TestPostgresContainer.password());
                  var stmt = c.prepareStatement("SELECT COUNT(*) FROM ddl_tmp")) {
                 stmt.executeQuery();
             }
         });
+        assertTrue(ex.getMessage().contains("ddl_tmp"));
+        assertTrue(ex.getMessage().contains("does not exist"));
     }
 }

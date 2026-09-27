@@ -4,7 +4,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -16,15 +16,15 @@ import org.testcontainers.utility.DockerImageName;
  */
 class TestPostgresContainer {
 
-    static final PostgreSQLContainer<?> PG =
-            new PostgreSQLContainer<>(DockerImageName.parse("postgres:16"));
+    static final PostgreSQLContainer PG =
+            new PostgreSQLContainer(DockerImageName.parse("postgres:16"));
 
     static void start() {
         if (!PG.isRunning()) PG.start();
         ensureSchema();
     }
 
-    static void stop() { PG.stop(); }
+    static void stop() { if (PG.isRunning()) PG.stop(); }
 
     static int port() { return PG.getMappedPort(5432); }
     static String database() { return PG.getDatabaseName(); }
