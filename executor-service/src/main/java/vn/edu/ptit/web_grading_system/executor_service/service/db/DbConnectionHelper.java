@@ -15,20 +15,23 @@ import vn.edu.ptit.web_grading_system.executor_service.Constant;
 /**
  * Opens a JDBC connection for a DB step and runs a callback over it.
  *
- * <p>The engine comes from the step's own {@code connection.db_type} (never
- * inferred from the compose image name) and is resolved through the dialect
- * registry, so URL, driver and schema filters are dialect-owned.
+ * <p>The engine comes from the step's own {@code connection.db_type}
+ * (never inferred from the compose image name) and is resolved
+ * through the dialect registry, so URL, driver and schema filters
+ * are dialect-owned.
  *
- * <p>Connection setup is retried (up to {@code CONNECT_RETRIES} or the step
- * budget, whichever expires first) because the DB container can still be
- * initialising when the first step runs (mysql:8 entrypoint takes tens of
- * seconds). The single-job gate per pod (SKILL §1) makes the
- * {@link DriverManager#setLoginTimeout(int)} call thread-safe.
+ * <p>Connection setup is retried (up to {@code CONNECT_RETRIES} or
+ * the step budget, whichever expires first) because the DB container
+ * can still be initialising when the first step runs (mysql:8
+ * entrypoint takes tens of seconds). The single-job gate per pod
+ * (SKILL §1) makes the {@link DriverManager#setLoginTimeout(int)}
+ * call thread-safe.
  *
- * <p>Only connection-establishment failures are retried and wrapped with the
- * dialect hint. Failures thrown by {@link ConnectionAction#apply(Connection)}
- * (lecturer SQL, migrations, schema checks) propagate immediately without
- * retry and are labelled by the caller.
+ * <p>Only connection-establishment failures are retried and wrapped
+ * as {@link DbConnectionException}. Failures thrown by {@link
+ * ConnectionAction#apply(Connection)} (lecturer SQL, migrations,
+ * schema checks) propagate immediately without retry — the caller
+ * labels them. Budget exhaustion raises {@link DbStepTimeoutException}.
  */
 @Component
 @RequiredArgsConstructor
@@ -42,10 +45,14 @@ public class DbConnectionHelper {
     private final DbDialectRegistry dialectRegistry;
 
     /**
-     * Opens a JDBC connection for {@code config} on {@code hostPort} within
-     * {@code timeoutMs}, then runs {@code action} over it. Connection
-     * failures are retried and wrapped with a {@link Constant.Message.Db}
-     * dialect hint; action failures propagate immediately (not retried).
+     * Opens a JDBC connection for {@code config} on {@code hostPort}
+     * within {@code timeoutMs}, then runs {@code action} over it.
+     *
+     * <p>Connection failures are retried and wrapped as {@link
+     * DbConnectionException} (dialect hint in the message, last driver
+     * error as cause). Budget exhaustion raises {@link
+     * DbStepTimeoutException} (no dialect hint). Action failures
+     * propagate immediately.
      */
     public <T> T withConnection(JsonNode config, Integer hostPort,
             int timeoutMs, ConnectionAction<T> action) throws SQLException {
@@ -67,14 +74,15 @@ public class DbConnectionHelper {
         Connection conn = null;
         try {
             for (int attempt = 1; attempt <= CONNECT_RETRIES; attempt++) {
-                /* Review: 2026-09-26, Pullfrog PR #17 (round 3) —
+                /* Review: 2026-09-26, Pullfrog round 4 —
                  * stop retrying once the step budget is spent, so a
                  * slow DB container does not hold the grading thread
-                 * past EXECUTOR_MAX_EXECUTION_MS. */
+                 * past EXECUTOR_MAX_EXECUTION_MS. A spent budget is
+                 * reported as a timeout, not as "set connection.db_type". */
                 if (System.currentTimeMillis() - start > timeoutMs) {
-                    last = new SQLException("Connection timed out after "
-                            + timeoutMs + "ms");
-                    break;
+                    throw new DbStepTimeoutException(
+                            Constant.Message.Db.SQL_TIMEOUT_ERROR
+                                    + timeoutMs + "ms waiting for database connection");
                 }
                 try {
                     conn = DriverManager.getConnection(url, username, password);
@@ -99,9 +107,10 @@ public class DbConnectionHelper {
             DriverManager.setLoginTimeout(saved);
         }
         if (conn == null) {
-            throw new SQLException(Constant.Message.Db.CONNECTION_DIALECT_PREFIX
-                    + dbType + Constant.Message.Db.CONNECTION_DIALECT_SUFFIX
-                    + ": " + last.getMessage(), last);
+            throw new DbConnectionException(
+                    Constant.Message.Db.CONNECTION_DIALECT_PREFIX
+                            + dbType + Constant.Message.Db.CONNECTION_DIALECT_SUFFIX
+                            + ": " + last.getMessage(), last);
         }
         try {
             return action.apply(conn);

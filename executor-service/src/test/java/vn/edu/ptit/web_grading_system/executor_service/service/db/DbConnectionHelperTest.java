@@ -8,7 +8,6 @@ import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
@@ -83,8 +82,7 @@ class DbConnectionHelperTest {
                 {"connection":{"db_type":"mysql","database":"appdb",
                 "username":"u","password":"p"}}"""
                 .stripIndent();
-        var node = new tools.jackson.databind.ObjectMapper()
-                .readTree(config);
+        var node = new ObjectMapper().readTree(config);
 
         when(recordingDriver.connect(anyString(), any(Properties.class)))
                 .thenAnswer(inv -> {
@@ -107,8 +105,7 @@ class DbConnectionHelperTest {
                 {"connection":{"db_type":"postgres","database":"appdb",
                 "username":"u","password":"p"}}"""
                 .stripIndent();
-        var node = new tools.jackson.databind.ObjectMapper()
-                .readTree(config);
+        var node = new ObjectMapper().readTree(config);
 
         when(recordingDriver.connect(anyString(), any(Properties.class)))
                 .thenReturn(mock(Connection.class));
@@ -131,11 +128,11 @@ class DbConnectionHelperTest {
                 {"connection":{"db_type":"mysql","database":"appdb",
                 "username":"root","password":"root"}}"""
                 .stripIndent();
-        var node = new tools.jackson.databind.ObjectMapper()
-                .readTree(config);
+        var node = new ObjectMapper().readTree(config);
 
         var ex = assertThrows(SQLException.class,
                 () -> helper.withConnection(node, 1, 30_000, conn -> null));
+        assertInstanceOf(DbConnectionException.class, ex);
         assertTrue(ex.getMessage().contains(
                 Constant.Message.Db.CONNECTION_DIALECT_PREFIX),
                 "expected dialect hint in: " + ex.getMessage());
@@ -144,4 +141,21 @@ class DbConnectionHelperTest {
         assertNotNull(ex.getCause());
     }
 
+    @Test
+    void budgetExhausted_throwsTimeoutWithoutDialectHint() throws Exception {
+        // A spent budget (negative timeoutMs) must raise a timeout,
+        // never the "set connection.db_type" hint, and never
+        // contact the driver.
+        var config = """
+                {"connection":{"db_type":"postgres","database":"appdb",
+                "username":"u","password":"p"}}"""
+                .stripIndent();
+        var node = new ObjectMapper().readTree(config);
+
+        var ex = assertThrows(DbStepTimeoutException.class,
+                () -> helper.withConnection(node, 23457, -1, conn -> null));
+        assertTrue(ex.getMessage().contains(Constant.Message.Db.SQL_TIMEOUT_ERROR));
+        assertFalse(ex.getMessage().contains(Constant.Message.Db.CONNECTION_DIALECT_PREFIX));
+        verify(recordingDriver, never()).connect(anyString(), any());
+    }
 }

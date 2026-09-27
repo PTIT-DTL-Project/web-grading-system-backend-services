@@ -47,14 +47,13 @@ public class DbSchemaCheckExecutor implements StepExecutor {
                 .asString(Constant.DbConnection.DEFAULT_DB_TYPE);
         Integer hostPort = (Integer) ctx.variableContext()
                 .get(Constant.VariableContext.DB_PORT);
-        int timeoutSeconds = ctx.timeoutMs() != null
-                ? (int) Math.ceil(ctx.timeoutMs() / 1000.0)
-                : 30;
+        int timeoutMs = ctx.config().path(Constant.DbStep.TIMEOUT_MS)
+                .asInt(ctx.timeoutMs() != null ? ctx.timeoutMs() : 30_000);
+        int timeoutSeconds = (int) Math.ceil(timeoutMs / 1000.0);
         long started = System.currentTimeMillis();
         List<AssertionDetail> details = new ArrayList<>();
         try {
-            db.withConnection(config, hostPort, ctx.timeoutMs() != null
-                    ? ctx.timeoutMs() : 30_000, conn -> {
+            db.withConnection(config, hostPort, timeoutMs, conn -> {
                 DbDialect dialect = db.resolve(dbType);
                 for (JsonNode check : config.get(Constant.DbStep.CHECKS)) {
                     details.add(runCheck(conn, dialect, check, timeoutSeconds));
@@ -64,7 +63,7 @@ public class DbSchemaCheckExecutor implements StepExecutor {
         } catch (SQLException e) {
             return DbStepResults.buildResult(mapper, ctx, type(),
                     StepResultStatus.ERROR, details,
-                    connectionMessage(e) + e.getMessage(), started);
+                    DbStepResults.message(e) + e.getMessage(), started);
         }
         boolean passed = details.stream().allMatch(AssertionDetail::isPassed);
         return DbStepResults.buildResult(mapper, ctx, type(),
@@ -152,14 +151,6 @@ public class DbSchemaCheckExecutor implements StepExecutor {
             default -> throw new SQLException(
                     Constant.Message.Db.UNKNOWN_CHECK_KIND + kind);
         };
-    }
-
-    /** Connection failures are wrapped by {@link
-     * DbConnectionHelper} with the dialect hint as the cause;
-     * check/statement failures are not. */
-    private static String connectionMessage(SQLException e) {
-        return (e.getCause() != null) ? ""
-                : Constant.Message.Db.SQL_EXECUTION_ERROR;
     }
 
     private static AssertionDetail assertion(String kind, Object expected,

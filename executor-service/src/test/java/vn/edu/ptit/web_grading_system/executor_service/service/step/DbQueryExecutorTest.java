@@ -83,6 +83,45 @@ class DbQueryExecutorTest {
     }
 
     @Test
+    void configTimeoutMs_isHonouredOverCtxTimeoutMs() throws Exception {
+        // A {@code timeoutMs} key in the step config overrides
+        // {@code ctx.timeoutMs()}.
+        var config = """
+                {"connection":{"db_type":"postgres","database":"appdb",
+                "username":"u","password":"p"},
+                "query":"SELECT 1","timeoutMs":2000}"""
+                .stripIndent();
+        var node = mapper.readTree(config);
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, 23457);
+
+        var conn = mock(Connection.class);
+        var stmt = mock(Statement.class);
+        var rs = mock(ResultSet.class);
+        var meta = mock(ResultSetMetaData.class);
+        when(conn.createStatement()).thenReturn(stmt);
+        when(stmt.executeQuery(any())).thenReturn(rs);
+        when(rs.getMetaData()).thenReturn(meta);
+        when(meta.getColumnCount()).thenReturn(1);
+        when(rs.next()).thenReturn(false);
+
+        when(db.withConnection(any(), anyInt(), anyInt(), any())).thenAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            var action = inv.getArgument(3, DbConnectionHelper.ConnectionAction.class);
+            return action.apply(conn);
+        });
+
+        // ctx timeoutMs is null → the config key decides.
+        var ctx = new HttpStepExecutor.StepContext(
+                java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+                java.util.UUID.randomUUID(), 1, "q", node,
+                vars, null);
+        exec.execute(ctx);
+
+        verify(stmt).setQueryTimeout(2);
+    }
+
+    @Test
     void rowCountMismatch_isFailedWithAssertion() throws Exception {
         var config = """
                 {"connection":{"db_type":"postgres","database":"appdb",

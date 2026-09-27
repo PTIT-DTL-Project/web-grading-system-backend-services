@@ -47,6 +47,7 @@ public class Constant {
         public static final String KIND_INDEX_EXISTS = "INDEX_EXISTS";
         public static final String ASSERT_ROW_COUNT = "row_count";
         public static final String ASSERT_COLUMNS = "columns";
+        public static final String TIMEOUT_MS = "timeoutMs";
     }
 
     public static final class HttpStep {

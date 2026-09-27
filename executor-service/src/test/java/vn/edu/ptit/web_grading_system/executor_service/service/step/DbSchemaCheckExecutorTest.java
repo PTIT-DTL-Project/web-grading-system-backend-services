@@ -25,7 +25,7 @@ import vn.edu.ptit.web_grading_system.executor_service.service.VariableContext;
  * Unit tests for {@link DbSchemaCheckExecutor} — logic only.
  * Each check kind uses its own mocked {@link PreparedStatement}
  * and {@link ResultSet} so the four switch arms are independently
- * verifiable, and {@link Mockito#verify(Object, Object...)} pins
+ * verifiable, and {@code verify(conn).prepareStatement(...)} pins
  * the parameter order that {@link DbDialect} javadoc specifies.
  */
 class DbSchemaCheckExecutorTest {
@@ -55,6 +55,7 @@ class DbSchemaCheckExecutorTest {
                 .stripIndent();
         var node = mapper.readTree(config);
         var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, 23457);
         vars.put(Constant.VariableContext.DB_PORT, 23457);
 
         var conn = mock(Connection.class);
@@ -122,6 +123,7 @@ class DbSchemaCheckExecutorTest {
         var node = mapper.readTree(config);
         var vars = new VariableContext();
         vars.put(Constant.VariableContext.DB_PORT, 23457);
+        vars.put(Constant.VariableContext.DB_PORT, 23457);
 
         var conn = mock(Connection.class);
         var tablePs = mock(PreparedStatement.class);
@@ -164,6 +166,7 @@ class DbSchemaCheckExecutorTest {
                 .stripIndent();
         var node = mapper.readTree(config);
         var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, 23457);
         vars.put(Constant.VariableContext.DB_PORT, 23457);
 
         var conn = mock(Connection.class);
@@ -213,4 +216,37 @@ class DbSchemaCheckExecutorTest {
         assertTrue(result.getErrorMessage()
                 .contains(Constant.Message.Db.SQL_EXECUTION_ERROR));
     }
+    @Test
+    void configTimeoutMs_isHonouredOverCtxTimeoutMs() throws Exception {
+        var config = """
+                {"connection":{"db_type":"postgres","database":"appdb",
+                "username":"u","password":"p"},"timeoutMs":2000,
+                "checks":[{"kind":"TABLE_EXISTS","table_name":"books"}]}"""
+                .stripIndent();
+        var node = mapper.readTree(config);
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, 23457);
+
+        var conn = mock(Connection.class);
+        var ps = mock(PreparedStatement.class);
+        var rs = mock(ResultSet.class);
+        when(conn.prepareStatement(any())).thenReturn(ps);
+        when(ps.executeQuery()).thenReturn(rs);
+        when(rs.next()).thenReturn(true);
+
+        when(db.withConnection(any(), anyInt(), anyInt(), any())).thenAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            var action = inv.getArgument(3, DbConnectionHelper.ConnectionAction.class);
+            return action.apply(conn);
+        });
+        when(db.resolve("postgres")).thenReturn(new PostgresDialect());
+
+        var ctx = new HttpStepExecutor.StepContext(
+                java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+                java.util.UUID.randomUUID(), 1, "s", node, vars, null);
+        exec.execute(ctx);
+
+        verify(ps).setQueryTimeout(2);
+    }
+
 }

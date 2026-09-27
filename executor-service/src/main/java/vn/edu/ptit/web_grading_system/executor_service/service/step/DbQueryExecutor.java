@@ -18,20 +18,21 @@ import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHe
 import vn.edu.ptit.web_grading_system.executor_service.entities.GradingStepResult;
 import vn.edu.ptit.web_grading_system.executor_service.entities.StepResultStatus;
 import vn.edu.ptit.web_grading_system.executor_service.service.AssertionEngine.AssertionDetail;
+import vn.edu.ptit.web_grading_system.executor_service.service.VariableContext;
 
 /**
  * Executes a {@code DB_QUERY} step: runs the lecturer's SQL and
  * compares the result against {@code expected.row_count} /
  * {@code expected.columns}.
  *
- * <p>Connection failure returns {@link StepResultStatus#ERROR} with a
- * dialect hint (see {@link Constant.Message.Db}); a successful connection
- * that fails to execute is also {@code ERROR} with a {@link
- * Constant.Message.Db#SQL_EXECUTION_ERROR} prefix.
+ * <p>Connection failure returns {@link StepResultStatus#ERROR}
+ * with a dialect hint (see {@link Constant.Message.Db}); a
+ * successful connection that fails to execute is also {@code ERROR}
+ * with a {@link Constant.Message.Db#SQL_EXECUTION_ERROR} prefix.
  *
- * <p>Variable substitution uses values from {@link
- * VariableContext}, which are fed by extract[] reading the student's own
- * app responses. The graded DB is per-job and disposable, so the blast
+ * <p>Variable substitution uses values from {@link VariableContext},
+ * which are fed by extract[] reading the student's own app
+ * responses. The graded DB is per-job and disposable, so the blast
  * radius is limited to that student's own grade; nevertheless,
  * lecturers are recommended to interpolate only system variables
  * (e.g. {@code ${submission_id}}), not student-controlled values.
@@ -53,16 +54,15 @@ public class DbQueryExecutor implements StepExecutor {
                 config.path(Constant.DbStep.QUERY).asText(""));
         Integer hostPort = (Integer) ctx.variableContext()
                 .get(Constant.VariableContext.DB_PORT);
-        int timeoutSeconds = ctx.timeoutMs() != null
-                ? (int) Math.ceil(ctx.timeoutMs() / 1000.0)
-                : 30;
+        int timeoutMs = ctx.config().path(Constant.DbStep.TIMEOUT_MS)
+                .asInt(ctx.timeoutMs() != null ? ctx.timeoutMs() : 30_000);
+        int timeoutSeconds = (int) Math.ceil(timeoutMs / 1000.0);
         long started = System.currentTimeMillis();
         List<AssertionDetail> details = new ArrayList<>();
         try {
             int[] rowCount = {0};
             List<String> columns = new ArrayList<>();
-            db.withConnection(config, hostPort, ctx.timeoutMs() != null
-                    ? ctx.timeoutMs() : 30_000, conn -> {
+            db.withConnection(config, hostPort, timeoutMs, conn -> {
                 try (Statement stmt = conn.createStatement()) {
                     stmt.setQueryTimeout(timeoutSeconds);
                     try (ResultSet rs = stmt.executeQuery(query)) {
@@ -106,20 +106,12 @@ public class DbQueryExecutor implements StepExecutor {
         } catch (SQLException e) {
             return DbStepResults.buildResult(mapper, ctx, type(),
                     StepResultStatus.ERROR, details,
-                    connectionMessage(e) + e.getMessage(), started);
+                    DbStepResults.message(e) + e.getMessage(), started);
         }
         boolean passed = details.stream().allMatch(AssertionDetail::isPassed);
         return DbStepResults.buildResult(mapper, ctx, type(),
                 passed ? StepResultStatus.PASSED : StepResultStatus.FAILED,
                 details, null, started);
-    }
-
-    /** Connection failures are wrapped by {@link
-     * DbConnectionHelper} with the dialect hint as the cause;
-     * lecturer-SQL failures are not. */
-    private static String connectionMessage(SQLException e) {
-        return (e.getCause() != null) ? ""
-                : Constant.Message.Db.SQL_EXECUTION_ERROR;
     }
 
     private static AssertionDetail assertion(String kind, Object expected,

@@ -106,4 +106,75 @@ class DbMigrationExecutorTest {
         verify(conn).rollback();
         verify(conn).setAutoCommit(true); // restore even after rollback
     }
+
+    @Test
+    void configTimeoutMs_isHonouredOverCtxTimeoutMs() throws Exception {
+        var config = """
+                {"connection":{"db_type":"mysql","database":"appdb",
+                "username":"u","password":"p"},
+                "statements":["INSERT INTO books VALUES ('1','A')"],
+                "timeoutMs":2000}"""
+                .stripIndent();
+        var node = mapper.readTree(config);
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, 23457);
+
+        var conn = mock(Connection.class);
+        var ps = mock(PreparedStatement.class);
+        when(conn.prepareStatement(any())).thenReturn(ps);
+
+        when(db.withConnection(any(), anyInt(), anyInt(), any())).thenAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            var action = inv.getArgument(3, ConnectionAction.class);
+            return action.apply(conn);
+        });
+
+        // ctx timeoutMs is null → the config key decides.
+        var ctx = new HttpStepExecutor.StepContext(
+                java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+                java.util.UUID.randomUUID(), 1, "m", node,
+                vars, null);
+        exec.execute(ctx);
+
+        verify(ps).setQueryTimeout(2);
+    }
+
+    @Test
+    void budgetExhausted_throwsTimeoutAndRollsBack() throws Exception {
+        // A spent budget inside the statement list must raise a
+        // timeout (not a dialect hint) and still roll back the
+        // in-progress transaction.
+        var config = """
+                {"connection":{"db_type":"mysql","database":"appdb",
+                "username":"u","password":"p"},
+                "statements":["INSERT INTO books VALUES ('1','A')"],
+                "timeoutMs":0}"""
+                .stripIndent();
+        var node = mapper.readTree(config);
+        var vars = new VariableContext();
+        vars.put(Constant.VariableContext.DB_PORT, 23457);
+
+        var conn = mock(Connection.class);
+        when(conn.prepareStatement(any())).thenReturn(mock(PreparedStatement.class));
+
+        when(db.withConnection(any(), anyInt(), anyInt(), any())).thenAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            var action = inv.getArgument(3, ConnectionAction.class);
+            return action.apply(conn);
+        });
+
+        var ctx = new HttpStepExecutor.StepContext(
+                java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+                java.util.UUID.randomUUID(), 1, "m", node,
+                vars, null);
+        var result = exec.execute(ctx);
+
+        assertEquals(StepResultStatus.ERROR, result.getStatus());
+        assertTrue(result.getErrorMessage()
+                .contains(Constant.Message.Db.SQL_TIMEOUT_ERROR));
+        assertFalse(result.getErrorMessage()
+                .contains(Constant.Message.Db.CONNECTION_DIALECT_PREFIX));
+        verify(conn).rollback();
+        verify(conn).setAutoCommit(true);
+    }
 }
