@@ -91,8 +91,12 @@ jobs:
       # infra-failing *ApplicationTests (contextLoads); it is required
       # because api-gateway has exactly one test class, itself an
       # *ApplicationTests, so without the flag the entry selects zero
-      # classes and would fail. Widened to each service as its suite
-      # is confirmed green in CI.
+      # classes and would fail.
+      # Verified locally under JDK 21 with this same filter: course 89,
+      # result 26, submission 20 tests, api-gateway 0 classes — CI runs
+      # a service's suite only when its paths change (each green run at
+      # this head contained only Build executor-service), so the four
+      # others have no CI signal yet.
       - name: Run tests
         run: |
           cd ${{ matrix.service }}

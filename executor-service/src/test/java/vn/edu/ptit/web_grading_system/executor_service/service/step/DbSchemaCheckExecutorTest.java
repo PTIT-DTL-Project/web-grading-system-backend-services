@@ -467,11 +467,10 @@ class DbSchemaCheckExecutorTest {
         vars.put(Constant.VariableContext.DB_PORT, TestPostgresContainer.port());
         var result = realSchemaExecutor().execute(stepContext("s", config, vars));
         assertEquals(StepResultStatus.FAILED, result.getStatus());
-        // Review: 2026-09-27, Pullfrog PR #19 — assert both checks' passed
-        // flags so a short-circuit aggregation cannot satisfy this test.
-        // prove the executor evaluated BOTH checks (aggregation), not just the
-        // first failing one: the assertion list has exactly two entries, the
-        // first (type-mismatch) fails and the second (TABLE_EXISTS) passes.
+        // Review: 2026-09-27, Pullfrog PR #19 — prove the executor evaluated
+        // BOTH checks (aggregation), not just the first failing one: exactly
+        // two details, the first (type-mismatch) fails and the second
+        // (TABLE_EXISTS) passes, so short-circuiting cannot satisfy this test.
         var details = new ObjectMapper().readTree(result.getAssertionResult());
         assertEquals(2, details.size());
         assertFalse(details.get(0).path("passed").asBoolean());

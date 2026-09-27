@@ -285,10 +285,9 @@ class DbMigrationExecutorTest {
         assertEquals(StepResultStatus.ERROR, result.getStatus());
         assertTrue(result.getErrorMessage().startsWith(Constant.Message.Db.SQL_EXECUTION_ERROR));
         // DDL must be rolled back too: the table must not exist.
-        // Review: 2026-09-27, Pullfrog PR #19 — narrow to the missing-relation
-        // error so a connection failure (which also throws SQLException) cannot
-        // assert the missing-relation error specifically so a connection failure
-        // (which also throws SQLException) cannot satisfy this check.
+        // Review: 2026-09-27, Pullfrog PR #19 — narrow the assertion to the
+        // missing-relation error so a connection failure (which also throws
+        // SQLException) cannot satisfy this check.
         var ex = assertThrows(java.sql.SQLException.class, () -> {
             try (Connection c = DriverManager.getConnection(TestPostgresContainer.jdbcUrl(),
                     TestPostgresContainer.username(), TestPostgresContainer.password());
