@@ -168,10 +168,13 @@ class GradingOrchestratorTest {
                         .build();
             }
         };
-        ExecutorProperties props = new ExecutorProperties(
-                tempDir.toString(), new ExecutorProperties.Container(1000, 60000),
-                new ExecutorProperties.Reaper(30, 300000, 3),
-                new ExecutorProperties.Maven(null));
+        ExecutorProperties props = ExecutorProperties.builder()
+                .tempDir(tempDir.toString())
+                .container(new ExecutorProperties.Container(1000, 60000))
+                .reaper(new ExecutorProperties.Reaper(30, 300000, 3))
+                .maven(new ExecutorProperties.Maven(null))
+                .imageScan(new ExecutorProperties.ImageScan(true, 300000, 600000, 600000))
+                .build();
         GradingOrchestrator orchestrator = new GradingOrchestrator(jobRepo, stepRepo, logRepo,
                 course, submission, result, artifacts, ports, runner,
                 new StepRegistry(List.of(stub, dbStub)), new ObjectMapper(), props,

@@ -31,10 +31,13 @@ class ArtifactServiceTest {
     }
 
     private ArtifactService serviceWithZipAndMaven(byte[] zipBytes, String pinnedUrl) {
-        ExecutorProperties props = new ExecutorProperties(
-                tempDir.toString(), new ExecutorProperties.Container(1000, 2000),
-                new ExecutorProperties.Reaper(30, 300000, 3),
-                new ExecutorProperties.Maven(pinnedUrl));
+        ExecutorProperties props = ExecutorProperties.builder()
+                .tempDir(tempDir.toString())
+                .container(new ExecutorProperties.Container(1000, 2000))
+                .reaper(new ExecutorProperties.Reaper(30, 300000, 3))
+                .maven(new ExecutorProperties.Maven(pinnedUrl))
+                .imageScan(new ExecutorProperties.ImageScan(true, 300000, 600000, 600000))
+                .build();
         return new ArtifactService(null, null, props) {
             @Override
             protected InputStream fetchObject(String rustfsPath) {
