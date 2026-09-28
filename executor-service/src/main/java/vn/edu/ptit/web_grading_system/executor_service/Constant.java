@@ -208,6 +208,7 @@ public class Constant {
             public static final String GRADING_INFRA = "Grading infrastructure failed: ";
             public static final String FETCHING_PREFIX = "FETCHING: ";
             public static final String BUILDING_PREFIX = "BUILDING: ";
+            public static final String ENSURING_PREFIX = "Ensuring images: ";
             public static final String RUNNING_PREFIX = "RUNNING: ";
             public static final String PLAN_SUFFIX = " plan(s)";
         }
@@ -329,6 +330,7 @@ public class Constant {
         public static final String BODY_STRUCTURE_MISMATCH_PREFIX = Message.Assertion.BODY_STRUCTURE_MISMATCH_PREFIX;
         public static final String FETCHING_PREFIX = Message.Infra.FETCHING_PREFIX;
         public static final String BUILDING_PREFIX = Message.Infra.BUILDING_PREFIX;
+        public static final String ENSURING_PREFIX = Message.Infra.ENSURING_PREFIX;
         public static final String RUNNING_PREFIX = Message.Infra.RUNNING_PREFIX;
         public static final String PLAN_SUFFIX = Message.Infra.PLAN_SUFFIX;
         public static final String GRADE_RECEIVED = Message.Grade.RECEIVED;

@@ -114,7 +114,7 @@ Port: 8082
 Xử lý việc submit bài tập từ students.
 
 ### executor-service
-Thực thi code trong môi trường sandbox an toàn. Hỗ trợ 4 loại step: `HTTP_REQUEST`, `DB_QUERY`, `DB_SCHEMA_CHECK`, `DB_MIGRATION` (đa-DBMS qua dialect layer).
+Thực thi code trong môi trường sandbox an toàn. Hỗ trợ 4 loại step: `HTTP_REQUEST`, `DB_QUERY`, `DB_SCHEMA_CHECK`, `DB_MIGRATION` (đa-DBMS qua dialect layer). Đảm bảo ảnh: một `@Scheduled` scanner pre-pull ảnh, và một gate `ENSURE_IMAGES` chốt trước khi boot compose.
 
 ### api-gateway
 Port: 8080  
@@ -238,3 +238,11 @@ falls back to auto-generated text from `config` when empty. Per-plan submission:
 Hướng dẫn từng bước test TOÀN BỘ luồng bằng Postman (Classes → Students → Scores →
 Assignments → Plans & Steps → Submissions), gồm cả negative tests và kiểm tra DB:
 `src-services/docs/api/postman/FULL_FLOW_TESTING_GUIDE.md`
+
+### Thực thi test — executor-service
+```bash
+cd executor-service
+mvn test -Dtest='!*ApplicationTests' -Dsurefire.failIfNoSpecifiedTests=false
+```
+Lọc `!*ApplicationTests` bỏ qua `ExecutorServiceApplicationTests` — context Spring của nó cần `docker/kafka-ca.pem` mà file này bị `.gitignore`, nên CI chạy mà không cần CA.
+Docker-gated tests skip cleanly khi Docker không khả dụng; pure-Mockito tests (`ImageScannerTest`, `ImageEnsureTest`) và H2-slice test (`DockerImageStateRepositoryTest`) chạy mọi môi trường.
