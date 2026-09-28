@@ -9,13 +9,13 @@ import vn.edu.ptit.web_grading_system.course_service.Constant;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateDockerImageRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateDockerImageRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.DockerImageResponse;
-import vn.edu.ptit.web_grading_system.course_service.entities.AssignmentDockerImage;
-import vn.edu.ptit.web_grading_system.course_service.entities.DockerImage;
+import vn.edu.ptit.web_grading_system.course_service.entity.AssignmentDockerImage;
+import vn.edu.ptit.web_grading_system.course_service.entity.DockerImage;
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
 import vn.edu.ptit.web_grading_system.course_service.exception.ConflictException;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
-import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentDockerImageRepository;
-import vn.edu.ptit.web_grading_system.course_service.repositories.DockerImageRepository;
+import vn.edu.ptit.web_grading_system.course_service.repository.AssignmentDockerImageRepository;
+import vn.edu.ptit.web_grading_system.course_service.repository.DockerImageRepository;
 
 import java.time.OffsetDateTime;
 import java.util.List;

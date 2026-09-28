@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import vn.edu.ptit.web_grading_system.course_service.entities.StepType;
+import vn.edu.ptit.web_grading_system.course_service.entity.StepType;
 
 @Data
 @NoArgsConstructor

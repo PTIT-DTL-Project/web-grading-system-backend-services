@@ -18,6 +18,10 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 
 import vn.edu.ptit.web_grading_system.executor_service.Constant;
+import vn.edu.ptit.web_grading_system.executor_service.exception.DbConnectionException;
+import vn.edu.ptit.web_grading_system.executor_service.exception.DbStepTimeoutException;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.impl.MysqlDialect;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.impl.PostgresDialect;
 
 /**
  * Unit tests for {@link DbConnectionHelper}: dialect resolution,

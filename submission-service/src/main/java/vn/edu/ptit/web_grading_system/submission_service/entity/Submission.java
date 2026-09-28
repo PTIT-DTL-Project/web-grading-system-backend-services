@@ -1,0 +1,44 @@
+package vn.edu.ptit.web_grading_system.submission_service.entity;
+
+import jakarta.persistence.*;
+import org.hibernate.annotations.SQLRestriction;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
+import vn.edu.ptit.web_grading_system.submission_service.entity.BaseEntity;
+
+import java.util.UUID;
+
+@SQLRestriction("deleted_at IS NULL")
+@Entity
+@Table(name = "submissions")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@SuperBuilder
+public class Submission extends BaseEntity {
+
+    @Column(name = "assignment_id", nullable = false)
+    private UUID assignmentId;
+
+    @Column(name = "student_id", nullable = false)
+    private UUID studentId;
+
+    @Column(name = "plan_id")
+    private UUID planId;
+
+    @Column(name = "rustfs_path", nullable = false)
+    private String rustfsPath;
+
+    @Column(name = "zip_file_name")
+    private String zipFileName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private SubmissionStatus status = SubmissionStatus.PENDING;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean latest = true;
+}

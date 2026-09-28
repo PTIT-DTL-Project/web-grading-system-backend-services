@@ -9,7 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import vn.edu.ptit.web_grading_system.course_service.entities.GradingStrategy;
+import vn.edu.ptit.web_grading_system.course_service.entity.GradingStrategy;
 
 import java.util.UUID;
 

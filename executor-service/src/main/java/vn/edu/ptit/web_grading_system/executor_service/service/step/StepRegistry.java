@@ -20,7 +20,15 @@ public class StepRegistry
     public StepRegistry(List<StepExecutor> executors)
     {
         this.executors = executors.stream()
-                .collect(Collectors.toUnmodifiableMap(StepExecutor::type, Function.identity()));
+                .collect(Collectors.toUnmodifiableMap(StepExecutor::type, Function.identity(),
+                        (a, b) -> {
+                            throw new IllegalStateException(
+                                    "Duplicate step type '" + a.type()
+                                    + "' registered by "
+                                    + a.getClass().getName() + " and "
+                                    + b.getClass().getName()
+                                    + " — each step type must be unique");
+                        }));
     }
 
     public StepExecutor of(String type)

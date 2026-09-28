@@ -4,11 +4,11 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import vn.edu.ptit.web_grading_system.submission_service.config.SubmissionProperties;
-import vn.edu.ptit.web_grading_system.submission_service.entities.Submission;
-import vn.edu.ptit.web_grading_system.submission_service.entities.SubmissionStatus;
+import vn.edu.ptit.web_grading_system.submission_service.entity.Submission;
+import vn.edu.ptit.web_grading_system.submission_service.entity.SubmissionStatus;
 import vn.edu.ptit.web_grading_system.submission_service.event.WgsEventsProducer;
 import vn.edu.ptit.web_grading_system.submission_service.mapper.SubmissionMapper;
-import vn.edu.ptit.web_grading_system.submission_service.repositories.SubmissionRepository;
+import vn.edu.ptit.web_grading_system.submission_service.repository.SubmissionRepository;
 
 import java.util.Optional;
 import java.util.UUID;

@@ -6,10 +6,10 @@ import org.springframework.core.task.TaskRejectedException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.executor_service.dto.request.ResetGradingJobRequest;
-import vn.edu.ptit.web_grading_system.executor_service.entities.GradingJob;
-import vn.edu.ptit.web_grading_system.executor_service.repositories.GradingJobRepository;
-import vn.edu.ptit.web_grading_system.executor_service.service.GradingOrchestrator;
-import vn.edu.ptit.web_grading_system.executor_service.service.ResetGradingJobService;
+import vn.edu.ptit.web_grading_system.executor_service.entity.GradingJob;
+import vn.edu.ptit.web_grading_system.executor_service.repository.GradingJobRepository;
+import vn.edu.ptit.web_grading_system.executor_service.service.grading.GradingOrchestrator;
+import vn.edu.ptit.web_grading_system.executor_service.service.grading.ResetGradingJobService;
 
 import java.util.Map;
 import java.util.UUID;

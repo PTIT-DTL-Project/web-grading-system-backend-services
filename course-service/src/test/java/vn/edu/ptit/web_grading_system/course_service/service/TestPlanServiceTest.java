@@ -9,15 +9,15 @@ import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateStepReque
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdatePlanRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateStepRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
-import vn.edu.ptit.web_grading_system.course_service.entities.Assignment;
-import vn.edu.ptit.web_grading_system.course_service.entities.GradingStrategy;
-import vn.edu.ptit.web_grading_system.course_service.entities.StepType;
-import vn.edu.ptit.web_grading_system.course_service.entities.TestPlan;
+import vn.edu.ptit.web_grading_system.course_service.entity.Assignment;
+import vn.edu.ptit.web_grading_system.course_service.entity.GradingStrategy;
+import vn.edu.ptit.web_grading_system.course_service.entity.StepType;
+import vn.edu.ptit.web_grading_system.course_service.entity.TestPlan;
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
-import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentRepository;
-import vn.edu.ptit.web_grading_system.course_service.repositories.TestPlanRepository;
-import vn.edu.ptit.web_grading_system.course_service.repositories.TestStepRepository;
+import vn.edu.ptit.web_grading_system.course_service.repository.AssignmentRepository;
+import vn.edu.ptit.web_grading_system.course_service.repository.TestPlanRepository;
+import vn.edu.ptit.web_grading_system.course_service.repository.TestStepRepository;
 
 import java.util.List;
 import java.util.Optional;
@@ -152,7 +152,7 @@ class TestPlanServiceTest {
         stubOwnedAssignment();
         Mockito.when(planRepo.findByIdAndAssignmentId(PLAN_ID, ASSIGNMENT_ID)).thenReturn(Optional.of(plan(1)));
         Mockito.when(stepRepo.findByIdAndPlanId(Mockito.any(), Mockito.eq(PLAN_ID)))
-                .thenReturn(Optional.of(vn.edu.ptit.web_grading_system.course_service.entities.TestStep.builder()
+                .thenReturn(Optional.of(vn.edu.ptit.web_grading_system.course_service.entity.TestStep.builder()
                         .planId(PLAN_ID).stepOrder(1).name("s")
                         .stepType(StepType.HTTP_REQUEST)
                         .config("{\"method\":\"GET\",\"path\":\"/x\"}")
@@ -213,7 +213,7 @@ class TestPlanServiceTest {
         stubOwnedAssignment();
         Mockito.when(planRepo.findByIdAndAssignmentId(PLAN_ID, ASSIGNMENT_ID)).thenReturn(Optional.of(plan(1)));
         Mockito.when(stepRepo.findByIdAndPlanId(Mockito.any(), Mockito.eq(PLAN_ID)))
-                .thenReturn(Optional.of(vn.edu.ptit.web_grading_system.course_service.entities.TestStep.builder()
+                .thenReturn(Optional.of(vn.edu.ptit.web_grading_system.course_service.entity.TestStep.builder()
                         .planId(PLAN_ID).stepOrder(1).name("s").description("old note")
                         .stepType(StepType.HTTP_REQUEST)
                         .config("{\"method\":\"GET\",\"path\":\"/x\"}")

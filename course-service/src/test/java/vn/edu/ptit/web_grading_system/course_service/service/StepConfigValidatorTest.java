@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import vn.edu.ptit.web_grading_system.course_service.entities.StepType;
+import vn.edu.ptit.web_grading_system.course_service.entity.StepType;
 
 import java.util.stream.Stream;
 

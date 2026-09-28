@@ -4,11 +4,11 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.core.task.TaskRejectedException;
 import vn.edu.ptit.web_grading_system.executor_service.dto.request.ResetGradingJobRequest;
-import vn.edu.ptit.web_grading_system.executor_service.entities.GradingJob;
-import vn.edu.ptit.web_grading_system.executor_service.entities.GradingJobStatus;
-import vn.edu.ptit.web_grading_system.executor_service.repositories.GradingJobRepository;
-import vn.edu.ptit.web_grading_system.executor_service.service.GradingOrchestrator;
-import vn.edu.ptit.web_grading_system.executor_service.service.ResetGradingJobService;
+import vn.edu.ptit.web_grading_system.executor_service.entity.GradingJob;
+import vn.edu.ptit.web_grading_system.executor_service.entity.GradingJobStatus;
+import vn.edu.ptit.web_grading_system.executor_service.repository.GradingJobRepository;
+import vn.edu.ptit.web_grading_system.executor_service.service.grading.GradingOrchestrator;
+import vn.edu.ptit.web_grading_system.executor_service.service.grading.ResetGradingJobService;
 
 import java.util.Optional;
 import java.util.UUID;

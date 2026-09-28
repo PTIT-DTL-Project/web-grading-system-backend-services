@@ -3,7 +3,7 @@ package vn.edu.ptit.web_grading_system.course_service.service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.springframework.util.StringUtils;
-import vn.edu.ptit.web_grading_system.course_service.entities.StepType;
+import vn.edu.ptit.web_grading_system.course_service.entity.StepType;
 
 import java.util.ArrayList;
 import java.util.List;

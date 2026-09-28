@@ -17,14 +17,14 @@ import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdatePlanReque
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateStepRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.StepResponse;
-import vn.edu.ptit.web_grading_system.course_service.entities.Assignment;
-import vn.edu.ptit.web_grading_system.course_service.entities.TestPlan;
-import vn.edu.ptit.web_grading_system.course_service.entities.TestStep;
+import vn.edu.ptit.web_grading_system.course_service.entity.Assignment;
+import vn.edu.ptit.web_grading_system.course_service.entity.TestPlan;
+import vn.edu.ptit.web_grading_system.course_service.entity.TestStep;
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
-import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentRepository;
-import vn.edu.ptit.web_grading_system.course_service.repositories.TestPlanRepository;
-import vn.edu.ptit.web_grading_system.course_service.repositories.TestStepRepository;
+import vn.edu.ptit.web_grading_system.course_service.repository.AssignmentRepository;
+import vn.edu.ptit.web_grading_system.course_service.repository.TestPlanRepository;
+import vn.edu.ptit.web_grading_system.course_service.repository.TestStepRepository;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;

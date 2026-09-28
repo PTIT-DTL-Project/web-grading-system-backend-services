@@ -17,7 +17,7 @@ import java.util.Map;
 
 import com.google.gson.Gson;
 
-import vn.edu.ptit.web_grading_system.submission_service.repositories.HttpLogRepository;
+import vn.edu.ptit.web_grading_system.submission_service.repository.HttpLogRepository;
 
 class HttpLogServiceTest {
 

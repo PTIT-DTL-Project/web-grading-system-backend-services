@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.impl.MysqlDialect;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.impl.PostgresDialect;
 
 class DbDialectRegistryTest {
 
@@ -63,6 +65,21 @@ class DbDialectRegistryTest {
         assertEquals(5432, registry.resolve("postgres").defaultPort());
         assertEquals(3306, registry.resolve("mysql").defaultPort());
         assertEquals(3306, registry.resolve("mariadb").defaultPort());
+    }
+
+    @Test
+    void duplicateKey_throwsFast() {
+        // wiring guard: two @Component dialects must not claim the same key.
+        // PostgresDialect has a single-element key set (Set.of("postgres")), so the
+        // reported key is structurally deterministic. Two MysqlDialect would flake:
+        // Set.of("mysql","mariadb") iteration order is fixed for the life of the JVM
+        // (ImmutableCollections.SALT), so a launch that puts "mariadb" first makes
+        // contains("mysql") false — the run fails outright rather than flaking per call.
+        // Review: 2026-09-28, Pullfrog PR #23
+        var e = assertThrows(IllegalStateException.class,
+                () -> new DbDialectRegistry(List.of(new PostgresDialect(), new PostgresDialect())));
+        assertTrue(e.getMessage().contains("postgres"));
+        assertTrue(e.getMessage().contains("PostgresDialect"));
     }
 
     @Test

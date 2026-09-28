@@ -19,8 +19,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import jakarta.servlet.FilterChain;
-import vn.edu.ptit.web_grading_system.course_service.entities.HttpLog;
-import vn.edu.ptit.web_grading_system.course_service.entities.HttpLogDirection;
+import vn.edu.ptit.web_grading_system.course_service.entity.HttpLog;
+import vn.edu.ptit.web_grading_system.course_service.entity.HttpLogDirection;
 import vn.edu.ptit.web_grading_system.course_service.service.HttpLogService;
 
 class HttpLoggingFilterTest {

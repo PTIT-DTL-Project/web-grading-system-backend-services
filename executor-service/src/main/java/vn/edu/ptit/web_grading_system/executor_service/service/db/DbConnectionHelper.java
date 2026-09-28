@@ -11,6 +11,8 @@ import java.sql.SQLException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.ptit.web_grading_system.executor_service.Constant;
+import vn.edu.ptit.web_grading_system.executor_service.exception.DbConnectionException;
+import vn.edu.ptit.web_grading_system.executor_service.exception.DbStepTimeoutException;
 
 /**
  * Opens a JDBC connection for a DB step and runs a callback over it.
