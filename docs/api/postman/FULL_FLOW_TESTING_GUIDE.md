@@ -18,7 +18,7 @@ Create a Postman Environment (`⚙ Environments → Create`) with:
 | `baseUrl` | `http://localhost:18081` | service port when booted locally; use gateway host if testing through it |
 | `ownerLecturer1` | any UUID, e.g. `2d93941a-4221-458b-a03d-43bd6315d02e` | main lecturer identity |
 | `ownerLecturer2` | any other UUID | used to prove 404 ownership isolation |
-| `studentUser1`  | any UUID, e.g. `2d93941a-4221-458b-a03d-43bd6315d02e` | student identity (matches CSV import `student_user_id`) |
+| `fake_student_id`  | any UUID, e.g. `2d93941a-4221-458b-a03d-43bd6315d02e` | student identity (matches CSV import `student_user_id`) |
 | `classId`, `assignmentId`, `planId`, `stepId`, `studentCode`, `submissionId` | empty | captured during the flow |
 
 **Auto-capture ids** — in each create-request's *Tests* tab add:
@@ -30,9 +30,9 @@ if (j.data && j.data.id) pm.environment.set("classId", j.data.id);
 
 (adjust the variable + json path per request).
 
-**Identity rule:** use `{{ownerLecturer1}}` in `X-User-Id` for the whole happy flow.
+**Identity rule:** use `{{ownerLecturer1}}` in `X-User-Id` for the lecturer steps (§1–§4); §5 student steps use `{{fake_student_id}}`.
 A different UUID on a later request = ownership miss → indistinguishable `404`.
-Missing header defaults to `anonymous` which is not a UUID → `400`.
+Most identity endpoints default a missing header to `anonymous` → `400 invalid UUID`. The two submission endpoints have no default → `Missing required header: X-User-Id`.
 
 ---
 
@@ -267,7 +267,7 @@ Other lecturer accessing your plans → 404.
 
 ## 5. Student submissions
 
-⚠️ Identity: `X-User-Id` is **required** on this endpoint (`400` when absent). The server no longer stubs a student id — the header value stamps `submissions.student_id` and gates ownership at result read.
+⚠️ Identity: `X-User-Id` is **required** on this endpoint (`400` when absent). The server no longer stubs a student id — the header value stamps `submissions.student_id` and gates ownership at result read. **No component in this checkout sets this header** (no gateway filter, no Helm value, no WebFilter) — it is currently self-asserted by whoever reaches the API; the designed gateway injection (`system-design-v1.0.md:99`) is not yet implemented.
 Grading is webhook-triggered: after the PUT, RustFS fires `ObjectCreated:Put` →
 submission-service publishes `GRADE_SUBMISSION` → executor grades (`FETCHING →
 BUILDING → RUNNING → DONE/FAILED`). There is no confirm endpoint.
@@ -276,7 +276,7 @@ BUILDING → RUNNING → DONE/FAILED`). There is no confirm endpoint.
 
 ```
 POST {{baseUrl}}/api/v1/submissions/presigned-url?assignmentId={{assignmentId}}&zipFileName=lab01.zip
-X-User-Id: {{studentUser1}}
+X-User-Id: {{fake_student_id}}
 ```
 
 Expected `201`: `uploadUrl` + `submissionId` (**save both**).
@@ -292,9 +292,9 @@ The upload itself triggers grading via the RustFS webhook — no further call ne
 
 ```
 GET {{baseUrl}}/api/v1/submissions                      (mine) ← needs X-User-Id
-X-User-Id: {{studentUser1}}
-GET {{baseUrl}}/api/v1/submissions/{{submissionId}}      ← needs X-User-Id (ownership)
-X-User-Id: {{studentUser1}}
+X-User-Id: {{fake_student_id}}
+GET {{baseUrl}}/api/v1/submissions/{{submissionId}}      (no ownership check today — any caller can read by id)
+X-User-Id: {{fake_student_id}}
 GET {{baseUrl}}/api/v1/submissions/assignment/{{assignmentId}}
 ```
 
@@ -327,7 +327,7 @@ psql "postgresql://neondb_owner:npg_Vmfuxhe1WPO5@ep-frosty-hill-ayd5wchg-pooler.
 | broken JSON body | 400 `Malformed request body` |
 | wrong Content-Type on JSON POST | 415 `Unsupported Content-Type` |
 | missing required query param | 400 `Missing required parameter: <name>` |
-| missing X-User-Id (defaults anonymous) | 400 invalid UUID |
+| missing `X-User-Id` | 400 | defaults anonymous → `invalid UUID`; submission endpoints → `Missing required header: X-User-Id` |
 | other lecturer's resource | 404 (no information leak) |
 | duplicate unique field | 400 with descriptive message |
 | oversized CSV upload | 413 `Uploaded file is too large` |
