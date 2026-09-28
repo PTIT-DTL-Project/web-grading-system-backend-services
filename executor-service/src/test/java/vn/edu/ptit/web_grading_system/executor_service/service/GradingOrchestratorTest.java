@@ -71,6 +71,11 @@ class GradingOrchestratorTest {
     }
 
     private Fixture fixture(StepResultStatus stubStatus, List<InternalPlanDto> plans) throws Exception {
+        return fixture(stubStatus, plans, new ExecutorProperties.ImageScan(true, 300000, 600000, 600000));
+    }
+
+    private Fixture fixture(StepResultStatus stubStatus, List<InternalPlanDto> plans,
+                            ExecutorProperties.ImageScan imageScan) throws Exception {
         UUID jobId = UUID.randomUUID();
         UUID submissionId = UUID.randomUUID();
         GradingJob job = GradingJob.builder()
@@ -179,7 +184,7 @@ class GradingOrchestratorTest {
                 .container(new ExecutorProperties.Container(1000, 60000))
                 .reaper(new ExecutorProperties.Reaper(30, 300000, 3))
                 .maven(new ExecutorProperties.Maven(null))
-                .imageScan(new ExecutorProperties.ImageScan(true, 300000, 600000, 600000))
+                .imageScan(imageScan)
                 .build();
         GradingOrchestrator orchestrator = new GradingOrchestrator(jobRepo, stepRepo, logRepo,
                 course, submission, result, artifacts, ports, runner,
@@ -1004,6 +1009,79 @@ class GradingOrchestratorTest {
                 "submissions/x.zip", "t-image-present");
 
         assertEquals(GradingJobStatus.DONE, job.getStatus());
+        Mockito.verify(f.gateway(), Mockito.never())
+                .pull(Mockito.any(), Mockito.any());
+    }
+
+    // ─── Pullfrog PR #22: pin the two gate-skip branches ───
+
+    @Test
+    void imageScanDisabled_gateSkipped() {
+        // Review: 2026-09-28, Pullfrog PR #22
+        // Every existing test leaves dockerImageUrls null, so only
+        // the null guard is exercised here -- the enabled() branch
+        // is unpinned and would silently pass if reversed. Pin it
+        // explicitly with a non-empty image list: the gate must be
+        // entirely skipped.
+        InternalPlanDto one = plan(0, List.of(step(null, 0, false)));
+        Fixture f;
+        try {
+            f = fixture(StepResultStatus.PASSED, List.of(one),
+                    new ExecutorProperties.ImageScan(false, 300000,
+                            600000, 600000));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        GradingJob job = f.job();
+        AssignmentGradingConfigDto cfg = AssignmentGradingConfigDto.builder()
+                .gradingStrategy("STUDENT_DOCKER_COMPOSE")
+                .dockerComposePort(8080).startupTimeoutMs(1000)
+                .executionTimeoutMs(60000).maxCpu(0.5).maxMemoryMb(256)
+                .dockerImageUrls(List.of(IMAGE_URL))
+                .build();
+        Mockito.when(f.course().gradingConfig(Mockito.any()))
+                .thenReturn(cfg);
+
+        f.orchestrator().grade(job.getId(), job.getSubmissionId(),
+                job.getAssignmentId(), job.getStudentId(), null,
+                "submissions/x.zip", "t-image-scan-disabled");
+
+        assertEquals(GradingJobStatus.DONE, job.getStatus());
+        Mockito.verify(f.gateway(), Mockito.never())
+                .present(Mockito.any());
+        Mockito.verify(f.gateway(), Mockito.never())
+                .pull(Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    void noDeclaredImages_gateSkipped() {
+        // Review: 2026-09-28, Pullfrog PR #22
+        // Pin the null/empty dockerImageUrls guard: even with
+        // imageScan.enabled=true the gateway must never be touched.
+        InternalPlanDto one = plan(0, List.of(step(null, 0, false)));
+        Fixture f;
+        try {
+            f = fixture(StepResultStatus.PASSED, List.of(one));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        GradingJob job = f.job();
+        AssignmentGradingConfigDto cfg = AssignmentGradingConfigDto.builder()
+                .gradingStrategy("STUDENT_DOCKER_COMPOSE")
+                .dockerComposePort(8080).startupTimeoutMs(1000)
+                .executionTimeoutMs(60000).maxCpu(0.5).maxMemoryMb(256)
+                .dockerImageUrls(null)
+                .build();
+        Mockito.when(f.course().gradingConfig(Mockito.any()))
+                .thenReturn(cfg);
+
+        f.orchestrator().grade(job.getId(), job.getSubmissionId(),
+                job.getAssignmentId(), job.getStudentId(), null,
+                "submissions/x.zip", "t-no-images");
+
+        assertEquals(GradingJobStatus.DONE, job.getStatus());
+        Mockito.verify(f.gateway(), Mockito.never())
+                .present(Mockito.any());
         Mockito.verify(f.gateway(), Mockito.never())
                 .pull(Mockito.any(), Mockito.any());
     }
