@@ -290,9 +290,10 @@ public class GradingOrchestrator
      * of the first one; a later step targeting a different service/engine
      * is logged and ignored.
      *
-     * <p>Named seam: the future lecturer image-registration feature adds its
-     * {@code scanImageRequirements(...)} beside this method — same pre-boot
-     * phase, independent concern (Axis 2: image presence vs Axis 1: dialect).
+     * <p>Named seam: {@code ensureImages(List<String>, long)} sits in
+     * {@code grade()} on the same pre-boot phase — Axis 2 (image
+     * presence, grading-time ENSURE_IMAGES) vs Axis 1 (dialect).
+     * Built 2026-09-28.
      *
      * <p>{@code connection.db_port} is the <em>container-internal</em> port;
      * the allocated <em>host</em> port is injected as {@code ${db_port}} into
