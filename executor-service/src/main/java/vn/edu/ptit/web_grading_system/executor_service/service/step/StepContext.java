@@ -8,9 +8,10 @@ import vn.edu.ptit.web_grading_system.executor_service.service.scoring.VariableC
 /**
  * Parameters carried by every step executor.
  *
- * <p>This is a plain class (not a record) so that the shape can
- * evolve without changing the canonical constructor signature each
- * time a field is added.
+ * <p>Deliberately a plain class with explicit getters rather than a
+ * record: records would supply identity-based {@code equals},
+ * {@code hashCode} and {@code toString} that no consumer here uses,
+ * and construction is a single 8-arg constructor either way.
  */
 public class StepContext {
 

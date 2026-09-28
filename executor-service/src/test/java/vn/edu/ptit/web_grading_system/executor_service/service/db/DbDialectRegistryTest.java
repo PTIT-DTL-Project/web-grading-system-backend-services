@@ -71,9 +71,10 @@ class DbDialectRegistryTest {
     void duplicateKey_throwsFast() {
         // wiring guard: two @Component dialects must not claim the same key.
         // PostgresDialect has a single-element key set (Set.of("postgres")), so the
-        // reported key is structurally deterministic — two MysqlDialect would flake
-        // ~25% of the time since Set.of randomizes iteration order and "mariadb"
-        // would produce a message containing no lowercase "mysql".
+        // reported key is structurally deterministic. Two MysqlDialect would flake:
+        // Set.of("mysql","mariadb") iteration order is fixed for the life of the JVM
+        // (ImmutableCollections.SALT), so a launch that puts "mariadb" first makes
+        // contains("mysql") false — the run fails outright rather than flaking per call.
         // Review: 2026-09-28, Pullfrog PR #23
         var e = assertThrows(IllegalStateException.class,
                 () -> new DbDialectRegistry(List.of(new PostgresDialect(), new PostgresDialect())));

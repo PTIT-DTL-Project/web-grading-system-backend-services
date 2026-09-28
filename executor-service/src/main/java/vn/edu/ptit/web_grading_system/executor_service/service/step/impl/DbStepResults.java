@@ -78,7 +78,6 @@ final class DbStepResults {
      * (dialect hint or {@code SQL_TIMEOUT_ERROR}); every other
      * exception is a genuine statement error and is prefixed.
      */
-    // public: same reason as buildResult — called from service.step.impl.
     static String message(SQLException e) {
         return (e instanceof DbConnectionException
                 || e instanceof DbStepTimeoutException)
