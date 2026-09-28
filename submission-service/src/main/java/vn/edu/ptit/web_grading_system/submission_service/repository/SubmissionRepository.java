@@ -29,7 +29,7 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
     // (submission-service/V1__2026-08-16__init_schema.sql:18), so a concurrent
     // double-submit can leave 2+ rows with latest=true. A single-entity return type would
     // throw NonUniqueResultException (500) for that pair; a list lets requestUpload demote
-    // every stale row and self-heal the data instead. Review: 2026-09-28.
+    // every stale row and self-heal the data instead. Review: 2026-09-28, Pullfrog PR #24.
     @Query("SELECT s FROM Submission s WHERE s.assignmentId = :assignmentId AND s.studentId = :studentId AND s.latest = true")
     List<Submission> findAllLatestByAssignmentAndStudent(
             @Param("assignmentId") UUID assignmentId,

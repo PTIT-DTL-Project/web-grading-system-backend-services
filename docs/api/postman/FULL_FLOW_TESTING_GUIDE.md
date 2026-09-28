@@ -267,7 +267,7 @@ Other lecturer accessing your plans → 404.
 
 ## 5. Student submissions
 
-⚠️ Identity: `X-User-Id` is **required** on this endpoint (`400` when absent). The server no longer stubs a student id — the header value stamps `submissions.student_id` and gates ownership at result read. **No component in this checkout sets this header** (no gateway filter, no Helm value, no WebFilter) — it is currently self-asserted by whoever reaches the API; the designed gateway injection (`system-design-v1.0.md:99`) is not yet implemented.
+⚠️ Identity: `X-User-Id` is **required** on this endpoint (`400` when absent). The server no longer stubs a student id — the header value stamps `submissions.student_id` and gates ownership at result read. **No component in this checkout sets this header** (no gateway filter, no Helm value, no WebFilter) — it is currently self-asserted by whoever reaches the API; the designed gateway injection (`docs/design/system-design-v1.0.md:99`) is not yet implemented.
 Grading is webhook-triggered: after the PUT, RustFS fires `ObjectCreated:Put` →
 submission-service publishes `GRADE_SUBMISSION` → executor grades (`FETCHING →
 BUILDING → RUNNING → DONE/FAILED`). There is no confirm endpoint.
@@ -327,7 +327,7 @@ psql "postgresql://neondb_owner:npg_Vmfuxhe1WPO5@ep-frosty-hill-ayd5wchg-pooler.
 | broken JSON body | 400 `Malformed request body` |
 | wrong Content-Type on JSON POST | 415 `Unsupported Content-Type` |
 | missing required query param | 400 `Missing required parameter: <name>` |
-| missing `X-User-Id` | 400 | defaults anonymous → `invalid UUID`; submission endpoints → `Missing required header: X-User-Id` |
+| missing `X-User-Id` | 400 — anonymous default → `invalid UUID`; submission endpoints → `Missing required header: X-User-Id`; non-canonical UUID → `X-User-Id must be a canonical UUID` |
 | other lecturer's resource | 404 (no information leak) |
 | duplicate unique field | 400 with descriptive message |
 | oversized CSV upload | 413 `Uploaded file is too large` |

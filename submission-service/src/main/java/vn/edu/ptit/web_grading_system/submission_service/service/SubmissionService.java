@@ -44,7 +44,7 @@ public class SubmissionService {
         // duplicate latest=true rows, this submit collapses them all (self-healing)
         // instead of preserving the inconsistency. Runs in this method's existing
         // @Transactional — flips + new insert commit atomically, same dirty-checking
-        // flush as before. Review: 2026-09-28.
+        // flush as before. Review: 2026-09-28, Pullfrog PR #24.
         submissionRepository.findAllLatestByAssignmentAndStudent(assignmentId, studentId)
                 .forEach(previous -> previous.setLatest(false));
 

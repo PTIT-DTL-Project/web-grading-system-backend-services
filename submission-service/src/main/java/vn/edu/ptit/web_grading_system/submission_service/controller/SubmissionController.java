@@ -31,7 +31,7 @@ public class SubmissionController {
             @RequestParam UUID assignmentId,
             @RequestParam String zipFileName,
             @RequestParam(required = false) UUID planId,
-            // Review: 2026-09-28 — identity used to be a per-call UUID.randomUUID(), so no
+            // Review: 2026-09-28, Pullfrog PR #24 — identity used to be a per-call UUID.randomUUID(), so no
             // result could ever be attributed to the submitting student: result-service
             // ownership check 403'd, weighted exercise score (keyed by
             // class_students.student_user_id) was always null, and "my submissions" was
@@ -43,7 +43,7 @@ public class SubmissionController {
             // (UUID.fromString is lenient) so a phantom student is never stamped.
             @RequestHeader("X-User-Id") String studentIdHeader) {
         UUID studentId = UUID.fromString(studentIdHeader);
-        // Review: 2026-09-28 — UUID.fromString accepts shorthand groups ("1-1-1-1-1",
+        // Review: 2026-09-28, Pullfrog PR #24 — UUID.fromString accepts shorthand groups ("1-1-1-1-1",
         // short last group), which parse to a real-looking UUID that would stamp a
         // phantom student_id. Accept only the canonical form the client produced.
         if (!studentId.toString().equalsIgnoreCase(studentIdHeader)) {

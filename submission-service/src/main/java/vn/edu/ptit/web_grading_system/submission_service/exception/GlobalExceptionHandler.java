@@ -104,7 +104,7 @@ public class GlobalExceptionHandler {
     // Required-header failures previously fell into the @ExceptionHandler(Exception.class)
     // catch-all → 500. 400 here also covers GET /api/v1/submissions without a header and
     // makes API-TEST-GUIDE's negative matrix ("missing X-User-Id → 400") true for this
-    // service. Review: 2026-09-28.
+    // service. Review: 2026-09-28, Pullfrog PR #24.
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<ApiResponse<Void>> handleMissingHeader(MissingRequestHeaderException e) {
         return build(HttpStatus.BAD_REQUEST, "Missing required header: " + e.getHeaderName(), null);
