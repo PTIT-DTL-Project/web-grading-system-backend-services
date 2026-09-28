@@ -12,7 +12,13 @@
           "name": "Get presigned url for a document",
           "request": {
             "method": "POST",
-            "header": [],
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{fake_student_id}}",
+                "type": "default"
+              }
+            ],
             "url": {
               "raw": "{{submission-service}}/api/v1/submissions/presigned-url?assignmentId=769cbcb8-fffa-4b54-a54b-01c796e26ddc&zipFileName=kpdll.zip&planId=",
               "host": [
@@ -57,7 +63,14 @@
                 "v1",
                 "submissions"
               ]
-            }
+            },
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{fake_student_id}}",
+                "type": "default"
+              }
+            ]
           },
           "response": []
         },
@@ -4596,22 +4609,28 @@
               ]
             }
           ]
+        },
+        {
+          "name": "list active docker images (internal)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{course-service}}/api/v1/internal/docker-images",
+              "host": [
+                "{{course-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "internal",
+                "docker-images"
+              ]
+            },
+            "description": "Internal contract for the executor async pre-pull scanner (UC-13). Returns the active image URLs as a bare list (no envelope) — never exposed via the gateway. Real response requires booting course-service locally."
+          },
+          "response": []
         }
-,
-            {
-              "name": "list active docker images (internal)",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{course-service}}/api/v1/internal/docker-images",
-                  "host": ["{{course-service}}"],
-                  "path": ["api", "v1", "internal", "docker-images"]
-                },
-                "description": "Internal contract for the executor async pre-pull scanner (UC-13). Returns the active image URLs as a bare list (no envelope) — never exposed via the gateway. Real response requires booting course-service locally."
-              },
-              "response": []
-            }
       ]
     },
     {
@@ -4706,7 +4725,13 @@
           "name": "get results by submission (poll score)",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{fake_student_id}}",
+                "type": "default"
+              }
+            ],
             "url": {
               "raw": "{{result-service}}/api/v1/results/{{submissionId}}",
               "host": [

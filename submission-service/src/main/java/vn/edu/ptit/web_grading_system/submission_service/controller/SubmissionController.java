@@ -30,12 +30,28 @@ public class SubmissionController {
     public ResponseEntity<PresignedUrlResponse> requestUpload(
             @RequestParam UUID assignmentId,
             @RequestParam String zipFileName,
-            @RequestParam(required = false) UUID planId) {
-        UUID studentUUID = UUID.randomUUID();
-        String studentId = String.valueOf(studentUUID);
+            @RequestParam(required = false) UUID planId,
+            // Review: 2026-09-28, Pullfrog PR #24 — identity used to be a per-call UUID.randomUUID(), so no
+            // result could ever be attributed to the submitting student: result-service
+            // ownership check 403'd, weighted exercise score (keyed by
+            // class_students.student_user_id) was always null, and "my submissions" was
+            // always empty. X-User-Id is now REQUIRED, like the sibling listMySubmissions:
+            // fail fast with 400 instead of silently storing an unattributable student_id.
+            // Missing → MissingRequestHeaderException → 400 (new handler; the catch-all
+            // previously turned it into 500). Blank/garbage → 400 via the existing
+            // IllegalArgumentException handler. Shorthand like "1-1-1-1-1" is rejected
+            // (UUID.fromString is lenient) so a phantom student is never stamped.
+            @RequestHeader("X-User-Id") String studentIdHeader) {
+        UUID studentId = UUID.fromString(studentIdHeader);
+        // Review: 2026-09-28, Pullfrog PR #24 — UUID.fromString accepts shorthand groups ("1-1-1-1-1",
+        // short last group), which parse to a real-looking UUID that would stamp a
+        // phantom student_id. Accept only the canonical form the client produced.
+        if (!studentId.toString().equalsIgnoreCase(studentIdHeader)) {
+            throw new IllegalArgumentException("X-User-Id must be a canonical UUID");
+        }
         PresignedUrlResponse response = submissionService.requestUpload(
                 assignmentId,
-                UUID.fromString(studentId),
+                studentId,
                 zipFileName,
                 planId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
