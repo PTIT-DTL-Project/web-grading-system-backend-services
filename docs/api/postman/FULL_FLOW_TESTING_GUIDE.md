@@ -267,7 +267,7 @@ Other lecturer accessing your plans → 404.
 
 ## 5. Student submissions
 
-⚠️ Identity: `X-User-Id` is **required** on this endpoint (`400` when absent). The server no longer stubs a student id — the header value stamps `submissions.student_id` and gates ownership at result read. **No component in this checkout sets this header** (no gateway filter, no Helm value, no WebFilter) — it is currently self-asserted by whoever reaches the API; the designed gateway injection (`docs/design/system-design-v1.0.md:99`) is not yet implemented.
+⚠️ Identity: `X-User-Id` is **required** on this endpoint (`400` when absent). The server no longer stubs a student id — the header value stamps `submissions.student_id` and gates ownership at result read. **No component in this checkout sets this header** (no gateway filter, no Helm value, no WebFilter) — it is currently self-asserted by whoever reaches the API; the designed gateway injection (planned in `system-design-v1.0.md` §3.1 `api-gateway`, in the `web-grading-system-deploy` repo — design docs live outside this repo) is not yet implemented.
 Grading is webhook-triggered: after the PUT, RustFS fires `ObjectCreated:Put` →
 submission-service publishes `GRADE_SUBMISSION` → executor grades (`FETCHING →
 BUILDING → RUNNING → DONE/FAILED`). There is no confirm endpoint.
