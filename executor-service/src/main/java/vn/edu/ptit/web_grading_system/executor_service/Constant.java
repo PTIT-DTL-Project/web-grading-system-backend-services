@@ -345,4 +345,14 @@ public class Constant {
     private Constant()
     {
     }
+
+    public static final class ImageScan {
+        public static final String POD_ID_FALLBACK = "unknown-pod";
+        public static final String ENV_POD_ID = "HOSTNAME";
+        public static final String FETCH_FAILED = "Image fetch failed: ";
+        public static final String PULL_FAILED_PREFIX = "Image pull failed: ";
+        public static final String CYCLE_SUMMARY =
+                "Image scan cycle: present=%d pulled=%d failed=%d pruned=%d pod=%s";
+        private ImageScan() {}
+    }
 }

@@ -1,9 +1,12 @@
 package vn.edu.ptit.web_grading_system.executor_service.config;
 
+import lombok.Builder;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "executor")
-public record ExecutorProperties(String tempDir, Container container, Reaper reaper, Maven maven) {
+@Builder
+public record ExecutorProperties(String tempDir, Container container, Reaper reaper, Maven maven,
+        ImageScan imageScan) {
 
     public record Container(long startupTimeoutMs, long maxExecutionTimeMs) {
     }
@@ -23,5 +26,16 @@ public record ExecutorProperties(String tempDir, Container container, Reaper rea
      * reproducible, never resolve "latest" at runtime.
      */
     public record Maven(String pinnedDistributionUrl) {
+    }
+
+    /**
+     * Axis-2 pre-pull scanner: warms this pod's DinD store with every
+     * active library image. The prune horizon (6 x intervalMs) must
+     * exceed failBackoffMs, or a row that is backing off gets pruned
+     * early (harmless: it only costs one early retry).
+     */
+    @Builder
+    public record ImageScan(boolean enabled, long intervalMs,
+            long pullTimeoutMs, long failBackoffMs) {
     }
 }
