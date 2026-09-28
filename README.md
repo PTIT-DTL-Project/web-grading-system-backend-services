@@ -243,6 +243,6 @@ Assignments → Plans & Steps → Submissions), gồm cả negative tests và ki
 ```bash
 cd executor-service
 mvn test -Dtest='!*ApplicationTests' -Dsurefire.failIfNoSpecifiedTests=false
-KAFKA_CA_PATH=/nonexistent/ca.pem mvn test -Dtest='!*ApplicationTests'   # local missing-CA robustness check (CI sets no KAFKA_CA_PATH)
 ```
-Docker-gated tests skip cleanly khi Docker không khả dụng; H2-only tests (`ImageScannerTest`, `ImageEnsureTest`) chạy mọi môi trường.
+Lọc `!*ApplicationTests` bỏ qua `ExecutorServiceApplicationTests` — context Spring của nó cần `docker/kafka-ca.pem` mà file này bị `.gitignore`, nên CI chạy mà không cần CA.
+Docker-gated tests skip cleanly khi Docker không khả dụng; pure-Mockito tests (`ImageScannerTest`, `ImageEnsureTest`) và H2-slice test (`DockerImageStateRepositoryTest`) chạy mọi môi trường.
