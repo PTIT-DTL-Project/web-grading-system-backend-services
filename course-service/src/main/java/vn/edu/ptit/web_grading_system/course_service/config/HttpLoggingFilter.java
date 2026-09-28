@@ -19,8 +19,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import vn.edu.ptit.web_grading_system.course_service.entities.HttpLog;
-import vn.edu.ptit.web_grading_system.course_service.entities.HttpLogDirection;
+import vn.edu.ptit.web_grading_system.course_service.entity.HttpLog;
+import vn.edu.ptit.web_grading_system.course_service.entity.HttpLogDirection;
 import vn.edu.ptit.web_grading_system.course_service.service.HttpLogService;
 
 // Persists one INBOUND http_log row per request (method, url, headers,

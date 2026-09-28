@@ -9,9 +9,9 @@ import feign.Client;
 import feign.Request;
 import feign.Response;
 import lombok.extern.slf4j.Slf4j;
-import vn.edu.ptit.web_grading_system.executor_service.entities.HttpLog;
-import vn.edu.ptit.web_grading_system.executor_service.entities.HttpLogDirection;
-import vn.edu.ptit.web_grading_system.executor_service.service.HttpLogService;
+import vn.edu.ptit.web_grading_system.executor_service.entity.HttpLog;
+import vn.edu.ptit.web_grading_system.executor_service.entity.HttpLogDirection;
+import vn.edu.ptit.web_grading_system.executor_service.service.infra.HttpLogService;
 
 @Slf4j
 public class LoggingFeignClient implements Client {

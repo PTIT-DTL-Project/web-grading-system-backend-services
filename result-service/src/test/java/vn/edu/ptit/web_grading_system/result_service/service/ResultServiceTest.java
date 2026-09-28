@@ -1,9 +1,9 @@
 package vn.edu.ptit.web_grading_system.result_service.service;
 
 import org.junit.jupiter.api.Test;
-import vn.edu.ptit.web_grading_system.result_service.entities.Result;
-import vn.edu.ptit.web_grading_system.result_service.entities.ResultStatus;
-import vn.edu.ptit.web_grading_system.result_service.repositories.ResultRepository;
+import vn.edu.ptit.web_grading_system.result_service.entity.Result;
+import vn.edu.ptit.web_grading_system.result_service.entity.ResultStatus;
+import vn.edu.ptit.web_grading_system.result_service.repository.ResultRepository;
 import org.mockito.Mockito;
 
 import java.math.BigDecimal;
@@ -17,7 +17,7 @@ class ResultServiceTest {
 
     private ResultService service(ResultRepository repo) {
         return new ResultService(repo, Mockito.mock(
-                vn.edu.ptit.web_grading_system.result_service.repositories.StepResultRepository.class));
+                vn.edu.ptit.web_grading_system.result_service.repository.StepResultRepository.class));
     }
 
     @Test

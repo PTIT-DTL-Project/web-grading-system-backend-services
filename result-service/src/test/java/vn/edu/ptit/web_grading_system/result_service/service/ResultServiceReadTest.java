@@ -3,12 +3,12 @@ package vn.edu.ptit.web_grading_system.result_service.service;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.ResultResponse;
-import vn.edu.ptit.web_grading_system.result_service.entities.Result;
-import vn.edu.ptit.web_grading_system.result_service.entities.ResultStatus;
-import vn.edu.ptit.web_grading_system.result_service.entities.StepResult;
-import vn.edu.ptit.web_grading_system.result_service.entities.StepType;
-import vn.edu.ptit.web_grading_system.result_service.repositories.ResultRepository;
-import vn.edu.ptit.web_grading_system.result_service.repositories.StepResultRepository;
+import vn.edu.ptit.web_grading_system.result_service.entity.Result;
+import vn.edu.ptit.web_grading_system.result_service.entity.ResultStatus;
+import vn.edu.ptit.web_grading_system.result_service.entity.StepResult;
+import vn.edu.ptit.web_grading_system.result_service.entity.StepType;
+import vn.edu.ptit.web_grading_system.result_service.repository.ResultRepository;
+import vn.edu.ptit.web_grading_system.result_service.repository.StepResultRepository;
 
 import java.math.BigDecimal;
 import java.util.List;

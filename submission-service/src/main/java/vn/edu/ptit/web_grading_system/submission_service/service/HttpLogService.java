@@ -14,8 +14,8 @@ import com.google.gson.Gson;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import vn.edu.ptit.web_grading_system.submission_service.entities.HttpLog;
-import vn.edu.ptit.web_grading_system.submission_service.repositories.HttpLogRepository;
+import vn.edu.ptit.web_grading_system.submission_service.entity.HttpLog;
+import vn.edu.ptit.web_grading_system.submission_service.repository.HttpLogRepository;
 
 @Slf4j
 @Service

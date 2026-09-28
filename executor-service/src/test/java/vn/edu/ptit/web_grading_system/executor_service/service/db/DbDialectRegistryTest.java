@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.impl.MysqlDialect;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.impl.PostgresDialect;
 
 class DbDialectRegistryTest {
 

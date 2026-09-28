@@ -7,8 +7,8 @@ import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateClassRequ
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
 import vn.edu.ptit.web_grading_system.course_service.mapper.ClassMapper;
 import vn.edu.ptit.web_grading_system.course_service.mapper.ClassStudentMapper;
-import vn.edu.ptit.web_grading_system.course_service.repositories.ClassStudentRepository;
-import vn.edu.ptit.web_grading_system.course_service.repositories.CourseClassRepository;
+import vn.edu.ptit.web_grading_system.course_service.repository.ClassStudentRepository;
+import vn.edu.ptit.web_grading_system.course_service.repository.CourseClassRepository;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;

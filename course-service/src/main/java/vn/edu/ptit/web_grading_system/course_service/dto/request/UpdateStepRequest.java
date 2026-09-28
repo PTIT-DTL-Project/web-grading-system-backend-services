@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import vn.edu.ptit.web_grading_system.course_service.entities.StepType;
+import vn.edu.ptit.web_grading_system.course_service.entity.StepType;
 
 /**
  * Partial update. If stepType changes, a valid config for the new type MUST be

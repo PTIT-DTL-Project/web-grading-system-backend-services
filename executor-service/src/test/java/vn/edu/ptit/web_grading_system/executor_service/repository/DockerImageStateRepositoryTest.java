@@ -15,8 +15,8 @@ import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
-import vn.edu.ptit.web_grading_system.executor_service.entities.DockerImageState;
-import vn.edu.ptit.web_grading_system.executor_service.entities.ImageScanStatus;
+import vn.edu.ptit.web_grading_system.executor_service.entity.DockerImageState;
+import vn.edu.ptit.web_grading_system.executor_service.entity.ImageScanStatus;
 
 import javax.sql.DataSource;
 import java.util.Properties;

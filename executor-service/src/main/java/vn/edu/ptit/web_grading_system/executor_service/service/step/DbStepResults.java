@@ -9,16 +9,19 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 import vn.edu.ptit.web_grading_system.executor_service.Constant;
-import vn.edu.ptit.web_grading_system.executor_service.entities.GradingStepResult;
-import vn.edu.ptit.web_grading_system.executor_service.entities.StepResultStatus;
-import vn.edu.ptit.web_grading_system.executor_service.service.AssertionEngine.AssertionDetail;
-import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionException;
-import vn.edu.ptit.web_grading_system.executor_service.service.db.DbStepTimeoutException;
+import vn.edu.ptit.web_grading_system.executor_service.entity.GradingStepResult;
+import vn.edu.ptit.web_grading_system.executor_service.entity.StepResultStatus;
+import vn.edu.ptit.web_grading_system.executor_service.service.scoring.AssertionEngine.AssertionDetail;
+import vn.edu.ptit.web_grading_system.executor_service.exception.DbConnectionException;
+import vn.edu.ptit.web_grading_system.executor_service.exception.DbStepTimeoutException;
+import vn.edu.ptit.web_grading_system.executor_service.service.step.impl.HttpStepExecutor;
 
 /**
  * Shared result factory for DB step executors (avoids duplicating the
- * {@link GradingStepResult} shaping across {@link DbQueryExecutor},
- * {@link DbSchemaCheckExecutor} and {@link DbMigrationExecutor}).
+ * {@link GradingStepResult} shaping across
+ * {@link vn.edu.ptit.web_grading_system.executor_service.service.step.impl.DbQueryExecutor},
+ * {@link vn.edu.ptit.web_grading_system.executor_service.service.step.impl.DbSchemaCheckExecutor}
+ * and {@link vn.edu.ptit.web_grading_system.executor_service.service.step.impl.DbMigrationExecutor}).
  *
  * <p>The labelling rule for {@link SQLException}s lives here:
  * exceptions raised by {@link
@@ -28,9 +31,12 @@ import vn.edu.ptit.web_grading_system.executor_service.service.db.DbStepTimeoutE
  * Constant.Message.Db#SQL_EXECUTION_ERROR}.
  */
 @Slf4j
-final class DbStepResults {
+// Package split (2026-09-28): the DB executors moved to service.step.impl,
+// so this shared factory must be public — package-private no longer reaches
+// them. Stays in service.step because StepRegistry/StepExecutor live here.
+public final class DbStepResults {
 
-    static GradingStepResult buildResult(ObjectMapper mapper,
+    public static GradingStepResult buildResult(ObjectMapper mapper,
             HttpStepExecutor.StepContext ctx, String stepType,
             StepResultStatus status, List<AssertionDetail> details,
             String err, long startedMs) {
@@ -70,7 +76,8 @@ final class DbStepResults {
      * (dialect hint or {@code SQL_TIMEOUT_ERROR}); every other
      * exception is a genuine statement error and is prefixed.
      */
-    static String message(SQLException e) {
+    // public: same reason as buildResult — called from service.step.impl.
+    public static String message(SQLException e) {
         return (e instanceof DbConnectionException
                 || e instanceof DbStepTimeoutException)
                 ? e.getMessage()

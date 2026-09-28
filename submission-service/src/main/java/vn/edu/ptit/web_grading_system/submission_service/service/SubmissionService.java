@@ -15,9 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.PresignedUrlResponse;
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.SubmissionResponse;
-import vn.edu.ptit.web_grading_system.submission_service.entities.Submission;
-import vn.edu.ptit.web_grading_system.submission_service.entities.SubmissionStatus;
-import vn.edu.ptit.web_grading_system.submission_service.repositories.SubmissionRepository;
+import vn.edu.ptit.web_grading_system.submission_service.entity.Submission;
+import vn.edu.ptit.web_grading_system.submission_service.entity.SubmissionStatus;
+import vn.edu.ptit.web_grading_system.submission_service.repository.SubmissionRepository;
 
 import java.util.List;
 import java.util.UUID;

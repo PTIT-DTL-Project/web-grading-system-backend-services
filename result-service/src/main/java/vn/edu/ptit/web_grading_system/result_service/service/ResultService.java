@@ -6,12 +6,12 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.edu.ptit.web_grading_system.result_service.dto.request.CreateResultRequest;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.ResultResponse;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.StepResultResponse;
-import vn.edu.ptit.web_grading_system.result_service.entities.Result;
-import vn.edu.ptit.web_grading_system.result_service.entities.ResultStatus;
-import vn.edu.ptit.web_grading_system.result_service.entities.StepType;
-import vn.edu.ptit.web_grading_system.result_service.entities.StepResult;
-import vn.edu.ptit.web_grading_system.result_service.repositories.ResultRepository;
-import vn.edu.ptit.web_grading_system.result_service.repositories.StepResultRepository;
+import vn.edu.ptit.web_grading_system.result_service.entity.Result;
+import vn.edu.ptit.web_grading_system.result_service.entity.ResultStatus;
+import vn.edu.ptit.web_grading_system.result_service.entity.StepType;
+import vn.edu.ptit.web_grading_system.result_service.entity.StepResult;
+import vn.edu.ptit.web_grading_system.result_service.repository.ResultRepository;
+import vn.edu.ptit.web_grading_system.result_service.repository.StepResultRepository;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

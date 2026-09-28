@@ -10,10 +10,10 @@ import vn.edu.ptit.web_grading_system.course_service.client.ResultServiceClient;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.ScoreComponentRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.StudentScoreRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.*;
-import vn.edu.ptit.web_grading_system.course_service.entities.*;
+import vn.edu.ptit.web_grading_system.course_service.entity.*;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.course_service.mapper.ScoreComponentMapper;
-import vn.edu.ptit.web_grading_system.course_service.repositories.*;
+import vn.edu.ptit.web_grading_system.course_service.repository.*;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

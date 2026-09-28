@@ -5,10 +5,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
-import vn.edu.ptit.web_grading_system.course_service.entities.AssignmentDockerImage;
-import vn.edu.ptit.web_grading_system.course_service.entities.DockerImage;
-import vn.edu.ptit.web_grading_system.course_service.repositories.AssignmentDockerImageRepository;
-import vn.edu.ptit.web_grading_system.course_service.repositories.DockerImageRepository;
+import vn.edu.ptit.web_grading_system.course_service.entity.AssignmentDockerImage;
+import vn.edu.ptit.web_grading_system.course_service.entity.DockerImage;
+import vn.edu.ptit.web_grading_system.course_service.repository.AssignmentDockerImageRepository;
+import vn.edu.ptit.web_grading_system.course_service.repository.DockerImageRepository;
 
 import java.time.OffsetDateTime;
 import java.util.List;
