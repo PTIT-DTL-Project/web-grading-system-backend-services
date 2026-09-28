@@ -68,6 +68,14 @@ class DbDialectRegistryTest {
     }
 
     @Test
+    void duplicateKey_throwsFast() {
+        // wiring guard: two @Component dialects must not claim the same key
+        var e = assertThrows(IllegalStateException.class,
+                () -> new DbDialectRegistry(List.of(new MysqlDialect(), new MysqlDialect())));
+        assertTrue(e.getMessage().contains("mysql"));
+    }
+
+    @Test
     void constructor_withoutDefaultEngine_failsFast() {
         // wiring error guard: configs without db_type always resolve to
         // postgres, so the default engine must be registered

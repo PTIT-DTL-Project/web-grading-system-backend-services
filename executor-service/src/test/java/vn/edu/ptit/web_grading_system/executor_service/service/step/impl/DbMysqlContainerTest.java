@@ -1,5 +1,7 @@
 package vn.edu.ptit.web_grading_system.executor_service.service.step.impl;
 
+import vn.edu.ptit.web_grading_system.executor_service.service.step.StepContext;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.*;
 
@@ -109,8 +111,8 @@ class DbMysqlContainerTest {
         return new DbMigrationExecutor(db, mapper);
     }
 
-    private static HttpStepExecutor.StepContext stepContext(String name, JsonNode config, VariableContext vars) {
-        return new HttpStepExecutor.StepContext(
+    private static StepContext stepContext(String name, JsonNode config, VariableContext vars) {
+        return new StepContext(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 1, name, config, vars, 30000);
     }

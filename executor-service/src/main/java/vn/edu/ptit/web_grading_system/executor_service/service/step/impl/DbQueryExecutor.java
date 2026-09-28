@@ -19,8 +19,8 @@ import vn.edu.ptit.web_grading_system.executor_service.entity.GradingStepResult;
 import vn.edu.ptit.web_grading_system.executor_service.entity.StepResultStatus;
 import vn.edu.ptit.web_grading_system.executor_service.service.scoring.AssertionEngine.AssertionDetail;
 import vn.edu.ptit.web_grading_system.executor_service.service.scoring.VariableContext;
-import vn.edu.ptit.web_grading_system.executor_service.service.step.DbStepResults;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepExecutor;
+import vn.edu.ptit.web_grading_system.executor_service.service.step.StepContext;
 
 /**
  * Executes a {@code DB_QUERY} step: runs the lecturer's SQL and
@@ -50,7 +50,7 @@ public class DbQueryExecutor implements StepExecutor {
     public String type() { return Constant.DbStep.TYPE_QUERY; }
 
     @Override
-    public GradingStepResult execute(HttpStepExecutor.StepContext ctx) {
+    public GradingStepResult execute(StepContext ctx) {
         JsonNode config = ctx.config();
         String query = ctx.variableContext().substitute(
                 config.path(Constant.DbStep.QUERY).asText(""));

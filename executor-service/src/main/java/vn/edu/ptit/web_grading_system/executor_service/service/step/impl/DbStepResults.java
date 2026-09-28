@@ -1,4 +1,4 @@
-package vn.edu.ptit.web_grading_system.executor_service.service.step;
+package vn.edu.ptit.web_grading_system.executor_service.service.step.impl;
 
 import java.sql.SQLException;
 import java.time.Instant;
@@ -14,7 +14,7 @@ import vn.edu.ptit.web_grading_system.executor_service.entity.StepResultStatus;
 import vn.edu.ptit.web_grading_system.executor_service.service.scoring.AssertionEngine.AssertionDetail;
 import vn.edu.ptit.web_grading_system.executor_service.exception.DbConnectionException;
 import vn.edu.ptit.web_grading_system.executor_service.exception.DbStepTimeoutException;
-import vn.edu.ptit.web_grading_system.executor_service.service.step.impl.HttpStepExecutor;
+import vn.edu.ptit.web_grading_system.executor_service.service.step.StepContext;
 
 /**
  * Shared result factory for DB step executors (avoids duplicating the
@@ -31,13 +31,15 @@ import vn.edu.ptit.web_grading_system.executor_service.service.step.impl.HttpSte
  * Constant.Message.Db#SQL_EXECUTION_ERROR}.
  */
 @Slf4j
-// Package split (2026-09-28): the DB executors moved to service.step.impl,
-// so this shared factory must be public — package-private no longer reaches
-// them. Stays in service.step because StepRegistry/StepExecutor live here.
-public final class DbStepResults {
+// Review: 2026-09-28, Pullfrog PR #23 — moved next to its only callers in
+// service.step.impl (the six buildResult/message call sites are all in
+// DbQueryExecutor, DbSchemaCheckExecutor and DbMigrationExecutor). It is
+// not retained in service.step for StepRegistry/StepExecutor, which never
+// reference it, and the factories go package-private again.
+final class DbStepResults {
 
-    public static GradingStepResult buildResult(ObjectMapper mapper,
-            HttpStepExecutor.StepContext ctx, String stepType,
+    static GradingStepResult buildResult(ObjectMapper mapper,
+            StepContext ctx, String stepType,
             StepResultStatus status, List<AssertionDetail> details,
             String err, long startedMs) {
         String assertionJson;
@@ -77,7 +79,7 @@ public final class DbStepResults {
      * exception is a genuine statement error and is prefixed.
      */
     // public: same reason as buildResult — called from service.step.impl.
-    public static String message(SQLException e) {
+    static String message(SQLException e) {
         return (e instanceof DbConnectionException
                 || e instanceof DbStepTimeoutException)
                 ? e.getMessage()

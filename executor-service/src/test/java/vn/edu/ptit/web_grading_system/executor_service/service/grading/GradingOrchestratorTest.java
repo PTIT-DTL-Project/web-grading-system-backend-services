@@ -1,5 +1,7 @@
 package vn.edu.ptit.web_grading_system.executor_service.service.grading;
 
+import vn.edu.ptit.web_grading_system.executor_service.service.step.StepContext;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
@@ -143,7 +145,7 @@ class GradingOrchestratorTest {
             }
 
             @Override
-            public GradingStepResult execute(HttpStepExecutor.StepContext ctx) {
+            public GradingStepResult execute(StepContext ctx) {
                 executions.incrementAndGet();
                 capturedVars.set(ctx.variableContext().snapshot());
                 OffsetDateTime now = OffsetDateTime.now();
@@ -168,7 +170,7 @@ class GradingOrchestratorTest {
             }
 
             @Override
-            public GradingStepResult execute(HttpStepExecutor.StepContext ctx) {
+            public GradingStepResult execute(StepContext ctx) {
                 executions.incrementAndGet();
                 capturedVars.set(ctx.variableContext().snapshot());
                 OffsetDateTime now = OffsetDateTime.now();

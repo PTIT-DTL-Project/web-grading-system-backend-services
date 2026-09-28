@@ -1,5 +1,7 @@
 package vn.edu.ptit.web_grading_system.executor_service.service.step.impl;
 
+import vn.edu.ptit.web_grading_system.executor_service.service.step.StepContext;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -98,7 +100,7 @@ class DbSchemaCheckExecutorTest {
         });
         when(db.resolve("postgres")).thenReturn(new PostgresDialect());
 
-        var ctx = new HttpStepExecutor.StepContext(
+        var ctx = new StepContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 java.util.UUID.randomUUID(), 1, "s", node, vars, 30000);
         var result = exec.execute(ctx);
@@ -154,7 +156,7 @@ class DbSchemaCheckExecutorTest {
         });
         when(db.resolve("postgres")).thenReturn(new PostgresDialect());
 
-        var ctx = new HttpStepExecutor.StepContext(
+        var ctx = new StepContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 java.util.UUID.randomUUID(), 1, "s", node, vars, 30000);
         var result = exec.execute(ctx);
@@ -192,7 +194,7 @@ class DbSchemaCheckExecutorTest {
         });
         when(db.resolve("postgres")).thenReturn(new PostgresDialect());
 
-        var ctx = new HttpStepExecutor.StepContext(
+        var ctx = new StepContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 java.util.UUID.randomUUID(), 1, "s", node, vars, 30000);
         var result = exec.execute(ctx);
@@ -219,7 +221,7 @@ class DbSchemaCheckExecutorTest {
                         "dialect hint: set connection.db_type",
                         new SQLException("no driver")));
 
-        var ctx = new HttpStepExecutor.StepContext(
+        var ctx = new StepContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 java.util.UUID.randomUUID(), 1, "s", node, vars, 30000);
         var result = exec.execute(ctx);
@@ -243,7 +245,7 @@ class DbSchemaCheckExecutorTest {
         when(db.withConnection(any(), anyInt(), anyInt(), any()))
                 .thenThrow(new SQLException("no such host"));
 
-        var ctx = new HttpStepExecutor.StepContext(
+        var ctx = new StepContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 java.util.UUID.randomUUID(), 1, "s", node, vars, 30000);
         var result = exec.execute(ctx);
@@ -277,7 +279,7 @@ class DbSchemaCheckExecutorTest {
         });
         when(db.resolve("postgres")).thenReturn(new PostgresDialect());
 
-        var ctx = new HttpStepExecutor.StepContext(
+        var ctx = new StepContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 java.util.UUID.randomUUID(), 1, "s", node, vars, null);
         exec.execute(ctx);
@@ -309,7 +311,7 @@ class DbSchemaCheckExecutorTest {
                 });
         when(db.resolve("postgres")).thenReturn(new PostgresDialect());
 
-        var ctx = new HttpStepExecutor.StepContext(
+        var ctx = new StepContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 java.util.UUID.randomUUID(), 1, "s", node, vars, null);
         var result = exec.execute(ctx);
@@ -375,8 +377,8 @@ class DbSchemaCheckExecutorTest {
                 new DbDialectRegistry(List.of(new PostgresDialect()))), new ObjectMapper());
     }
 
-    private HttpStepExecutor.StepContext stepContext(String name, JsonNode config, VariableContext vars) {
-        return new HttpStepExecutor.StepContext(
+    private StepContext stepContext(String name, JsonNode config, VariableContext vars) {
+        return new StepContext(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 1, name, config, vars, 30000);
     }

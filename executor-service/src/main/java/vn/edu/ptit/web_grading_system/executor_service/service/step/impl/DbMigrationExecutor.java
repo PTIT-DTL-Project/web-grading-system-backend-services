@@ -18,8 +18,8 @@ import vn.edu.ptit.web_grading_system.executor_service.service.db.DbConnectionHe
 import vn.edu.ptit.web_grading_system.executor_service.exception.DbStepTimeoutException;
 import vn.edu.ptit.web_grading_system.executor_service.entity.GradingStepResult;
 import vn.edu.ptit.web_grading_system.executor_service.entity.StepResultStatus;
-import vn.edu.ptit.web_grading_system.executor_service.service.step.DbStepResults;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepExecutor;
+import vn.edu.ptit.web_grading_system.executor_service.service.step.StepContext;
 
 /**
  * Executes a {@code DB_MIGRATION} step: runs each lecturer
@@ -64,7 +64,7 @@ public class DbMigrationExecutor implements StepExecutor {
     public String type() { return Constant.DbStep.TYPE_MIGRATION; }
 
     @Override
-    public GradingStepResult execute(HttpStepExecutor.StepContext ctx) {
+    public GradingStepResult execute(StepContext ctx) {
         JsonNode config = ctx.config();
         Integer hostPort = (Integer) ctx.variableContext()
                 .get(Constant.VariableContext.DB_PORT);

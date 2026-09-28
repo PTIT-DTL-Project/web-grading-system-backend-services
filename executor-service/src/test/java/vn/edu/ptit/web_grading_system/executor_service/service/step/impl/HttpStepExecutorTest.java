@@ -1,5 +1,7 @@
 package vn.edu.ptit.web_grading_system.executor_service.service.step.impl;
 
+import vn.edu.ptit.web_grading_system.executor_service.service.step.StepContext;
+
 import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -28,8 +30,8 @@ class HttpStepExecutorTest {
     private final HttpStepExecutor executor =
             new HttpStepExecutor(httpLogService, new AssertionEngine(), httpClient);
 
-    private HttpStepExecutor.StepContext ctx(String configJson, VariableContext vars) {
-        return new HttpStepExecutor.StepContext(
+    private StepContext ctx(String configJson, VariableContext vars) {
+        return new StepContext(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 1, "step", mapper.readTree(configJson), vars, 5000);
     }

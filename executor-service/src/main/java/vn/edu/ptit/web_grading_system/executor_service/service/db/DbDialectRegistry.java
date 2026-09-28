@@ -29,7 +29,15 @@ public class DbDialectRegistry
         {
             for (String key : dialect.keys())
             {
-                map.put(key.toLowerCase(Locale.ROOT), dialect);
+                DbDialect prev = map.put(key.toLowerCase(Locale.ROOT), dialect);
+                if (prev != null)
+                {
+                    throw new IllegalStateException(
+                            "Duplicate db_type key '" + key + "' registered by "
+                                    + prev.getClass().getSimpleName() + " and "
+                                    + dialect.getClass().getSimpleName()
+                                    + " — each key must map to exactly one dialect");
+                }
             }
         }
         this.byKey = Map.copyOf(map);

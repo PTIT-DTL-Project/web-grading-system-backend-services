@@ -13,6 +13,7 @@ import vn.edu.ptit.web_grading_system.executor_service.entity.StepResultStatus;
 import vn.edu.ptit.web_grading_system.executor_service.service.scoring.AssertionEngine;
 import vn.edu.ptit.web_grading_system.executor_service.service.infra.HttpLogService;
 import vn.edu.ptit.web_grading_system.executor_service.service.scoring.VariableContext;
+import vn.edu.ptit.web_grading_system.executor_service.service.step.StepContext;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -224,18 +225,6 @@ public class HttpStepExecutor implements StepExecutor
                 .startedAt(startedAt)
                 .completedAt(OffsetDateTime.now())
                 .build();
-    }
-
-    public record StepContext(
-            UUID jobId,
-            UUID planId,
-            UUID stepId,
-            Integer stepOrder,
-            String stepName,
-            tools.jackson.databind.JsonNode config,
-            VariableContext variableContext,
-            Integer timeoutMs)
-    {
     }
 
     private static String safeMessage(Exception e)

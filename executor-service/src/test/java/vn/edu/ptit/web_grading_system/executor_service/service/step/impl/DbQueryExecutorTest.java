@@ -1,5 +1,7 @@
 package vn.edu.ptit.web_grading_system.executor_service.service.step.impl;
 
+import vn.edu.ptit.web_grading_system.executor_service.service.step.StepContext;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -79,7 +81,7 @@ class DbQueryExecutorTest {
             return action.apply(conn);
         });
 
-        var ctx = new HttpStepExecutor.StepContext(
+        var ctx = new StepContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 java.util.UUID.randomUUID(), 1, "q", node, vars, 30000);
         var result = exec.execute(ctx);
@@ -122,7 +124,7 @@ class DbQueryExecutorTest {
         });
 
         // ctx timeoutMs is null → the config key decides.
-        var ctx = new HttpStepExecutor.StepContext(
+        var ctx = new StepContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 java.util.UUID.randomUUID(), 1, "q", node,
                 vars, null);
@@ -159,7 +161,7 @@ class DbQueryExecutorTest {
             return action.apply(conn);
         });
 
-        var ctx = new HttpStepExecutor.StepContext(
+        var ctx = new StepContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 java.util.UUID.randomUUID(), 1, "q", node, vars, 30000);
         var result = exec.execute(ctx);
@@ -187,7 +189,7 @@ class DbQueryExecutorTest {
                         "dialect hint: set connection.db_type",
                         new SQLException("no driver")));
 
-        var ctx = new HttpStepExecutor.StepContext(
+        var ctx = new StepContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 java.util.UUID.randomUUID(), 1, "q", node, vars, 30000);
         var result = exec.execute(ctx);
@@ -213,7 +215,7 @@ class DbQueryExecutorTest {
                 .thenThrow(new SQLException(
                         "relation \"books\" does not exist"));
 
-        var ctx = new HttpStepExecutor.StepContext(
+        var ctx = new StepContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 java.util.UUID.randomUUID(), 1, "q", node, vars, 30000);
         var result = exec.execute(ctx);
@@ -280,8 +282,8 @@ class DbQueryExecutorTest {
                 new DbDialectRegistry(List.of(new PostgresDialect()))), new ObjectMapper());
     }
 
-    private HttpStepExecutor.StepContext stepContext(String name, JsonNode config, VariableContext vars) {
-        return new HttpStepExecutor.StepContext(
+    private StepContext stepContext(String name, JsonNode config, VariableContext vars) {
+        return new StepContext(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 1, name, config, vars, 30000);
     }

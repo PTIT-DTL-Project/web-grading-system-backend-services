@@ -29,6 +29,7 @@ import vn.edu.ptit.web_grading_system.executor_service.repository.GradingLogRepo
 import vn.edu.ptit.web_grading_system.executor_service.repository.GradingStepResultRepository;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.impl.HttpStepExecutor;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepExecutor;
+import vn.edu.ptit.web_grading_system.executor_service.service.step.StepContext;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepRegistry;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialectRegistry;
 
@@ -556,7 +557,7 @@ public class GradingOrchestrator
         }
         try
         {
-            GradingStepResult result = executor.execute(new HttpStepExecutor.StepContext(
+            GradingStepResult result = executor.execute(new StepContext(
                     job.getId(), plan.getId(), step.getId(), step.getStepOrder(),
                     step.getName(), config, vars, step.getTimeoutMs()));
             return stepResultRepository.save(result);

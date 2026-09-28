@@ -20,8 +20,8 @@ import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialect;
 import vn.edu.ptit.web_grading_system.executor_service.entity.GradingStepResult;
 import vn.edu.ptit.web_grading_system.executor_service.entity.StepResultStatus;
 import vn.edu.ptit.web_grading_system.executor_service.service.scoring.AssertionEngine.AssertionDetail;
-import vn.edu.ptit.web_grading_system.executor_service.service.step.DbStepResults;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepExecutor;
+import vn.edu.ptit.web_grading_system.executor_service.service.step.StepContext;
 
 /**
  * Executes a {@code DB_SCHEMA_CHECK} step: runs each check against
@@ -43,7 +43,7 @@ public class DbSchemaCheckExecutor implements StepExecutor {
     public String type() { return Constant.DbStep.TYPE_SCHEMA_CHECK; }
 
     @Override
-    public GradingStepResult execute(HttpStepExecutor.StepContext ctx) {
+    public GradingStepResult execute(StepContext ctx) {
         JsonNode config = ctx.config();
         JsonNode connection = config.path(Constant.DbConnection.CONNECTION);
         String dbType = connection.path(Constant.DbConnection.DB_TYPE)
