@@ -241,8 +241,8 @@ Assignments → Plans & Steps → Submissions), gồm cả negative tests và ki
 
 ### Thực thi test — executor-service
 ```bash
-cd src-services/executor-service
-mvn test -Dtest='!*ApplicationTests' -Dsurefire.failIfNoSpecifiedTests=false   # 211 tests
-KAFKA_CA_PATH=/nonexistent/ca.pem mvn test -Dtest='!*ApplicationTests'         # CI gate
+cd executor-service
+mvn test -Dtest='!*ApplicationTests' -Dsurefire.failIfNoSpecifiedTests=false
+KAFKA_CA_PATH=/nonexistent/ca.pem mvn test -Dtest='!*ApplicationTests'   # local missing-CA robustness check (CI sets no KAFKA_CA_PATH)
 ```
 Docker-gated tests skip cleanly khi Docker không khả dụng; H2-only tests (`ImageScannerTest`, `ImageEnsureTest`) chạy mọi môi trường.
