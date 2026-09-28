@@ -44,14 +44,14 @@ public class DbSchemaCheckExecutor implements StepExecutor {
 
     @Override
     public GradingStepResult execute(StepContext ctx) {
-        JsonNode config = ctx.config();
+        JsonNode config = ctx.getConfig();
         JsonNode connection = config.path(Constant.DbConnection.CONNECTION);
         String dbType = connection.path(Constant.DbConnection.DB_TYPE)
                 .asString(Constant.DbConnection.DEFAULT_DB_TYPE);
-        Integer hostPort = (Integer) ctx.variableContext()
+        Integer hostPort = (Integer) ctx.getVariableContext()
                 .get(Constant.VariableContext.DB_PORT);
-        int timeoutMs = ctx.config().path(Constant.DbStep.TIMEOUT_MS)
-                .asInt(ctx.timeoutMs() != null ? ctx.timeoutMs() : 30_000);
+        int timeoutMs = ctx.getConfig().path(Constant.DbStep.TIMEOUT_MS)
+                .asInt(ctx.getTimeoutMs() != null ? ctx.getTimeoutMs() : 30_000);
         long deadline = System.currentTimeMillis() + timeoutMs;
         long started = System.currentTimeMillis();
         List<AssertionDetail> details = new ArrayList<>();

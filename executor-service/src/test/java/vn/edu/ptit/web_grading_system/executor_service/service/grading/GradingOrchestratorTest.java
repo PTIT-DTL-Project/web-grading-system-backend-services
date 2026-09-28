@@ -147,14 +147,14 @@ class GradingOrchestratorTest {
             @Override
             public GradingStepResult execute(StepContext ctx) {
                 executions.incrementAndGet();
-                capturedVars.set(ctx.variableContext().snapshot());
+                capturedVars.set(ctx.getVariableContext().snapshot());
                 OffsetDateTime now = OffsetDateTime.now();
                 return GradingStepResult.builder()
-                        .jobId(ctx.jobId())
-                        .planId(ctx.planId())
-                        .stepId(ctx.stepId())
-                        .stepOrder(ctx.stepOrder())
-                        .stepName(ctx.stepName())
+                        .jobId(ctx.getJobId())
+                        .planId(ctx.getPlanId())
+                        .stepId(ctx.getStepId())
+                        .stepOrder(ctx.getStepOrder())
+                        .stepName(ctx.getStepName())
                         .stepType(type())
                         .status(stubStatus)
                         .errorMessage(stubStatus == StepResultStatus.PASSED ? null : "boom")
@@ -172,14 +172,14 @@ class GradingOrchestratorTest {
             @Override
             public GradingStepResult execute(StepContext ctx) {
                 executions.incrementAndGet();
-                capturedVars.set(ctx.variableContext().snapshot());
+                capturedVars.set(ctx.getVariableContext().snapshot());
                 OffsetDateTime now = OffsetDateTime.now();
                 return GradingStepResult.builder()
-                        .jobId(ctx.jobId())
-                        .planId(ctx.planId())
-                        .stepId(ctx.stepId())
-                        .stepOrder(ctx.stepOrder())
-                        .stepName(ctx.stepName())
+                        .jobId(ctx.getJobId())
+                        .planId(ctx.getPlanId())
+                        .stepId(ctx.getStepId())
+                        .stepOrder(ctx.getStepOrder())
+                        .stepName(ctx.getStepName())
                         .stepType(type())
                         .status(stubStatus)
                         .errorMessage(stubStatus == StepResultStatus.PASSED ? null : "boom")

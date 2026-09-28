@@ -65,11 +65,11 @@ public class DbMigrationExecutor implements StepExecutor {
 
     @Override
     public GradingStepResult execute(StepContext ctx) {
-        JsonNode config = ctx.config();
-        Integer hostPort = (Integer) ctx.variableContext()
+        JsonNode config = ctx.getConfig();
+        Integer hostPort = (Integer) ctx.getVariableContext()
                 .get(Constant.VariableContext.DB_PORT);
-        int timeoutMs = ctx.config().path(Constant.DbStep.TIMEOUT_MS)
-                .asInt(ctx.timeoutMs() != null ? ctx.timeoutMs() : 30_000);
+        int timeoutMs = ctx.getConfig().path(Constant.DbStep.TIMEOUT_MS)
+                .asInt(ctx.getTimeoutMs() != null ? ctx.getTimeoutMs() : 30_000);
         long deadline = System.currentTimeMillis() + timeoutMs;
         long started = System.currentTimeMillis();
         List<AssertionEngine.AssertionDetail> details = new ArrayList<>();
@@ -85,7 +85,7 @@ public class DbMigrationExecutor implements StepExecutor {
                                             + timeoutMs + "ms");
                         }
                         try (PreparedStatement ps = conn.prepareStatement(
-                                ctx.variableContext().substitute(
+                                ctx.getVariableContext().substitute(
                                         stmt.asText()))) {
                             ps.setQueryTimeout(
                                     Math.max(1, (int) Math.ceil(remaining / 1000.0)));

@@ -58,16 +58,16 @@ public class HttpStepExecutor implements StepExecutor
         String errorMessage = null;
         List<AssertionEngine.AssertionDetail> assertionDetails = List.of();
 
-        String method = ctx.variableContext().substitute(Optional.ofNullable(ctx.config().path(Constant.HttpStep.METHOD).asString()).filter(s -> !s.isEmpty()).orElse(Constant.HttpStep.DEFAULT_METHOD));
-        String rawPath = ctx.variableContext().substitute(Optional.ofNullable(ctx.config().path(Constant.HttpStep.PATH).asString()).filter(s -> !s.isEmpty()).orElse(Constant.HttpStep.PATH_DEFAULT));
-        String url = "http://localhost:" + ctx.variableContext().get(Constant.VariableContext.APP_PORT) + rawPath;
+        String method = ctx.getVariableContext().substitute(Optional.ofNullable(ctx.getConfig().path(Constant.HttpStep.METHOD).asString()).filter(s -> !s.isEmpty()).orElse(Constant.HttpStep.DEFAULT_METHOD));
+        String rawPath = ctx.getVariableContext().substitute(Optional.ofNullable(ctx.getConfig().path(Constant.HttpStep.PATH).asString()).filter(s -> !s.isEmpty()).orElse(Constant.HttpStep.PATH_DEFAULT));
+        String url = "http://localhost:" + ctx.getVariableContext().get(Constant.VariableContext.APP_PORT) + rawPath;
 
-        if (ctx.config().hasNonNull(Constant.HttpStep.QUERY_PARAMS) && ctx.config().get(Constant.HttpStep.QUERY_PARAMS).isObject())
+        if (ctx.getConfig().hasNonNull(Constant.HttpStep.QUERY_PARAMS) && ctx.getConfig().get(Constant.HttpStep.QUERY_PARAMS).isObject())
         {
             StringBuilder queryPart = new StringBuilder();
-            ctx.config().get(Constant.HttpStep.QUERY_PARAMS).properties().forEach(e ->
+            ctx.getConfig().get(Constant.HttpStep.QUERY_PARAMS).properties().forEach(e ->
             {
-                String v = ctx.variableContext().substitute(e.getValue().asString());
+                String v = ctx.getVariableContext().substitute(e.getValue().asString());
                 if (queryPart.length() > 0)
                 {
                     queryPart.append("&");
@@ -81,22 +81,22 @@ public class HttpStepExecutor implements StepExecutor
         }
 
         Map<String, String> headers = new HashMap<>();
-        if (ctx.config().hasNonNull(Constant.HttpStep.HEADERS) && ctx.config().get(Constant.HttpStep.HEADERS).isObject())
+        if (ctx.getConfig().hasNonNull(Constant.HttpStep.HEADERS) && ctx.getConfig().get(Constant.HttpStep.HEADERS).isObject())
         {
-            ctx.config().get(Constant.HttpStep.HEADERS).properties().forEach(e ->
+            ctx.getConfig().get(Constant.HttpStep.HEADERS).properties().forEach(e ->
             {
-                String v = ctx.variableContext().substitute(e.getValue().asString());
+                String v = ctx.getVariableContext().substitute(e.getValue().asString());
                 headers.put(e.getKey(), v);
             });
         }
 
         String bodyStr = null;
-        if (ctx.config().hasNonNull(Constant.HttpStep.BODY))
+        if (ctx.getConfig().hasNonNull(Constant.HttpStep.BODY))
         {
-            bodyStr = ctx.variableContext().substitute(ctx.config().get(Constant.HttpStep.BODY).toString());
+            bodyStr = ctx.getVariableContext().substitute(ctx.getConfig().get(Constant.HttpStep.BODY).toString());
         }
 
-        int timeoutMs = ctx.config().path(Constant.HttpStep.TIMEOUT_MS).asInt(ctx.timeoutMs() != null ? ctx.timeoutMs() : 30000);
+        int timeoutMs = ctx.getConfig().path(Constant.HttpStep.TIMEOUT_MS).asInt(ctx.getTimeoutMs() != null ? ctx.getTimeoutMs() : 30000);
 
         try
         {
@@ -132,13 +132,13 @@ public class HttpStepExecutor implements StepExecutor
             response.headers().map().forEach((k, v) -> rh.put(k, String.join(", ", v)));
             responseHeaders = rh;
 
-            assertionDetails = assertionEngine.evaluateHttp(attemptStatus, responseBody, ctx.config(), ctx.variableContext());
+            assertionDetails = assertionEngine.evaluateHttp(attemptStatus, responseBody, ctx.getConfig(), ctx.getVariableContext());
             boolean allPassed = assertionDetails.isEmpty() || assertionDetails.stream().allMatch(AssertionEngine.AssertionDetail::isPassed);
 
             Map<String, Object> extracted = new HashMap<>();
-            if (ctx.config().hasNonNull(Constant.HttpStep.EXTRACT) && ctx.config().get(Constant.HttpStep.EXTRACT).isArray())
+            if (ctx.getConfig().hasNonNull(Constant.HttpStep.EXTRACT) && ctx.getConfig().get(Constant.HttpStep.EXTRACT).isArray())
             {
-                for (var ex : ctx.config().get(Constant.HttpStep.EXTRACT))
+                for (var ex : ctx.getConfig().get(Constant.HttpStep.EXTRACT))
                 {
                     String name = ex.path(Constant.HttpStep.NAME).asString();
                     String from = Optional.ofNullable(ex.path(Constant.HttpStep.FROM).asString()).filter(s -> !s.isEmpty()).orElse(Constant.HttpStep.FROM_DEFAULT);
@@ -147,7 +147,7 @@ public class HttpStepExecutor implements StepExecutor
                     {
                         Object val = JsonPath.using(jsonPathConfig).parse(responseBody == null ? "{}" : responseBody).read(expr);
                         String strVal = val == null ? "" : String.valueOf(val);
-                        ctx.variableContext().put(name, strVal);
+                        ctx.getVariableContext().put(name, strVal);
                         extracted.put(name, strVal);
                     }
                     catch (Exception e)
@@ -168,7 +168,7 @@ public class HttpStepExecutor implements StepExecutor
         catch (Exception e)
         {
             errorMessage = safeMessage(e);
-            log.warn(Constant.Message.HTTP_STEP_FAILED, ctx.stepName(), errorMessage);
+            log.warn(Constant.Message.HTTP_STEP_FAILED, ctx.getStepName(), errorMessage);
             return buildResult(ctx, StepResultStatus.ERROR, null, url, headers, bodyStr,
                     null, Map.of(), null, "[]", null, errorMessage, start, startedAt);
         }
@@ -185,9 +185,9 @@ public class HttpStepExecutor implements StepExecutor
             var httpLog = vn.edu.ptit.web_grading_system.executor_service.entity.HttpLog.builder()
                     .serviceName(Constant.HttpStep.SERVICE_NAME)
                     .direction(vn.edu.ptit.web_grading_system.executor_service.entity.HttpLogDirection.OUTBOUND)
-                    .method(Optional.ofNullable(ctx.config().path(Constant.HttpStep.METHOD).asString()).filter(s -> !s.isEmpty()).orElse(Constant.HttpStep.DEFAULT_METHOD))
+                    .method(Optional.ofNullable(ctx.getConfig().path(Constant.HttpStep.METHOD).asString()).filter(s -> !s.isEmpty()).orElse(Constant.HttpStep.DEFAULT_METHOD))
                     .url(url)
-                    .port((Integer) ctx.variableContext().get(Constant.VariableContext.APP_PORT))
+                    .port((Integer) ctx.getVariableContext().get(Constant.VariableContext.APP_PORT))
                     .requestHeaders(reqHeaders == null ? null : gson.toJson(reqHeaders))
                     .requestBody(reqBody != null && reqBody.length() > 20000 ? reqBody.substring(0, 20000) : reqBody)
                     .statusCode(respStatus != null ? respStatus : actualStatus)
@@ -203,11 +203,11 @@ public class HttpStepExecutor implements StepExecutor
         }
 
         return GradingStepResult.builder()
-                .jobId(ctx.jobId())
-                .planId(ctx.planId())
-                .stepId(ctx.stepId())
-                .stepOrder(ctx.stepOrder())
-                .stepName(ctx.stepName())
+                .jobId(ctx.getJobId())
+                .planId(ctx.getPlanId())
+                .stepId(ctx.getStepId())
+                .stepOrder(ctx.getStepOrder())
+                .stepName(ctx.getStepName())
                 .stepType(type())
                 .status(status)
                 .actualStatusCode(actualStatus)
@@ -217,7 +217,7 @@ public class HttpStepExecutor implements StepExecutor
                 .responseStatusCode(respStatus)
                 .responseHeaders(respHeaders == null ? null : gson.toJson(respHeaders))
                 .responseBody(respBody)
-                .expectedStatusCode(ctx.config().hasNonNull(Constant.HttpStep.EXPECTED_STATUS) ? ctx.config().get(Constant.HttpStep.EXPECTED_STATUS).asInt() : null)
+                .expectedStatusCode(ctx.getConfig().hasNonNull(Constant.HttpStep.EXPECTED_STATUS) ? ctx.getConfig().get(Constant.HttpStep.EXPECTED_STATUS).asInt() : null)
                 .extractedVariables(extractedJson)
                 .assertionResult(assertionJson)
                 .errorMessage(err)

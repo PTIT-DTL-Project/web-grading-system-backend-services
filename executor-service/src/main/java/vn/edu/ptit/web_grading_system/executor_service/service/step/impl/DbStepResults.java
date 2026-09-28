@@ -52,13 +52,13 @@ final class DbStepResults {
              * silently, so a broken assertion shape surfaces in
              * the job logs rather than a silent null field. */
             log.warn("Failed to serialize assertion details for step {}",
-                    ctx.stepId(), e);
+                    ctx.getStepId(), e);
             assertionJson = null;
         }
         OffsetDateTime now = OffsetDateTime.now();
         return GradingStepResult.builder()
-                .jobId(ctx.jobId()).planId(ctx.planId()).stepId(ctx.stepId())
-                .stepOrder(ctx.stepOrder()).stepName(ctx.stepName())
+                .jobId(ctx.getJobId()).planId(ctx.getPlanId()).stepId(ctx.getStepId())
+                .stepOrder(ctx.getStepOrder()).stepName(ctx.getStepName())
                 .stepType(stepType).status(status)
                 .assertionResult(assertionJson)
                 .errorMessage(err)

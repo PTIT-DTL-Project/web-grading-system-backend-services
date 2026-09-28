@@ -51,13 +51,13 @@ public class DbQueryExecutor implements StepExecutor {
 
     @Override
     public GradingStepResult execute(StepContext ctx) {
-        JsonNode config = ctx.config();
-        String query = ctx.variableContext().substitute(
+        JsonNode config = ctx.getConfig();
+        String query = ctx.getVariableContext().substitute(
                 config.path(Constant.DbStep.QUERY).asText(""));
-        Integer hostPort = (Integer) ctx.variableContext()
+        Integer hostPort = (Integer) ctx.getVariableContext()
                 .get(Constant.VariableContext.DB_PORT);
-        int timeoutMs = ctx.config().path(Constant.DbStep.TIMEOUT_MS)
-                .asInt(ctx.timeoutMs() != null ? ctx.timeoutMs() : 30_000);
+        int timeoutMs = ctx.getConfig().path(Constant.DbStep.TIMEOUT_MS)
+                .asInt(ctx.getTimeoutMs() != null ? ctx.getTimeoutMs() : 30_000);
         int timeoutSeconds = (int) Math.ceil(timeoutMs / 1000.0);
         long started = System.currentTimeMillis();
         List<AssertionDetail> details = new ArrayList<>();

@@ -97,7 +97,7 @@ class DbQueryExecutorTest {
     @Test
     void configTimeoutMs_isHonouredOverCtxTimeoutMs() throws Exception {
         // A {@code timeoutMs} key in the step config overrides
-        // {@code ctx.timeoutMs()}.
+        // {@code ctx.getTimeoutMs()}.
         var config = """
                 {"connection":{"db_type":"postgres","database":"appdb",
                 "username":"u","password":"p"},
