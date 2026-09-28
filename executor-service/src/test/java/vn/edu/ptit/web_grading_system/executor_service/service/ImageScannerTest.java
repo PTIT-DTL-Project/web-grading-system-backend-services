@@ -10,6 +10,7 @@ import vn.edu.ptit.web_grading_system.executor_service.entities.ImageScanStatus;
 import vn.edu.ptit.web_grading_system.executor_service.repository.DockerImageStateRepository;
 
 import java.time.OffsetDateTime;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -82,7 +83,7 @@ class ImageScannerTest {
         Mockito.when(c.images()).thenReturn(List.of(URL));
         Mockito.when(g.present(URL)).thenReturn(false);
         scanner(g, c, r, props(true, 300000, 600000, 600000)).scan();
-        verify(g).pull(eq(URL), Mockito.any());
+        verify(g).pull(eq(URL), eq(Duration.ofMillis(600000)));
         verify(r).save(Mockito.argThat(s ->
                 s.getStatus() == ImageScanStatus.PULLED
                         && s.getLastPulledAt() != null));
