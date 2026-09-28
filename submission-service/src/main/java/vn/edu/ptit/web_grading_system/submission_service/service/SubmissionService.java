@@ -40,11 +40,13 @@ public class SubmissionService {
 
     @Transactional
     public PresignedUrlResponse requestUpload(UUID assignmentId, UUID studentId, String zipFileName, UUID planId) {
-        Submission existingLatest = submissionRepository
-                .findLatestByAssignmentAndStudent(assignmentId, studentId);
-        if (existingLatest != null) {
-            existingLatest.setLatest(false);
-        }
+        // Demote every previous latest row, not just the first: if a race already left
+        // duplicate latest=true rows, this submit collapses them all (self-healing)
+        // instead of preserving the inconsistency. Runs in this method's existing
+        // @Transactional — flips + new insert commit atomically, same dirty-checking
+        // flush as before. Review: 2026-09-28.
+        submissionRepository.findAllLatestByAssignmentAndStudent(assignmentId, studentId)
+                .forEach(previous -> previous.setLatest(false));
 
         UUID submissionId = UUID.randomUUID();
         String objectName = rustfsService.buildObjectName(submissionId);

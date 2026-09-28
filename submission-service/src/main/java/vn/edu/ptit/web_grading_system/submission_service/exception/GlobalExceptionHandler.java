@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -98,6 +99,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException e) {
         return build(HttpStatus.NOT_FOUND, "No handler for this path", null);
+    }
+
+    // Required-header failures previously fell into the @ExceptionHandler(Exception.class)
+    // catch-all → 500. 400 here also covers GET /api/v1/submissions without a header and
+    // makes API-TEST-GUIDE's negative matrix ("missing X-User-Id → 400") true for this
+    // service. Review: 2026-09-28.
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingHeader(MissingRequestHeaderException e) {
+        return build(HttpStatus.BAD_REQUEST, "Missing required header: " + e.getHeaderName(), null);
     }
 
     @ExceptionHandler(Exception.class)

@@ -231,7 +231,7 @@ Student read path (enrollment + published gated, steps sanitized): `GET /api/v1/
 `GET /api/v1/student/assignments/{id}`, `GET /api/v1/student/assignments/{id}/plans`.
 `test_steps.description` is a nullable lecturer-authored note; FE shows it verbatim and
 falls back to auto-generated text from `config` when empty. Per-plan submission:
-`POST /api/v1/submissions/presigned-url?planId=` (planId optional; omitted ⇒ grade all).
+`POST /api/v1/submissions/presigned-url?planId=` (planId optional; omitted ⇒ grade all). Requires `X-User-Id` header (stamps `submissions.student_id`).
 
 ## 📘 Postman — full-flow testing guide
 

@@ -18,6 +18,7 @@ Create a Postman Environment (`⚙ Environments → Create`) with:
 | `baseUrl` | `http://localhost:18081` | service port when booted locally; use gateway host if testing through it |
 | `ownerLecturer1` | any UUID, e.g. `2d93941a-4221-458b-a03d-43bd6315d02e` | main lecturer identity |
 | `ownerLecturer2` | any other UUID | used to prove 404 ownership isolation |
+| `studentUser1`  | any UUID, e.g. `2d93941a-4221-458b-a03d-43bd6315d02e` | student identity (matches CSV import `student_user_id`) |
 | `classId`, `assignmentId`, `planId`, `stepId`, `studentCode`, `submissionId` | empty | captured during the flow |
 
 **Auto-capture ids** — in each create-request's *Tests* tab add:
@@ -266,7 +267,7 @@ Other lecturer accessing your plans → 404.
 
 ## 5. Student submissions
 
-⚠️ Pre-Keycloak caveat: server generates a **random `studentId`** per upload.
+⚠️ Identity: `X-User-Id` is **required** on this endpoint (`400` when absent). The server no longer stubs a student id — the header value stamps `submissions.student_id` and gates ownership at result read.
 Grading is webhook-triggered: after the PUT, RustFS fires `ObjectCreated:Put` →
 submission-service publishes `GRADE_SUBMISSION` → executor grades (`FETCHING →
 BUILDING → RUNNING → DONE/FAILED`). There is no confirm endpoint.
@@ -275,6 +276,7 @@ BUILDING → RUNNING → DONE/FAILED`). There is no confirm endpoint.
 
 ```
 POST {{baseUrl}}/api/v1/submissions/presigned-url?assignmentId={{assignmentId}}&zipFileName=lab01.zip
+X-User-Id: {{studentUser1}}
 ```
 
 Expected `201`: `uploadUrl` + `submissionId` (**save both**).
@@ -289,8 +291,10 @@ The upload itself triggers grading via the RustFS webhook — no further call ne
 ### 5.3 Verify
 
 ```
-GET {{baseUrl}}/api/v1/submissions                      (mine)
-GET {{baseUrl}}/api/v1/submissions/{{submissionId}}
+GET {{baseUrl}}/api/v1/submissions                      (mine) ← needs X-User-Id
+X-User-Id: {{studentUser1}}
+GET {{baseUrl}}/api/v1/submissions/{{submissionId}}      ← needs X-User-Id (ownership)
+X-User-Id: {{studentUser1}}
 GET {{baseUrl}}/api/v1/submissions/assignment/{{assignmentId}}
 ```
 

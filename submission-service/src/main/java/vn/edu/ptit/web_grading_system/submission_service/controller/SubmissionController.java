@@ -30,12 +30,22 @@ public class SubmissionController {
     public ResponseEntity<PresignedUrlResponse> requestUpload(
             @RequestParam UUID assignmentId,
             @RequestParam String zipFileName,
-            @RequestParam(required = false) UUID planId) {
-        UUID studentUUID = UUID.randomUUID();
-        String studentId = String.valueOf(studentUUID);
+            @RequestParam(required = false) UUID planId,
+            // Review: 2026-09-28 — identity used to be a per-call UUID.randomUUID(), so no
+            // result could ever be attributed to the submitting student: result-service
+            // ownership check 403'd, weighted exercise score (keyed by
+            // class_students.student_user_id) was always null, and "my submissions" was
+            // always empty. X-User-Id is now REQUIRED, like the sibling listMySubmissions:
+            // fail fast with 400 instead of silently storing an unattributable student_id.
+            // Missing → MissingRequestHeaderException → 400 via the new handler in
+            // GlobalExceptionHandler (previously the catch-all turned it into 500);
+            // present-but-malformed/blank → UUID.fromString throws → 400 via the existing
+            // IllegalArgumentException handler.
+            @RequestHeader("X-User-Id") String studentIdHeader) {
+        UUID studentId = UUID.fromString(studentIdHeader);
         PresignedUrlResponse response = submissionService.requestUpload(
                 assignmentId,
-                UUID.fromString(studentId),
+                studentId,
                 zipFileName,
                 planId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
