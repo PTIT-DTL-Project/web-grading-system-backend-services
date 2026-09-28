@@ -57,6 +57,8 @@ import feign.FeignException;
 
 class GradingOrchestratorTest {
 
+    private static final String IMAGE_URL = "ghcr.io/org/app:v1.0";
+
     @TempDir
     Path tempDir;
 
@@ -64,7 +66,8 @@ class GradingOrchestratorTest {
                    GradingStepResultRepository stepRepo, ResultServiceClient resultClient,
                    SubmissionStatusClient submissionClient, PortAllocator ports,
                    ArtifactService artifacts, Path workDir,
-                   java.util.concurrent.atomic.AtomicReference<Map<String, Object>> capturedVars) {
+                   java.util.concurrent.atomic.AtomicReference<Map<String, Object>> capturedVars,
+                   DockerImageGateway gateway, CourseInternalClient course) {
     }
 
     private Fixture fixture(StepResultStatus stubStatus, List<InternalPlanDto> plans) throws Exception {
@@ -115,7 +118,10 @@ class GradingOrchestratorTest {
             return new DockerComposeRunner.RunningCompose(
                     Mockito.mock(ComposeContainer.class), "localhost", 23456);
         });
-
+        // slot-B ENSURE_IMAGES gate: present() defaults true so every
+        // existing happy-path test skips pulling and is unaffected.
+        DockerImageGateway gateway = Mockito.mock(DockerImageGateway.class);
+        Mockito.when(gateway.present(Mockito.any())).thenReturn(true);
         AtomicInteger executions = new AtomicInteger();
         java.util.concurrent.atomic.AtomicReference<Map<String, Object>> capturedVars = new java.util.concurrent.atomic.AtomicReference<>();
         StepExecutor stub = new StepExecutor() {
@@ -179,9 +185,10 @@ class GradingOrchestratorTest {
                 course, submission, result, artifacts, ports, runner,
                 new StepRegistry(List.of(stub, dbStub)), new ObjectMapper(), props,
                 Mockito.mock(SagaTracker.class),
-                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())));
+                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())),
+                gateway);
         return new Fixture(orchestrator, job, executions, stepRepo, result, submission,
-                ports, artifacts, workDir, capturedVars);
+                ports, artifacts, workDir, capturedVars, gateway, course);
     }
 
     private static InternalStepDto step(UUID planId, int order, boolean required) {
@@ -327,7 +334,7 @@ class GradingOrchestratorTest {
 
     private GradingOrchestrator rawOrchestrator() {
         return new GradingOrchestrator(null, null, null, null, null, null, null,
-                null, null, null, new ObjectMapper(), null, null, null);
+                null, null, null, new ObjectMapper(), null, null, null, null);
     }
 
     private List<InternalStepDto> invokeAutoInject(Object orchestrator,
@@ -773,7 +780,7 @@ class GradingOrchestratorTest {
             throws Exception {
         GradingOrchestrator orch = new GradingOrchestrator(null, null, null, null, null, null,
                 null, null, null, null, new ObjectMapper(), null, null,
-                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())));
+                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())), null);
         Method method = GradingOrchestrator.class.getDeclaredMethod(
                 "scanDbRequirements", List.class);
         method.setAccessible(true);
@@ -930,10 +937,74 @@ class GradingOrchestratorTest {
     private static GradingOrchestrator orchestratorWithRegistry() {
         return new GradingOrchestrator(null, null, null, null, null, null,
                 null, null, null, null, new ObjectMapper(), null, null,
-                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())));
+                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())), null);
     }
 
     private static GradingOrchestrator.DbRequirements req(String service, int port, String dbType) {
         return new GradingOrchestrator.DbRequirements(true, service, port, dbType, null);
+    }
+
+    // ─── ensureImages tests ───
+
+    @Test
+    void imagePullFailure_failsJobAndReleasesPorts() {
+        // slot-B guarantee: a missing image must fail the job BEFORE
+        // compose boots, while the port is held. The finally must
+        // still release it (PR #21).
+        InternalPlanDto one = plan(0, List.of(step(null, 0, false)));
+        Fixture f;
+        try {
+            f = fixture(StepResultStatus.PASSED, List.of(one));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        GradingJob job = f.job();
+        AssignmentGradingConfigDto cfg = AssignmentGradingConfigDto.builder()
+                .gradingStrategy("STUDENT_DOCKER_COMPOSE")
+                .dockerComposePort(8080).startupTimeoutMs(1000)
+                .executionTimeoutMs(60000).maxCpu(0.5).maxMemoryMb(256)
+                                .dockerImageUrls(List.of(IMAGE_URL))
+                .build();
+        Mockito.when(f.course().gradingConfig(Mockito.any())).thenReturn(cfg);
+        Mockito.when(f.gateway().present(Mockito.any())).thenReturn(false);
+        Mockito.doThrow(new ImagePullException("rate limited"))
+                .when(f.gateway()).pull(Mockito.any(), Mockito.any());
+
+        f.orchestrator().grade(job.getId(), job.getSubmissionId(),
+                job.getAssignmentId(), job.getStudentId(), null,
+                "submissions/x.zip", "t-image-missing");
+
+        assertEquals(GradingJobStatus.FAILED, job.getStatus());
+        assertTrue(job.getErrorMessage().contains(IMAGE_URL));
+        Mockito.verify(f.ports()).claim();
+        Mockito.verify(f.ports()).release(23456);
+        Mockito.verify(f.artifacts()).fetchWorkDir(Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    void imagesPresent_bootsNormallyWithoutPull() {
+        InternalPlanDto one = plan(0, List.of(step(null, 0, false)));
+        Fixture f;
+        try {
+            f = fixture(StepResultStatus.PASSED, List.of(one));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        GradingJob job = f.job();
+        AssignmentGradingConfigDto cfg = AssignmentGradingConfigDto.builder()
+                .gradingStrategy("STUDENT_DOCKER_COMPOSE")
+                .dockerComposePort(8080).startupTimeoutMs(1000)
+                .executionTimeoutMs(60000).maxCpu(0.5).maxMemoryMb(256)
+                                .dockerImageUrls(List.of(IMAGE_URL))
+                .build();
+        Mockito.when(f.course().gradingConfig(Mockito.any())).thenReturn(cfg);
+
+        f.orchestrator().grade(job.getId(), job.getSubmissionId(),
+                job.getAssignmentId(), job.getStudentId(), null,
+                "submissions/x.zip", "t-image-present");
+
+        assertEquals(GradingJobStatus.DONE, job.getStatus());
+        Mockito.verify(f.gateway(), Mockito.never())
+                .pull(Mockito.any(), Mockito.any());
     }
 }
