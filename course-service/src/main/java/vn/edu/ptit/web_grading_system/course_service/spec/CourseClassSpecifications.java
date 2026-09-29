@@ -32,7 +32,8 @@ public final class CourseClassSpecifications {
         String pattern = "%" + escaped + "%";
         // Review: 2026-09-29, Pullfrog PR — escape LIKE wildcards before wrapping
         // in %...%. criteriaBuilder.like() with escape '\\' treats user-typed '%'
-        // and '_' as literals, matching the sibling AssignmentRepository behavior.
+        // and '_' as literals. This is stricter than AssignmentRepository, which
+        // does not escape wildcards.
         return (root, query, criteriaBuilder) -> criteriaBuilder.or(
                 criteriaBuilder.like(criteriaBuilder.lower(root.get(CourseClassAttr.NAME)), pattern, '\\'),
                 criteriaBuilder.like(criteriaBuilder.lower(root.get(CourseClassAttr.SEMESTER)), pattern, '\\')
