@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import vn.edu.ptit.web_grading_system.course_service.entity.ClassStatus;
 import vn.edu.ptit.web_grading_system.course_service.entity.CourseClass;
 import vn.edu.ptit.web_grading_system.course_service.spec.CourseClassSpecifications;
+import vn.edu.ptit.web_grading_system.course_service.spec.filter.ClassFilter;
 
 @Repository
 public interface CourseClassRepository extends JpaRepository<CourseClass, UUID>, JpaSpecificationExecutor<CourseClass> {
@@ -26,21 +27,25 @@ public interface CourseClassRepository extends JpaRepository<CourseClass, UUID>,
     // from AssignmentRepository.findMine and described semantics this method does
     // not implement (no owner scope, no null-filter ignoring).
     /**
-     * Shortcut for owner-scoped listing with optional q + status filters.
-     * Null/blank filter arguments are ignored.
+     * Owner-scoped listing with optional structured search and status filter.
+     * Null/blank arguments are ignored.
+     *
+     * @param ownerId  caller identity from X-User-Id
+     * @param filter   parsed search filter; null or empty → no text filter
+     * @param status   optional status filter; null → both ACTIVE and ARCHIVED
+     * @param pageable paging + sort from controller
      */
-    // Review: 2026-09-29, Pullfrog PR — moved q trim/blank normalization here
-    // so ClassService no longer duplicates it. findMine is now the single source
-    // of truth for the spec chain composition.
+    // Review: 2026-09-29, structured-filter design — findMine now accepts a
+    // ClassFilter instead of a raw String. Parsing + validation lives in
+    // ClassFilter.parse(), so this method only composes specs.
     default Page<CourseClass> findMine(
             UUID ownerId,
-            String q,
+            ClassFilter filter,
             ClassStatus status,
             Pageable pageable) {
-        String trimmed = (q == null || q.isBlank()) ? null : q.trim();
         return findAll(
                 CourseClassSpecifications.ownedBy(ownerId)
-                        .and(CourseClassSpecifications.qMatches(trimmed))
+                        .and(CourseClassSpecifications.from(filter))
                         .and(CourseClassSpecifications.statusIs(status)),
                 pageable);
     }

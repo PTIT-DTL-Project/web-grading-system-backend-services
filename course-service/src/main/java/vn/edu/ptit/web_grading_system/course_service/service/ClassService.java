@@ -19,6 +19,7 @@ import vn.edu.ptit.web_grading_system.course_service.repository.ClassStudentRepo
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.course_service.repository.CourseClassRepository;
+import vn.edu.ptit.web_grading_system.course_service.spec.filter.ClassFilter;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -56,11 +57,13 @@ public class ClassService {
         return classMapper.toResponse(courseClassRepository.save(courseClass));
     }
 
-    // Review: 2026-09-29, Pullfrog PR — delegate to findMine instead of composing
-    // specs inline. Eliminates the duplicate spec chain that was already diverging
-    // (this method trimmed q; findMine did not).
+    // Review: 2026-09-29, structured-filter design — parse the raw search string
+    // into a typed ClassFilter before passing to the repository. Validation
+    // (unknown fields, missing ':', blank values, limits) happens here, so the
+    // repository only composes specs from a known-good object.
     public Page<ClassResponse> listMine(UUID ownerId, String search, ClassStatus status, Pageable pageable) {
-        return courseClassRepository.findMine(ownerId, search, status, pageable)
+        ClassFilter filter = ClassFilter.parse(search);
+        return courseClassRepository.findMine(ownerId, filter, status, pageable)
                 .map(classMapper::toResponse);
     }
 
