@@ -21,24 +21,27 @@ public interface CourseClassRepository extends JpaRepository<CourseClass, UUID>,
 
     boolean existsByOwnerIdAndNameAndSemester(UUID ownerId, String name, String semester);
 
+    // Review: 2026-09-29, Pullfrog PR — removed misleading Javadoc and redundant
+    // findAll(Specification, Pageable) redeclaration. The inherited method from
+    // JpaSpecificationExecutor already provides this; the Javadoc was copy-pasted
+    // from AssignmentRepository.findMine and described semantics this method does
+    // not implement (no owner scope, no null-filter ignoring).
     /**
-     * Owner-scoped listing with optional combinable filters.
-     * Null filter arguments are ignored.
+     * Shortcut for owner-scoped listing with optional q + status filters.
+     * Null/blank filter arguments are ignored.
      */
-    Page<CourseClass> findAll(Specification<CourseClass> spec, Pageable pageable);
-
-    /**
-     * Shortcut for a common pattern: owner + optional q + optional status.
-     * Null filter arguments are ignored.
-     */
+    // Review: 2026-09-29, Pullfrog PR — moved q trim/blank normalization here
+    // so ClassService no longer duplicates it. findMine is now the single source
+    // of truth for the spec chain composition.
     default Page<CourseClass> findMine(
             UUID ownerId,
             String q,
             ClassStatus status,
             Pageable pageable) {
+        String trimmed = (q == null || q.isBlank()) ? null : q.trim();
         return findAll(
                 CourseClassSpecifications.ownedBy(ownerId)
-                        .and(CourseClassSpecifications.qMatches(q))
+                        .and(CourseClassSpecifications.qMatches(trimmed))
                         .and(CourseClassSpecifications.statusIs(status)),
                 pageable);
     }

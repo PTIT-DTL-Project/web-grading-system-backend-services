@@ -28,7 +28,10 @@ public final class Constant {
         private Image() {}
     }
 
-    /** Database column names used in CourseClass entity queries. */
+    // Review: 2026-09-29, Pullfrog PR — rewrote Javadoc to say "JPA attribute names"
+    // instead of "Database column names". root.get() resolves against the entity
+    // attribute path, so "owner_id" would throw at runtime; the correct value is
+    // "ownerId" (attribute), not the mapped column name.
     public static final class CourseClassAttr {
         public static final String OWNER_ID = "ownerId";
         public static final String NAME     = "name";

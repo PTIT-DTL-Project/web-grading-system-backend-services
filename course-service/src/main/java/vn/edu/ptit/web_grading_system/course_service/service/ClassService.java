@@ -57,14 +57,12 @@ public class ClassService {
         return classMapper.toResponse(courseClassRepository.save(courseClass));
     }
 
-    public Page<ClassResponse> listMine(UUID ownerId, String q, ClassStatus status, Pageable pageable) {
-        final String searchTerm = (q == null || q.isBlank()) ? null : q.trim();
-        return courseClassRepository.findAll(
-                CourseClassSpecifications.ownedBy(ownerId)
-                        .and(CourseClassSpecifications.qMatches(searchTerm))
-                        .and(CourseClassSpecifications.statusIs(status)),
-                pageable
-        ).map(classMapper::toResponse);
+    // Review: 2026-09-29, Pullfrog PR — delegate to findMine instead of composing
+    // specs inline. Eliminates the duplicate spec chain that was already diverging
+    // (this method trimmed q; findMine did not).
+    public Page<ClassResponse> listMine(UUID ownerId, String search, ClassStatus status, Pageable pageable) {
+        return courseClassRepository.findMine(ownerId, search, status, pageable)
+                .map(classMapper::toResponse);
     }
 
     public ClassResponse getById(UUID id, UUID ownerId) {
