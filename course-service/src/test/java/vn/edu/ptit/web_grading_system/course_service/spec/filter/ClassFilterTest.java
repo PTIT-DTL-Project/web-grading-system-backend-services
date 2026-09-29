@@ -109,6 +109,14 @@ class ClassFilterTest {
     }
 
     @Test
+    void parse_unknownFieldWithLongValue_throwsUnknownField() {
+        String longValue = "x".repeat(250);
+        InvalidFilterException e = assertThrows(InvalidFilterException.class,
+                () -> ClassFilter.parse("badfield:" + longValue));
+        assertEquals("Unknown filter field: 'badfield'. Allowed fields: name, semester", e.getMessage());
+    }
+
+    @Test
     void parse_duplicateField_throws() {
         InvalidFilterException e = assertThrows(InvalidFilterException.class,
                 () -> ClassFilter.parse("name:a;name:b"));

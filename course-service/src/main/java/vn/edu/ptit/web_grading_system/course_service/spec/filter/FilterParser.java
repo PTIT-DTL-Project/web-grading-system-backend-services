@@ -62,14 +62,14 @@ public final class FilterParser {
             String field = token.substring(0, colon).trim().toLowerCase(Locale.ROOT);
             String value = token.substring(colon + 1).trim();
 
+            if (!searchable.contains(field)) {
+                throw unknownField(field, searchable);
+            }
             if (value.isBlank()) {
                 throw new InvalidFilterException("Filter value for '" + field + "' must not be blank");
             }
             if (value.length() > MAX_VALUE_LENGTH) {
                 throw new InvalidFilterException("Filter value for '" + field + "' must be ≤ " + MAX_VALUE_LENGTH + " characters");
-            }
-            if (!searchable.contains(field)) {
-                throw unknownField(field, searchable);
             }
             if (result.containsKey(field)) {
                 throw new InvalidFilterException("Duplicate filter field: '" + field + "'");
