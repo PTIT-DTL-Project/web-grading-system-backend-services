@@ -19,6 +19,7 @@ import vn.edu.ptit.web_grading_system.course_service.repository.ClassStudentRepo
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.course_service.repository.CourseClassRepository;
+import vn.edu.ptit.web_grading_system.course_service.spec.CourseClassSpecifications;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -56,9 +57,14 @@ public class ClassService {
         return classMapper.toResponse(courseClassRepository.save(courseClass));
     }
 
-    public Page<ClassResponse> listMine(UUID ownerId, Pageable pageable) {
-        return courseClassRepository.findAllByOwnerId(ownerId, pageable)
-                .map(classMapper::toResponse);
+    public Page<ClassResponse> listMine(UUID ownerId, String q, ClassStatus status, Pageable pageable) {
+        final String searchTerm = (q == null || q.isBlank()) ? null : q.trim();
+        return courseClassRepository.findAll(
+                CourseClassSpecifications.ownedBy(ownerId)
+                        .and(CourseClassSpecifications.qMatches(searchTerm))
+                        .and(CourseClassSpecifications.statusIs(status)),
+                pageable
+        ).map(classMapper::toResponse);
     }
 
     public ClassResponse getById(UUID id, UUID ownerId) {

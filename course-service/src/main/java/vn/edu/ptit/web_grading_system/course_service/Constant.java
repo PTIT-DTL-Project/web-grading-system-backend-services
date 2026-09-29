@@ -28,5 +28,15 @@ public final class Constant {
         private Image() {}
     }
 
+    /** Database column names used in CourseClass entity queries. */
+    public static final class CourseClassAttr {
+        public static final String OWNER_ID = "ownerId";
+        public static final String NAME     = "name";
+        public static final String SEMESTER = "semester";
+        public static final String STATUS   = "status";
+
+        private CourseClassAttr() {}
+    }
+
     private Constant() {}
 }

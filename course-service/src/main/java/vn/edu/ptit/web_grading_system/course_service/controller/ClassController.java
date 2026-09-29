@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateClassRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.ClassResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.ClassStudentResponse;
+import vn.edu.ptit.web_grading_system.course_service.entity.ClassStatus;
 import vn.edu.ptit.web_grading_system.course_service.service.ClassService;
 import vn.edu.ptit.web_grading_system.course_service.util.annotation.ApiMessage;
 
@@ -39,9 +40,11 @@ public class ClassController {
     public ResponseEntity<Page<ClassResponse>> listMine(
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) ClassStatus status) {
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(classService.listMine(UUID.fromString(ownerId), pageable));
+        return ResponseEntity.ok(classService.listMine(UUID.fromString(ownerId), q, status, pageable));
     }
 
     @GetMapping("/{id}")
