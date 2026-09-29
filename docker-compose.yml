@@ -1,0 +1,54 @@
+services:
+
+  # ─── Keycloak IAM (Local Container -> Neon DB) ───────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: wgs-keycloak
+    restart: unless-stopped
+    command: start-dev
+    env_file:
+      - .env
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: ${KEYCLOAK_DB_URL:-jdbc:postgresql://localhost:5432/keycloak?sslmode=require}
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USERNAME:-your_db_username}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-your_db_password}
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: 8080
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8180:8080"
+    networks:
+      - wgs-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ─── API Gateway ──────────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: wgs-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ptit-wgs
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    networks:
+      - wgs-network
+
+networks:
+  wgs-network:
+    name: wgs-network
+    driver: bridge
