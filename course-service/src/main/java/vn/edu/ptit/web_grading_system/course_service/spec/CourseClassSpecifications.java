@@ -1,9 +1,5 @@
 package vn.edu.ptit.web_grading_system.course_service.spec;
 
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.CriteriaQuery;
-import jakarta.persistence.criteria.Root;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.data.jpa.domain.Specification;
@@ -22,11 +18,6 @@ public final class CourseClassSpecifications {
     public static Specification<CourseClass> ownedBy(UUID ownerId) {
         return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get(CourseClassAttr.OWNER_ID), ownerId);
     }
-
-    // Review: 2026-09-29, Pullfrog PR — removed SEARCH_PATTERN_FORMAT constant.
-    // String.formatted("%s%") throws UnknownFormatConversionException on the trailing
-    // bare '%'; build the LIKE pattern by concatenation instead.
-    // Also use Locale.ROOT for toLowerCase() to avoid Turkish-I edge case.
 
     /**
      * Case-insensitive contains filter on class name.
@@ -60,9 +51,6 @@ public final class CourseClassSpecifications {
      * names; values are functions that turn a raw string value into a predicate.
      * Adding a searchable field = one entry in the filter record + one entry here.
      */
-    // Review: 2026-09-29, structured-filter design — from() is the single
-    // composition point for class search. It delegates to FilterSpecifications.compose(),
-    // which reflects over the filter record's getters and AND-s the matching specs.
     public static Specification<CourseClass> from(ClassFilter filter) {
         Map<String, java.util.function.Function<String, Specification<CourseClass>>> builders = Map.of(
                 CourseClassAttr.NAME, CourseClassSpecifications::nameMatches,
@@ -82,12 +70,8 @@ public final class CourseClassSpecifications {
         if (q == null || q.isBlank()) {
             return (root, query, criteriaBuilder) -> criteriaBuilder.conjunction();
         }
-        String term = q.trim().toLowerCase(Locale.ROOT);
+        String term = q.trim().toLowerCase(java.util.Locale.ROOT);
         String pattern = "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
-        // Review: 2026-09-29, Pullfrog PR — escape LIKE wildcards before wrapping
-        // in %...%. criteriaBuilder.like() with escape '\\' treats user-typed '%'
-        // and '_' as literals. This is stricter than AssignmentRepository, which
-        // does not escape wildcards.
         return (root, query, criteriaBuilder) -> criteriaBuilder.or(
                 criteriaBuilder.like(criteriaBuilder.lower(root.get(CourseClassAttr.NAME)), pattern, '\\'),
                 criteriaBuilder.like(criteriaBuilder.lower(root.get(CourseClassAttr.SEMESTER)), pattern, '\\')
