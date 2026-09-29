@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateClassRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.ClassResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.ClassStudentResponse;
+import vn.edu.ptit.web_grading_system.course_service.entity.ClassStatus;
 import vn.edu.ptit.web_grading_system.course_service.service.ClassService;
 import vn.edu.ptit.web_grading_system.course_service.util.annotation.ApiMessage;
 
@@ -39,9 +41,17 @@ public class ClassController {
     public ResponseEntity<Page<ClassResponse>> listMine(
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(classService.listMine(UUID.fromString(ownerId), pageable));
+            @RequestParam(defaultValue = "20") int size,
+            // Review: 2026-09-29, Pullfrog PR — renamed 'q' to 'search' to match the
+            // sibling AssignmentController and StudentAssignmentController. A UI sending
+            // 'search=' to /classes would otherwise get a silently unfiltered 200.
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) ClassStatus status) {
+        // Review: 2026-09-29, Pullfrog PR — added Sort.by("createdAt").descending()
+        // so paged results are stable across pages. Previously PageRequest.of(page, size)
+        // had no ordering, so pages could skip or overlap rows.
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return ResponseEntity.ok(classService.listMine(UUID.fromString(ownerId), search, status, pageable));
     }
 
     @GetMapping("/{id}")

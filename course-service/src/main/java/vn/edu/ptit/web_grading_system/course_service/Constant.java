@@ -1,5 +1,6 @@
 package vn.edu.ptit.web_grading_system.course_service;
 
+import java.util.Set;
 import java.util.UUID;
 
 /** Shared constants. Mirrors the executor-service {@code Constant} convention. */
@@ -26,6 +27,22 @@ public final class Constant {
                 "or name@sha256:<digest>";
 
         private Image() {}
+    }
+
+    // Review: 2026-09-29, Pullfrog PR — rewrote Javadoc to say "JPA attribute names"
+    // instead of "Database column names". root.get() resolves against the entity
+    // attribute path, so "owner_id" would throw at runtime; the correct value is
+    // "ownerId" (attribute), not the mapped column name.
+    public static final class CourseClassAttr {
+        public static final String OWNER_ID = "ownerId";
+        public static final String NAME     = "name";
+        public static final String SEMESTER = "semester";
+        public static final String STATUS   = "status";
+
+        /** Fields accepted by the structured search parser for this entity. */
+        public static final Set<String> SEARCHABLE = Set.of(NAME, SEMESTER);
+
+        private CourseClassAttr() {}
     }
 
     private Constant() {}
