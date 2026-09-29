@@ -33,9 +33,12 @@ public final class FilterSpecifications {
      * <p>The caller supplies a {@code Map<String, Function<String, Specification<T>>>}
      * that maps field names to spec builders. Each builder receives the raw field
      * value (already escaped at the LIKE-pattern level). Missing builders cause
-     * the field to be skipped with an {@link IllegalStateException}, so a field
-     * present in the filter but absent from the map fails loudly rather than
-     * silently dropping the predicate.
+     * compose to throw {@link IllegalStateException}, so a field present in the
+     * filter but absent from the map fails loudly rather than silently dropping
+     * the predicate.
+     *
+     * <p>This method only supports record filters. A non-record filter causes
+     * compose to throw {@link IllegalStateException}.
      *
      * @param filter     parsed filter record (may be null or have null fields)
      * @param builders   field-name → spec-builder map; every non-null filter
@@ -72,6 +75,9 @@ public final class FilterSpecifications {
                     throw new IllegalStateException("Failed to read filter field " + fieldName + " from " + clazz.getName(), e);
                 }
             }
+        } else {
+            throw new IllegalStateException(
+                    "FilterSpecifications.compose only supports record filters, got " + clazz.getName());
         }
 
         return result;

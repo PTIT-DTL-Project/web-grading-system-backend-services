@@ -3,9 +3,8 @@ package vn.edu.ptit.web_grading_system.course_service.spec.filter;
 import org.junit.jupiter.api.Test;
 import vn.edu.ptit.web_grading_system.course_service.Constant;
 
-import java.util.Arrays;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ClassFilterTest {
@@ -21,10 +20,10 @@ class ClassFilterTest {
     void parse_singleField_setsOnlyThatField() {
         ClassFilter f = ClassFilter.parse("name:PTIT");
         assertEquals("PTIT", f.name());
-        assertEquals(null, f.semester());
+        assertNull(f.semester());
 
         f = ClassFilter.parse("semester:20261");
-        assertEquals(null, f.name());
+        assertNull(f.name());
         assertEquals("20261", f.semester());
     }
 
@@ -39,7 +38,7 @@ class ClassFilterTest {
     void parse_fieldNameIsCaseInsensitive() {
         ClassFilter f = ClassFilter.parse("NAME:PTIT");
         assertEquals("PTIT", f.name());
-        assertEquals(null, f.semester());
+        assertNull(f.semester());
     }
 
     @Test

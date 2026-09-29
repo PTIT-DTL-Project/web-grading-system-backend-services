@@ -59,25 +59,6 @@ public final class CourseClassSpecifications {
         return FilterSpecifications.compose(filter, builders);
     }
 
-    /**
-     * @deprecated Use {@link #nameMatches(String)} and/or {@link #semesterMatches(String)}
-     *             with {@link ClassFilter#parse(String)} instead. This method's parse-and-match
-     *             dual duty is now split: parsing lives in {@link ClassFilter}, matching lives
-     *             in the named methods above.
-     */
-    @Deprecated(since = "structured-search-refactor")
-    public static Specification<CourseClass> qMatches(String q) {
-        if (q == null || q.isBlank()) {
-            return (root, query, criteriaBuilder) -> criteriaBuilder.conjunction();
-        }
-        String term = q.trim().toLowerCase(java.util.Locale.ROOT);
-        String pattern = "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
-        return (root, query, criteriaBuilder) -> criteriaBuilder.or(
-                criteriaBuilder.like(criteriaBuilder.lower(root.get(CourseClassAttr.NAME)), pattern, '\\'),
-                criteriaBuilder.like(criteriaBuilder.lower(root.get(CourseClassAttr.SEMESTER)), pattern, '\\')
-        );
-    }
-
     public static Specification<CourseClass> statusIs(ClassStatus status) {
         if (status == null) {
             return (root, query, criteriaBuilder) -> criteriaBuilder.conjunction();

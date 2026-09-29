@@ -41,8 +41,8 @@ public record ClassFilter(String name, String semester) {
     public static ClassFilter parse(String search) {
         java.util.Map<String, String> map = FilterParser.parse(search, CourseClassAttr.SEARCHABLE);
         return new ClassFilter(
-                map.getOrDefault("name", null),
-                map.getOrDefault("semester", null)
+                map.getOrDefault(CourseClassAttr.NAME, null),
+                map.getOrDefault(CourseClassAttr.SEMESTER, null)
         );
     }
 }

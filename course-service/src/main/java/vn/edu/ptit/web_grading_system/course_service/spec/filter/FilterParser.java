@@ -56,7 +56,7 @@ public final class FilterParser {
         for (String token : tokens) {
             int colon = token.indexOf(':');
             if (colon < 0) {
-                throw missingColon(token);
+                throw missingColon(token, searchable);
             }
 
             String field = token.substring(0, colon).trim().toLowerCase(Locale.ROOT);
@@ -81,9 +81,9 @@ public final class FilterParser {
         return Map.copyOf(result);
     }
 
-    private static InvalidFilterException missingColon(String token) {
+    private static InvalidFilterException missingColon(String token, Set<String> searchable) {
         return new InvalidFilterException(
-                "Malformed filter '" + token + "': expected 'field:value'. Allowed fields: name, semester");
+                "Malformed filter '" + token + "': expected 'field:value'. Allowed fields: " + String.join(", ", sorted(searchable)));
     }
 
     private static InvalidFilterException unknownField(String field, Set<String> searchable) {
