@@ -8,7 +8,7 @@ class LikePatternsTest {
 
     @Test
     void escapeContains_backslashIsEscapedFirst() {
-        assertEquals("%back\\\\slash%", LikePatterns.escapeContains("back\\slash"));
+        assertEquals("%back\\\\slash\\%off%", LikePatterns.escapeContains("back\\slash%off"));
     }
 
     @Test
@@ -19,5 +19,10 @@ class LikePatternsTest {
     @Test
     void escapeContains_underscoreIsEscaped() {
         assertEquals("%a\\_b%", LikePatterns.escapeContains("a_b"));
+    }
+
+    @Test
+    void escapeContains_lowercasesInput() {
+        assertEquals("%ptit%", LikePatterns.escapeContains("PTIT"));
     }
 }
