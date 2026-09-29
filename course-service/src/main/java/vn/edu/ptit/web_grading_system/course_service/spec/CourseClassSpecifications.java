@@ -28,11 +28,11 @@ public final class CourseClassSpecifications {
             return (root, query, criteriaBuilder) -> criteriaBuilder.conjunction();
         }
         String term = q.trim().toLowerCase(Locale.ROOT);
-        String pattern = "%" + term + "%";
-        // Review: 2026-09-29, Pullfrog PR — escape LIKE wildcards.
-        // criteriaBuilder.like() treats '%' and '_' as wildcards; passing '\\'
-        // as the escape char makes user-typed '%' and '_' literal, matching the
-        // sibling AssignmentRepository behavior.
+        String escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        String pattern = "%" + escaped + "%";
+        // Review: 2026-09-29, Pullfrog PR — escape LIKE wildcards before wrapping
+        // in %...%. criteriaBuilder.like() with escape '\\' treats user-typed '%'
+        // and '_' as literals, matching the sibling AssignmentRepository behavior.
         return (root, query, criteriaBuilder) -> criteriaBuilder.or(
                 criteriaBuilder.like(criteriaBuilder.lower(root.get(CourseClassAttr.NAME)), pattern, '\\'),
                 criteriaBuilder.like(criteriaBuilder.lower(root.get(CourseClassAttr.SEMESTER)), pattern, '\\')

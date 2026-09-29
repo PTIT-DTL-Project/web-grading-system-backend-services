@@ -19,7 +19,6 @@ import vn.edu.ptit.web_grading_system.course_service.repository.ClassStudentRepo
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.course_service.repository.CourseClassRepository;
-import vn.edu.ptit.web_grading_system.course_service.spec.CourseClassSpecifications;
 
 import java.io.BufferedReader;
 import java.io.IOException;
