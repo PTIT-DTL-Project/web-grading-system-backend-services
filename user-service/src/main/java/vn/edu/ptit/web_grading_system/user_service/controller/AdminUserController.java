@@ -11,6 +11,9 @@ import vn.edu.ptit.web_grading_system.user_service.dto.response.ApiResponse;
 import vn.edu.ptit.web_grading_system.user_service.dto.response.UserProfileResponse;
 import vn.edu.ptit.web_grading_system.user_service.dto.response.UserSummaryResponse;
 import vn.edu.ptit.web_grading_system.user_service.service.UserAdminService;
+import org.springframework.web.multipart.MultipartFile;
+import vn.edu.ptit.web_grading_system.user_service.dto.response.ImportResultResponse;
+import vn.edu.ptit.web_grading_system.user_service.service.ImportService;
 
 import java.util.List;
 
@@ -21,6 +24,7 @@ import java.util.List;
 public class AdminUserController {
 
     private final UserAdminService userAdminService;
+    private final ImportService importService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<UserSummaryResponse>>> listUsers(
@@ -65,5 +69,26 @@ public class AdminUserController {
             @Valid @RequestBody ResetPasswordRequest request) {
         userAdminService.resetPassword(id, request);
         return ResponseEntity.ok(ApiResponse.noContent());
+    }
+
+    /**
+     * Import users from a CSV or Excel file.
+     * Form params:
+     *   file            — multipart file (.csv or .xlsx)
+     *   role            — ROLE_STUDENT or ROLE_LECTURER
+     *   passwordMode    — STUDENT_CODE | CUSTOM
+     *   defaultPassword — (required when passwordMode=CUSTOM)
+     *   forcePasswordChange — true | false (default true)
+     */
+    @PostMapping(value = "/import", consumes = "multipart/form-data")
+    public ResponseEntity<ApiResponse<ImportResultResponse>> importUsers(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("role") String role,
+            @RequestParam("passwordMode") String passwordMode,
+            @RequestParam(value = "defaultPassword", required = false) String defaultPassword,
+            @RequestParam(value = "forcePasswordChange", defaultValue = "true") boolean forcePasswordChange) {
+        ImportResultResponse result = importService.importUsers(file, role, passwordMode,
+                defaultPassword, forcePasswordChange);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 }
