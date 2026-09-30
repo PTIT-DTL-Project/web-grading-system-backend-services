@@ -150,10 +150,11 @@ chứng, lọc theo `gateway.security.allowed-roles` (mặc định `LECTURER,ST
 | mọi endpoint `/api/v1/assignments` (create, list, detail, update, publish, delete, gán docker image) | `LECTURER` |
 | mọi endpoint plan & step dưới `/api/v1/assignments/{assignmentId}/...` | `LECTURER` |
 | mọi endpoint `/api/v1/docker-images` | `LECTURER` |
-| `GET /api/v1/submissions/assignment/{assignmentId}` (hàng chờ chấm) | `LECTURER` |
+| `GET /api/v1/assignments/{assignmentId}/results` (kết quả auto-grading cả lớp / 1 sinh viên) | `LECTURER` + owner class; sai owner → `404` |
+| `GET /api/v1/assignments/{assignmentId}/submissions` (hàng chờ chấm) | `LECTURER` + owner class; sai owner → `404` |
 | `GET /api/v1/classes/{id}` | owner-scoped, **không** role gate (sinh viên xem lớp của mình) |
-| `GET /api/v1/submissions/{id}` | owner **hoặc** `LECTURER`; sai owner → `404` (giống id không tồn tại) |
-| `GET /api/v1/results/{submissionId}` | owner **hoặc** `LECTURER`; sai owner → `403` |
+| `GET /api/v1/submissions/{id}` | owner; sai owner → `404` (giống id không tồn tại) — không còn bypass `LECTURER` |
+| `GET /api/v1/results/{submissionId}` | owner; sai owner → `403` — không còn bypass `LECTURER` |
 | `/api/v1/student/**`, upload submission | enrollment/ownership, không role gate |
 
 FE chưa gửi bearer token nên UI đang trả `401` cho tới khi tích hợp login Keycloak

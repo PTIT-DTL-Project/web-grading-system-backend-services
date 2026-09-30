@@ -58,16 +58,19 @@ Most identity endpoints default a missing header to `anonymous` → `400 invalid
 
 **Role rule (2026-09-30, slice 2):** everything that creates or edits grading data — creating/listing/archiving
 classes, importing students, score components, entering scores, transcripts, assignments, plans & steps,
-docker images, and `GET /api/v1/submissions/assignment/{assignmentId}` — now requires `LECTURER`. Any other
+docker images — plus the lecturer's grading view (`GET /api/v1/assignments/{assignmentId}/results` and
+`GET /api/v1/assignments/{assignmentId}/submissions`) — requires `LECTURER`. Any other
 role, **or a request carrying no `X-User-Roles` at all**, gets `403` from method security; a request that
 still has no trust secret gets `401` first. In mode A you send the role yourself, so it is worth exactly as
 much as the secret next to it; in mode B the gateway derives it from the token's `realm_access.roles` and
 forwards only what `gateway.security.allowed-roles` (default `LECTURER,STUDENT`) keeps.
 
-Ownership, not role, still decides two reads: `GET /api/v1/submissions/{id}` answers `404` for a non-owner
-indistinguishably from a missing id (a `LECTURER` reads any), and `GET /api/v1/results/{submissionId}`
-answers `403` when the rows belong to someone else — unless the caller holds `LECTURER`, which is what lets
-a lecturer grade.
+Ownership, not role, decides the student reads: `GET /api/v1/submissions/{id}` answers `404` for a non-owner
+indistinguishably from a missing id, and `GET /api/v1/results/{submissionId}` answers `403` when the rows
+belong to someone else. Neither submission-service nor result-service reads roles anymore, so a lecturer
+gets the same answer as anyone else on those two routes — the lecturer's wider view is the pair of
+`/api/v1/assignments/{assignmentId}/…` endpoints above, each of which first checks that the assignment
+belongs to a class the `X-User-Id` owns (another lecturer's assignment → `404`).
 
 ---
 
@@ -328,13 +331,36 @@ The upload itself triggers grading via the RustFS webhook — no further call ne
 ```
 GET {{baseUrl}}/api/v1/submissions                      (mine) ← needs X-User-Id
 X-User-Id: {{fake_student_id}}
-GET {{baseUrl}}/api/v1/submissions/{{submissionId}}      (no ownership check today — any caller can read by id)
+GET {{baseUrl}}/api/v1/submissions/{{submissionId}}      (owner only — any other caller gets 404)
 X-User-Id: {{fake_student_id}}
-GET {{baseUrl}}/api/v1/submissions/assignment/{{assignmentId}}
 ```
 
 Wrong method anywhere (e.g. PUT on a GET-only path) → 405 envelope;
 unknown path → 404 envelope; required query param omitted → 400 naming it.
+The per-assignment list no longer lives here: `GET /api/v1/submissions/assignment/{id}`
+was removed (it was role-only, so any lecturer could read any class). See §5.4.
+
+### 5.4 Lecturer grading view (course-service)
+
+Identity `{{ownerLecturer1}}` **must own the assignment's class** — the owner check runs
+before course-service calls result-service / submission-service.
+
+```
+GET {{baseUrl}}/api/v1/assignments/{{assignmentId}}/results
+GET {{baseUrl}}/api/v1/assignments/{{assignmentId}}/results?studentCode={{studentCode}}&includeSteps=true
+X-User-Id: {{ownerLecturer1}}
+X-User-Roles: LECTURER
+GET {{baseUrl}}/api/v1/assignments/{{assignmentId}}/submissions
+X-User-Id: {{ownerLecturer1}}
+X-User-Roles: LECTURER
+```
+
+Expected `200`: `data` = per-student groups (`studentCode`, `studentName`,
+`exerciseScore`, `results[]`, optional `steps[]`) and the submission list
+(`id`, `studentId`, `zipFileName`, `status`, `latest`).
+
+Negatives: `X-User-Id: {{ownerLecturer2}}` (other lecturer) → `404` ·
+`X-User-Roles: STUDENT` or no role header → `403` · no `X-Gateway-Secret` → `401`.
 
 ---
 
@@ -366,7 +392,8 @@ psql "postgresql://neondb_owner:npg_Vmfuxhe1WPO5@ep-frosty-hill-ayd5wchg-pooler.
 | missing/invalid `X-Gateway-Secret` on the direct path | 401 from the service entry point — a role header sent without the secret is ignored, not honoured |
 | missing `X-User-Id` (direct path) | 400 — anonymous default → `invalid UUID`; submission endpoints → `Missing required header: X-User-Id`; non-canonical UUID → `X-User-Id must be a canonical UUID` |
 | `roles=STUDENT` (or no `X-User-Roles`) on a lecturer-only endpoint | 403 from method security — see §0 *Role rule*; `GET /api/v1/classes/{id}` is the one class endpoint that stays 200 (owner-scoped) |
-| `X-User-Roles` on a non-own submission / non-own result | `GET /api/v1/submissions/{id}` → 404 · `GET /api/v1/results/{submissionId}` → 403, unless `LECTURER` |
+| `X-User-Roles` on a non-own submission / non-own result | `GET /api/v1/submissions/{id}` → 404 · `GET /api/v1/results/{submissionId}` → 403 — no role bypass; the lecturer's wider read is §5.4 |
+| other lecturer's assignment on §5.4 grading view | 404 (owner check runs before either internal Feign call) |
 | other lecturer's resource | 404 (no information leak) |
 | duplicate unique field | 400 with descriptive message |
 | oversized CSV upload | 413 `Uploaded file is too large` |

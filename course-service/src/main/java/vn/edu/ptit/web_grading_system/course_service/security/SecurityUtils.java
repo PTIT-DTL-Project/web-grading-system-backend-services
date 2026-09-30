@@ -48,12 +48,18 @@ public final class SecurityUtils {
     }
 
     /**
-     * Role check for the places {@code @PreAuthorize} cannot express the rule — e.g. a
-     * caller may read a result if they are the owner <em>or</em> hold LECTURER.
-     * Accepts either {@code "LECTURER"} or {@code "ROLE_LECTURER"}.
-     * No authentication, or none carrying the role, means {@code false} — fail closed.
+     * Generic fail-closed role probe: accepts either {@code "LECTURER"} or
+     * {@code "ROLE_LECTURER"}; no authentication, or none carrying the role, means
+     * {@code false}.
      *
-     * <p>Review: 2026-09-30, Pullfrog review feat/DAT-8.
+     * <p>Review: 2026-09-30, Pullfrog review feat/DAT-8. Rewritten 2026-09-30 with the
+     * role-split slice (plan role-split-result-apis-v1.0): this javadoc used to sell it as
+     * the way to "read a result if owner <em>or</em> lecturer", i.e. a role bypass inside
+     * an ownership check. That bypass had no class scope, so every lecturer could read
+     * every class — it is now the anti-pattern §12.9 of the backend skill forbids. A role
+     * that legitimately needs wider data gets its own role-gated, owner-scoped route in
+     * course-service (see AssignmentGradingController); data services answer strictly for
+     * the caller's own rows.
      */
     public static boolean hasRole(String role) {
         if (role == null || role.isBlank()) {
