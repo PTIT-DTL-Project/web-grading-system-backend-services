@@ -11,11 +11,31 @@ plus negative tests and optional DB verification.
 
 ## 0. Environment setup (one time)
 
+> **⚠️ Authentication changed (2026-09-30, Keycloak integration).** Every endpoint here that
+> is not on a `permitAll` path now requires a gateway-issued identity, so this guide runs in
+> one of two modes:
+>
+> | Mode | `baseUrl` | What you must send |
+> |---|---|---|
+> | **A — direct to a service** (default, needs no Keycloak) | `http://localhost:18081` port-forward of course-service — use 18082 for submission, 18084 for result; or the dev hostnames `https://web-dev1-course…`, `https://web-dev1-submission…`, `https://web-dev1-result…` | `X-User-Id` **and** `X-Gateway-Secret: {{serviceSecret}}`, plus `X-User-Roles: {{roles}}` wherever the endpoint is lecturer-only |
+> | **B — through the api-gateway** (production-like) | `http://localhost:8080` or `https://web-dev1-api.vucongtuanduong.dpdns.org` | `Authorization: Bearer {{token}}` — the gateway injects `X-User-Id` from the token `sub`, allowlists `realm_access.roles` into `X-User-Roles`, and **strips** anything you send |
+>
+> A request reaching a service **without** the secret, or the gateway **without** a token, is
+> answered `401` by the security entry point *before* it reaches a controller. Unauthenticated
+> paths are unchanged: `/actuator/**`, `/swagger-ui/**`, `/v3/api-docs/**`,
+> `/api/v1/internal/**` and the `/api/v1/submissions/webhook/**` RustFS callback.
+>
+> **UI note:** the frontend still sends no bearer token, so every screen returns `401` until the
+> Keycloak login flow ships. Use this guide for regression testing meanwhile.
+
 Create a Postman Environment (`⚙ Environments → Create`) with:
 
 | Variable | Initial value | Purpose |
 |---|---|---|
-| `baseUrl` | `http://localhost:18081` | service port when booted locally; use gateway host if testing through it |
+| `baseUrl` | `http://localhost:18081` | mode A: service port when booted locally (or `https://web-dev1-course.vucongtuanduong.dpdns.org` — submission/result likewise); switch to the gateway host for mode B |
+| `serviceSecret` | value of `GATEWAY_TRUSTED_SECRET` in the repo `.env` | mode A only — sent as `X-Gateway-Secret`; leave empty and everything returns `401` |
+| `token` | empty | mode B only — Keycloak access token for `ptit-wgs`; enable the collection's `Authorization` header to use it |
+| `roles` | `LECTURER` | sent as `X-User-Roles` by every request in the collection (mode A). Set to `STUDENT`, or delete the collection header, to exercise the student side |
 | `ownerLecturer1` | any UUID, e.g. `2d93941a-4221-458b-a03d-43bd6315d02e` | main lecturer identity |
 | `ownerLecturer2` | any other UUID | used to prove 404 ownership isolation |
 | `fake_student_id`  | any UUID, e.g. `2d93941a-4221-458b-a03d-43bd6315d02e` | student identity (matches CSV import `student_user_id`) |
@@ -30,9 +50,24 @@ if (j.data && j.data.id) pm.environment.set("classId", j.data.id);
 
 (adjust the variable + json path per request).
 
-**Identity rule:** use `{{ownerLecturer1}}` in `X-User-Id` for the lecturer steps (§1–§4); §5 student steps use `{{fake_student_id}}`.
+**Identity rule (mode A — direct):** use `{{ownerLecturer1}}` in `X-User-Id` for the lecturer steps (§1–§4); §5 student steps use `{{fake_student_id}}`.
 A different UUID on a later request = ownership miss → indistinguishable `404`.
-Most identity endpoints default a missing header to `anonymous` → `400 invalid UUID`. The two submission endpoints have no default → `Missing required header: X-User-Id`.
+Most identity endpoints default a missing header to `anonymous` → `400 invalid UUID`. The two submission endpoints have no default → `Missing required header: X-User-Id`. These `400`s describe the controller layer and only appear on the direct path — through the gateway a missing identity surfaces as `401` first.
+
+**Identity rule (mode B — gateway):** identity is the token subject. `{{ownerLecturer1}}` / `{{fake_student_id}}` must equal the `sub` of the tokens you use, and any `X-User-Id` header you send is stripped and replaced by the gateway, so sending it changes nothing.
+
+**Role rule (2026-09-30, slice 2):** everything that creates or edits grading data — creating/listing/archiving
+classes, importing students, score components, entering scores, transcripts, assignments, plans & steps,
+docker images, and `GET /api/v1/submissions/assignment/{assignmentId}` — now requires `LECTURER`. Any other
+role, **or a request carrying no `X-User-Roles` at all**, gets `403` from method security; a request that
+still has no trust secret gets `401` first. In mode A you send the role yourself, so it is worth exactly as
+much as the secret next to it; in mode B the gateway derives it from the token's `realm_access.roles` and
+forwards only what `gateway.security.allowed-roles` (default `LECTURER,STUDENT`) keeps.
+
+Ownership, not role, still decides two reads: `GET /api/v1/submissions/{id}` answers `404` for a non-owner
+indistinguishably from a missing id (a `LECTURER` reads any), and `GET /api/v1/results/{submissionId}`
+answers `403` when the rows belong to someone else — unless the caller holds `LECTURER`, which is what lets
+a lecturer grade.
 
 ---
 
@@ -267,7 +302,7 @@ Other lecturer accessing your plans → 404.
 
 ## 5. Student submissions
 
-⚠️ Identity: `X-User-Id` is **required** on this endpoint (`400` when absent). The server no longer stubs a student id — the header value stamps `submissions.student_id` and gates ownership at result read. **No component in this checkout sets this header** (no gateway filter, no Helm value, no WebFilter) — it is currently self-asserted by whoever reaches the API; the designed gateway injection (planned in `system-design-v1.0.md` §3.1 `api-gateway`, in the `web-grading-system-deploy` repo — design docs live outside this repo) is not yet implemented.
+⚠️ Identity: `X-User-Id` **stamps `submissions.student_id` and gates ownership at result read**, so it must be the real student id. It is **no longer self-asserted**: since 2026-09-30 the api-gateway copies it from the validated Keycloak token subject and strips any value the client supplied, and on the direct path a request without `X-Gateway-Secret` is rejected with `401` before reaching this controller. The gateway injection designed in `system-design-v1.0.md` §3.1 is now implemented — see §0 for both modes.
 Grading is webhook-triggered: after the PUT, RustFS fires `ObjectCreated:Put` →
 submission-service publishes `GRADE_SUBMISSION` → executor grades (`FETCHING →
 BUILDING → RUNNING → DONE/FAILED`). There is no confirm endpoint.
@@ -327,7 +362,11 @@ psql "postgresql://neondb_owner:npg_Vmfuxhe1WPO5@ep-frosty-hill-ayd5wchg-pooler.
 | broken JSON body | 400 `Malformed request body` |
 | wrong Content-Type on JSON POST | 415 `Unsupported Content-Type` |
 | missing required query param | 400 `Missing required parameter: <name>` |
-| missing `X-User-Id` | 400 — anonymous default → `invalid UUID`; submission endpoints → `Missing required header: X-User-Id`; non-canonical UUID → `X-User-Id must be a canonical UUID` |
+| no bearer token at the gateway | 401 from the gateway entry point — never reaches a controller |
+| missing/invalid `X-Gateway-Secret` on the direct path | 401 from the service entry point — a role header sent without the secret is ignored, not honoured |
+| missing `X-User-Id` (direct path) | 400 — anonymous default → `invalid UUID`; submission endpoints → `Missing required header: X-User-Id`; non-canonical UUID → `X-User-Id must be a canonical UUID` |
+| `roles=STUDENT` (or no `X-User-Roles`) on a lecturer-only endpoint | 403 from method security — see §0 *Role rule*; `GET /api/v1/classes/{id}` is the one class endpoint that stays 200 (owner-scoped) |
+| `X-User-Roles` on a non-own submission / non-own result | `GET /api/v1/submissions/{id}` → 404 · `GET /api/v1/results/{submissionId}` → 403, unless `LECTURER` |
 | other lecturer's resource | 404 (no information leak) |
 | duplicate unique field | 400 with descriptive message |
 | oversized CSV upload | 413 `Uploaded file is too large` |

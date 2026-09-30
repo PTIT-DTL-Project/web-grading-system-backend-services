@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateDockerImageRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateDockerImageRequest;
@@ -25,6 +26,7 @@ public class DockerImageController {
 
     private final DockerImageService dockerImageService;
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PostMapping
     @ApiMessage("Docker image created")
     public ResponseEntity<DockerImageResponse> create(
@@ -34,6 +36,7 @@ public class DockerImageController {
                 .body(dockerImageService.create(UUID.fromString(ownerId), request));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @GetMapping
     public ResponseEntity<Page<DockerImageResponse>> list(
             @RequestParam(required = false) String name,
@@ -43,11 +46,13 @@ public class DockerImageController {
         return ResponseEntity.ok(dockerImageService.list(name, pageable));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @GetMapping("/{id}")
     public ResponseEntity<DockerImageResponse> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(dockerImageService.getById(id));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PutMapping("/{id}")
     @ApiMessage("Docker image updated")
     public ResponseEntity<DockerImageResponse> update(
@@ -58,6 +63,7 @@ public class DockerImageController {
                 dockerImageService.update(id, UUID.fromString(ownerId), request));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @DeleteMapping("/{id}")
     @ApiMessage("Docker image deleted")
     public ResponseEntity<Void> delete(

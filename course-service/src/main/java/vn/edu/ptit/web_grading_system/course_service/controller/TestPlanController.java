@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreatePlanRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateStepRequest;
@@ -28,6 +29,7 @@ public class TestPlanController {
 
     // ---------- plans ----------
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PostMapping("/plans")
     @ApiMessage("Plan created")
     public ResponseEntity<PlanResponse> createPlan(
@@ -38,6 +40,7 @@ public class TestPlanController {
                 .body(testPlanService.createPlan(assignmentId, UUID.fromString(ownerId), request));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @GetMapping("/plans")
     public ResponseEntity<List<PlanResponse>> listPlans(
             @PathVariable UUID assignmentId,
@@ -45,6 +48,7 @@ public class TestPlanController {
         return ResponseEntity.ok(testPlanService.listPlans(assignmentId, UUID.fromString(ownerId)));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PutMapping("/plans/{planId}")
     @ApiMessage("Plan updated")
     public ResponseEntity<PlanResponse> updatePlan(
@@ -56,6 +60,7 @@ public class TestPlanController {
                 testPlanService.updatePlan(assignmentId, UUID.fromString(ownerId), planId, request));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @DeleteMapping("/plans/{planId}")
     @ApiMessage("Plan deleted")
     public ResponseEntity<Void> deletePlan(
@@ -68,6 +73,7 @@ public class TestPlanController {
 
     // ---------- steps ----------
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PostMapping("/plans/{planId}/steps")
     @ApiMessage("Step created")
     public ResponseEntity<StepResponse> createStep(
@@ -79,6 +85,7 @@ public class TestPlanController {
                 .body(testPlanService.createStep(assignmentId, UUID.fromString(ownerId), planId, request));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @GetMapping("/plans/{planId}/steps")
     public ResponseEntity<List<StepResponse>> listSteps(
             @PathVariable UUID assignmentId,
@@ -94,6 +101,7 @@ public class TestPlanController {
                         "Plan not found: " + planId)));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PutMapping("/plans/{planId}/steps/{stepId}")
     @ApiMessage("Step updated")
     public ResponseEntity<StepResponse> updateStep(
@@ -106,6 +114,7 @@ public class TestPlanController {
                 assignmentId, UUID.fromString(ownerId), planId, stepId, request));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @DeleteMapping("/plans/{planId}/steps/{stepId}")
     @ApiMessage("Step deleted")
     public ResponseEntity<Void> deleteStep(

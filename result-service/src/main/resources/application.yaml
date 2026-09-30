@@ -58,3 +58,10 @@ pyroscope:
   labels:
     region: ${REGION:dev}
     cluster: ${CLUSTER:dev}
+
+# Secret the API Gateway stamps as X-Gateway-Secret on every forwarded request.
+# HeaderAuthenticationFilter only builds a SecurityContext when it matches;
+# blank means fail closed (401), never "no secret configured = trust everyone".
+gateway:
+  security:
+    secret: ${GATEWAY_TRUSTED_SECRET:}

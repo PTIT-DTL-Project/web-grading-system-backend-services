@@ -3,6 +3,7 @@ package vn.edu.ptit.web_grading_system.course_service.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.ScoreComponentRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.StudentScoreRequest;
@@ -22,6 +23,7 @@ public class ScoreController {
 
     private final ScoreService scoreService;
 
+    @PreAuthorize("hasRole('LECTURER')")
     @GetMapping("/{id}/score-components")
     public ResponseEntity<List<ScoreComponentResponse>> getComponents(
             @PathVariable UUID id,
@@ -29,6 +31,7 @@ public class ScoreController {
         return ResponseEntity.ok(scoreService.getComponents(id, UUID.fromString(ownerId)));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PutMapping("/{id}/score-components")
     @ApiMessage("Score components updated")
     public ResponseEntity<List<ScoreComponentResponse>> replaceComponents(
@@ -38,6 +41,7 @@ public class ScoreController {
         return ResponseEntity.ok(scoreService.replaceComponents(id, UUID.fromString(ownerId), requests));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PutMapping("/{id}/students/{studentCode}/scores")
     @ApiMessage("Student scores updated")
     public ResponseEntity<Void> setStudentScores(
@@ -49,6 +53,7 @@ public class ScoreController {
         return ResponseEntity.ok().build();
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @GetMapping("/{id}/students/{studentCode}/scores")
     public ResponseEntity<StudentScoresResponse> getStudentScores(
             @PathVariable UUID id,
@@ -57,6 +62,7 @@ public class ScoreController {
         return ResponseEntity.ok(scoreService.getStudentScores(id, UUID.fromString(ownerId), studentCode));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @GetMapping("/{id}/transcript")
     public ResponseEntity<List<TranscriptEntryResponse>> transcript(
             @PathVariable UUID id,

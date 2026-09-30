@@ -4,21 +4,39 @@ server:
 spring:
   application:
     name: api-gateway
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/ptit-wgs}
   cloud:
     gateway:
-      routes:
-        - id: course-service
-          uri: ${COURSE_SERVICE_URI:http://grading-course-service:8081}
-          predicates:
-            - Path=/api/v1/classes/**,/api/v1/assignments/**,/api/v1/docker-images/**,/api/v1/student/**
-        - id: submission-service
-          uri: ${SUBMISSION_SERVICE_URI:http://grading-submission-service:8082}
-          predicates:
-            - Path=/api/v1/submissions/**
-        - id: result-service
-          uri: ${RESULT_SERVICE_URI:http://grading-result-service:8084}
-          predicates:
-            - Path=/api/v1/results/**
+      server:
+        webflux:
+          routes:
+            - id: course-service
+              uri: ${COURSE_SERVICE_URI:http://localhost:8081}
+              predicates:
+                - Path=/api/v1/classes/**,/api/v1/assignments/**,/api/v1/docker-images/**,/api/v1/student/**
+            - id: submission-service
+              uri: ${SUBMISSION_SERVICE_URI:http://localhost:8082}
+              predicates:
+                - Path=/api/v1/submissions/**
+            - id: result-service
+              uri: ${RESULT_SERVICE_URI:http://localhost:8084}
+              predicates:
+                - Path=/api/v1/results/**
+
+# Trust settings stamped on every forwarded request by api-gateway.
+#   secret        -> X-Gateway-Secret; services refuse to build a SecurityContext without
+#                    it. Blank default = fail closed (401).
+#   allowedRoles  -> filters Keycloak realm_access.roles before they become X-User-Roles.
+#                    Policy, not a secret, so the default lives here; an empty list means
+#                    no role is ever forwarded and every @PreAuthorize answers 403.
+gateway:
+  security:
+    secret: ${GATEWAY_TRUSTED_SECRET:}
+    allowed-roles: ${GATEWAY_ALLOWED_ROLES:LECTURER,STUDENT}
 
 management:
   endpoints:
