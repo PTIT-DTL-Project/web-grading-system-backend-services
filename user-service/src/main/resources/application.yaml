@@ -1,0 +1,33 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: user-service
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+logging:
+  level:
+    root: INFO
+    vn.edu.ptit.web_grading_system: ${app.log.level:INFO}
+
+# Keycloak Admin API config
+keycloak:
+  server-url: ${KEYCLOAK_SERVER_URL:http://localhost:8180}
+  realm: ${KEYCLOAK_REALM:ptit-wgs}
+  admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:wgs-user-service}
+  admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:wgs-user-service-secret}
+
+# Gateway trust secret — same secret the API Gateway stamps as X-Gateway-Secret
+gateway:
+  security:
+    secret: ${GATEWAY_TRUSTED_SECRET:}
