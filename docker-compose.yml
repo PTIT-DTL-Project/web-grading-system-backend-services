@@ -1,0 +1,144 @@
+services:
+
+  # ─── Keycloak Database ────────────────────────────────────────────
+  keycloak-db:
+    image: postgres:16-alpine
+    container_name: wgs-keycloak-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak_password
+    volumes:
+      - keycloak-db-data:/var/lib/postgresql/data
+    networks:
+      - wgs-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Keycloak IAM ─────────────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: wgs-keycloak
+    restart: unless-stopped
+    command: start-dev
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak_password
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: 8080
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8180:8080"
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    networks:
+      - wgs-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ─── API Gateway ──────────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: wgs-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ptit-wgs
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    networks:
+      - wgs-network
+
+  # ─── User Service ─────────────────────────────────────────────────
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: wgs-user-service
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      GATEWAY_TRUSTED_SECRET: ${GATEWAY_TRUSTED_SECRET}
+      KEYCLOAK_SERVER_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ptit-wgs
+      KEYCLOAK_ADMIN_CLIENT_ID: wgs-user-service
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    networks:
+      - wgs-network
+
+  # ─── Course Service ───────────────────────────────────────────────
+  course-service:
+    build:
+      context: ./course-service
+      dockerfile: Dockerfile
+    container_name: wgs-course-service
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    networks:
+      - wgs-network
+
+  # ─── Submission Service ───────────────────────────────────────────
+  submission-service:
+    build:
+      context: ./submission-service
+      dockerfile: Dockerfile
+    container_name: wgs-submission-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    networks:
+      - wgs-network
+
+  # ─── Result Service ───────────────────────────────────────────────
+  result-service:
+    build:
+      context: ./result-service
+      dockerfile: Dockerfile
+    container_name: wgs-result-service
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    networks:
+      - wgs-network
+
+  # ─── Executor Service ─────────────────────────────────────────────
+  executor-service:
+    build:
+      context: ./executor-service
+      dockerfile: Dockerfile
+    container_name: wgs-executor-service
+    restart: unless-stopped
+    networks:
+      - wgs-network
+
+volumes:
+  keycloak-db-data:
+    name: wgs-keycloak-db-data
+
+networks:
+  wgs-network:
+    name: wgs-network
+    driver: bridge
