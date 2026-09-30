@@ -58,6 +58,8 @@ logging:
 feign:
   result-service:
     url: ${RESULT_SERVICE_URI:http://grading-result-service:8084}
+  submission-service:
+    url: ${SUBMISSION_SERVICE_URI:http://grading-submission-service:8082}
 
 # Pyroscope continuous profiling
 pyroscope:

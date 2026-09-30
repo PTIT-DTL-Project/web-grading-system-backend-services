@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.ResultResponse;
-import vn.edu.ptit.web_grading_system.result_service.security.SecurityUtils;
 import vn.edu.ptit.web_grading_system.result_service.service.ResultService;
 import vn.edu.ptit.web_grading_system.result_service.util.annotation.ApiMessage;
 
@@ -34,11 +33,13 @@ public class ResultController {
             @PathVariable UUID submissionId,
             @RequestHeader(value = "X-User-Id", required = false) String xUserId) {
         List<ResultResponse> results = resultService.getBySubmissionId(submissionId);
-        // A lecturer grades across their classes, so the ownership rule must not apply to
-        // them. This is not optional: the gateway now always injects X-User-Id, which would
-        // otherwise turn every lecturer read of a student's result into 403.
-        // Review: 2026-09-30, Pullfrog review (feat/DAT-8).
-        if (!SecurityUtils.hasRole("LECTURER") && xUserId != null && !results.isEmpty()) {
+        // Review: 2026-09-30, role-split slice (plan role-split-result-apis-v1.0, D3) — the
+        // `hasRole("LECTURER")` bypass that used to sit here skipped ownership for EVERY
+        // lecturer in the system, with no check that the assignment belonged to a class they
+        // own, and it made one route serve two audiences. Lecturers now read through
+        // GET /api/v1/assignments/{id}/results in course-service, which is role-gated AND
+        // owner-scoped, so this route answers strictly for its owner.
+        if (xUserId != null && !results.isEmpty()) {
             UUID callerId = UUID.fromString(xUserId);
             boolean allMatch = results.stream().allMatch(r -> r.getStudentId().equals(callerId));
             if (!allMatch) {
