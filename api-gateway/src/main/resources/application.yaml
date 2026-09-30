@@ -26,6 +26,10 @@ spring:
               uri: ${RESULT_SERVICE_URI:http://localhost:8084}
               predicates:
                 - Path=/api/v1/results/**
+            - id: user-service
+              uri: ${USER_SERVICE_URI:http://localhost:8085}
+              predicates:
+                - Path=/api/v1/auth/**,/api/v1/users/**,/api/v1/admin/users/**
 
 # Trust settings stamped on every forwarded request by api-gateway.
 #   secret        -> X-Gateway-Secret; services refuse to build a SecurityContext without
@@ -36,7 +40,7 @@ spring:
 gateway:
   security:
     secret: ${GATEWAY_TRUSTED_SECRET:}
-    allowed-roles: ${GATEWAY_ALLOWED_ROLES:LECTURER,STUDENT}
+    allowed-roles: ${GATEWAY_ALLOWED_ROLES:ROLE_ADMIN,ROLE_LECTURER,ROLE_STUDENT}
 
 management:
   endpoints:
