@@ -25,7 +25,7 @@ public class HttpLogService {
 
     private static final int MAX_CAPTURE_CHARS = 20_000;
     private static final Set<String> SENSITIVE_HEADERS =
-            Set.of(Constant.HttpHeader.AUTHORIZATION, Constant.HttpHeader.COOKIE, Constant.HttpHeader.SET_COOKIE, Constant.HttpHeader.PROXY_AUTHORIZATION, Constant.HttpHeader.X_API_KEY);
+            Set.of(Constant.HttpHeader.AUTHORIZATION, Constant.HttpHeader.COOKIE, Constant.HttpHeader.SET_COOKIE, Constant.HttpHeader.PROXY_AUTHORIZATION, Constant.HttpHeader.X_API_KEY, "x-gateway-secret");
     private static final Pattern SENSITIVE_QUERY_PARAM_PATTERN = Pattern.compile(
             "(?i)([?&](?:x-amz-algorithm|x-amz-credential|x-amz-date|x-amz-expires|x-amz-signedheaders"
                     + "|x-amz-signature|signature)=)[^&\\s\"']*");

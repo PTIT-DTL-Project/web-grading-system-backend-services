@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateAssignmentRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateAssignmentRequest;
@@ -26,6 +27,7 @@ public class AssignmentController {
 
     private final AssignmentService assignmentService;
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PostMapping
     @ApiMessage("Assignment created")
     public ResponseEntity<AssignmentResponse> create(
@@ -35,6 +37,7 @@ public class AssignmentController {
                 .body(assignmentService.create(UUID.fromString(ownerId), request));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @GetMapping
     public ResponseEntity<Page<AssignmentResponse>> listMine(
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId,
@@ -48,6 +51,7 @@ public class AssignmentController {
                 assignmentService.listMine(UUID.fromString(ownerId), classId, published, search, pageable));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @GetMapping("/{id}")
     public ResponseEntity<AssignmentResponse> getById(
             @PathVariable UUID id,
@@ -55,6 +59,7 @@ public class AssignmentController {
         return ResponseEntity.ok(assignmentService.getById(id, UUID.fromString(ownerId)));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PutMapping("/{id}")
     @ApiMessage("Assignment updated")
     public ResponseEntity<AssignmentResponse> update(
@@ -64,6 +69,7 @@ public class AssignmentController {
         return ResponseEntity.ok(assignmentService.update(id, UUID.fromString(ownerId), request));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @DeleteMapping("/{id}")
     @ApiMessage("Assignment deleted")
     public ResponseEntity<Void> delete(
@@ -73,6 +79,7 @@ public class AssignmentController {
         return ResponseEntity.ok().build();
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PostMapping("/{id}/publish")
     @ApiMessage("Assignment published")
     public ResponseEntity<AssignmentResponse> publish(
@@ -81,6 +88,7 @@ public class AssignmentController {
         return ResponseEntity.ok(assignmentService.publish(id, UUID.fromString(ownerId)));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PutMapping("/{id}/docker-images")
     @ApiMessage("Assignment images linked")
     public ResponseEntity<Void> assignImages(

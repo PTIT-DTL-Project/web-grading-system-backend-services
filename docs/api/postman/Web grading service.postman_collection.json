@@ -2,7 +2,8 @@
   "info": {
     "_postman_id": "fc1a4a1c-da64-4ae6-8d04-003a921cfa53",
     "name": "Web grading service",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Auth (since 2026-09-30, Keycloak integration):\n- Direct to a service (default): send X-User-Id plus X-Gateway-Secret (Postman variable `serviceSecret` = GATEWAY_TRUSTED_SECRET from the repo .env). Requests without the secret are rejected with 401.\n- Through the api-gateway: enable the disabled `Authorization: Bearer {{token}}` header and obtain a token from the ptit-wgs realm. The gateway replaces any X-User-Id you send with the token subject, so X-User-Id is ignored in that mode.\nRoles (since 2026-09-30, slice 2): the collection sends `X-User-Roles: {{roles}}` on every request. `roles` defaults to `LECTURER` in the environment; set it to `STUDENT` (or delete the header) when exercising the student side, because class/assignment/plan/image and per-assignment submission endpoints now answer 403 without LECTURER.\nSee docs/api/postman/FULL_FLOW_TESTING_GUIDE.md section 0."
   },
   "item": [
     {
@@ -4748,6 +4749,21 @@
           "response": []
         }
       ]
+    }
+  ],
+  "header": [
+    {
+      "key": "X-Gateway-Secret",
+      "value": "{{serviceSecret}}"
+    },
+    {
+      "key": "X-User-Roles",
+      "value": "{{roles}}"
+    },
+    {
+      "key": "Authorization",
+      "value": "Bearer {{token}}",
+      "disabled": true
     }
   ]
 }

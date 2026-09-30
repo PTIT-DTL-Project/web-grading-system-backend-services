@@ -95,6 +95,16 @@ class HttpLogServiceTest {
     }
 
     @Test
+    void headersToJson_redactsXGatewaySecret() {
+        Map<String, java.util.Collection<String>> headers = new LinkedHashMap<>();
+        headers.put("X-Gateway-Secret", List.of("s3cret"));
+        headers.put("Content-Type", List.of("application/json"));
+        String json = service.headersToJson(headers);
+        Map<String, String> parsed = new Gson().fromJson(json, Map.class);
+        assertEquals(Map.of("Content-Type", "application/json"), parsed);
+    }
+
+    @Test
     void isFileContentType_fileTypes() {
         assertTrue(service.isFileContentType("multipart/form-data"));
         assertTrue(service.isFileContentType("application/octet-stream"));
