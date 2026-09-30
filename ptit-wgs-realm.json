@@ -1,0 +1,97 @@
+{
+  "realm": "ptit-wgs",
+  "enabled": true,
+  "users": [
+    {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "username": "lecturer_test",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Lecturer",
+      "lastName": "Test",
+      "email": "lecturer@ptit.edu.vn",
+      "requiredActions": [],
+      "credentials": [
+        { "type": "password", "value": "123456", "temporary": false }
+      ],
+      "realmRoles": ["ROLE_LECTURER"],
+      "attributes": {
+        "status": ["ACTIVE"],
+        "staff_code": ["GV001"],
+        "department": ["CNTT"],
+        "title": ["ThS"]
+      }
+    },
+    {
+      "id": "22222222-2222-2222-2222-222222222222",
+      "username": "student_test",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Student",
+      "lastName": "Test",
+      "email": "student@ptit.edu.vn",
+      "requiredActions": [],
+      "credentials": [
+        { "type": "password", "value": "123456", "temporary": false }
+      ],
+      "realmRoles": ["ROLE_STUDENT"],
+      "attributes": {
+        "status": ["ACTIVE"],
+        "student_code": ["B22DCCN000"],
+        "department": ["CNTT"],
+        "batch": ["D22"],
+        "program": ["Kỹ thuật phần mềm"],
+        "class_code": ["D22CQCN01-N"]
+      }
+    },
+    {
+      "id": "33333333-3333-3333-3333-333333333333",
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "System",
+      "lastName": "Admin",
+      "email": "admin@ptit.edu.vn",
+      "requiredActions": ["UPDATE_PASSWORD"],
+      "credentials": [
+        { "type": "password", "value": "Admin@123", "temporary": true }
+      ],
+      "realmRoles": ["ROLE_ADMIN"],
+      "attributes": {
+        "status": ["ACTIVE"]
+      }
+    }
+  ],
+  "roles": {
+    "realm": [
+      { "name": "ROLE_STUDENT", "description": "Student Role" },
+      { "name": "ROLE_LECTURER", "description": "Lecturer Role" },
+      { "name": "ROLE_ADMIN", "description": "Admin Role" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "wgs-postman",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "redirectUris": ["*"]
+    },
+    {
+      "clientId": "wgs-user-service",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "wgs-user-service-secret",
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": false
+    }
+  ],
+  "scopeMappings": [
+    {
+      "client": "wgs-user-service",
+      "roles": ["ROLE_ADMIN"]
+    }
+  ]
+}
