@@ -10,9 +10,14 @@ import org.springframework.security.web.server.SecurityWebFilterChain;
 @EnableWebFluxSecurity
 public class SecurityConfig {
 
+    // Prometheus scrapes /actuator/prometheus (application.yaml exposes it); without it
+    // here the scrape gets 401 and gateway metrics go dark. Named explicitly rather than
+    // /actuator/** so /actuator/gateway route mutation stays behind authentication.
+    // Review: 2026-09-30, Pullfrog review (feat/DAT-8).
     private static final String[] PUBLIC_PATHS = {
             "/actuator/health",
-            "/actuator/info"
+            "/actuator/info",
+            "/actuator/prometheus"
     };
 
     @Bean

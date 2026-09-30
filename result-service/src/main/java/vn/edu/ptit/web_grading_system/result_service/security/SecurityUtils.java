@@ -46,4 +46,20 @@ public final class SecurityUtils {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList());
     }
+
+    /**
+     * Role check for the places {@code @PreAuthorize} cannot express the rule — e.g. a
+     * caller may read a result if they are the owner <em>or</em> hold LECTURER.
+     * Accepts either {@code "LECTURER"} or {@code "ROLE_LECTURER"}.
+     * No authentication, or none carrying the role, means {@code false} — fail closed.
+     *
+     * <p>Review: 2026-09-30, Pullfrog review feat/DAT-8.
+     */
+    public static boolean hasRole(String role) {
+        if (role == null || role.isBlank()) {
+            return false;
+        }
+        String prefixed = role.startsWith("ROLE_") ? role : "ROLE_" + role;
+        return getCurrentUserRoles().contains(prefixed);
+    }
 }

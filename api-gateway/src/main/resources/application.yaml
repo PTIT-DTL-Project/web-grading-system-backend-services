@@ -27,6 +27,17 @@ spring:
               predicates:
                 - Path=/api/v1/results/**
 
+# Trust settings stamped on every forwarded request by api-gateway.
+#   secret        -> X-Gateway-Secret; services refuse to build a SecurityContext without
+#                    it. Blank default = fail closed (401).
+#   allowedRoles  -> filters Keycloak realm_access.roles before they become X-User-Roles.
+#                    Policy, not a secret, so the default lives here; an empty list means
+#                    no role is ever forwarded and every @PreAuthorize answers 403.
+gateway:
+  security:
+    secret: ${GATEWAY_TRUSTED_SECRET:}
+    allowed-roles: ${GATEWAY_ALLOWED_ROLES:LECTURER,STUDENT}
+
 management:
   endpoints:
     web:

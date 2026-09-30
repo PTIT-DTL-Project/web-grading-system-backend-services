@@ -129,10 +129,35 @@ Quản lý lớp học, sinh viên trong lớp, assignments, docker images, test
 
 ## 🧪 Testing Flow: Classes & Scores
 
-Test trực tiếp course-service (`http://localhost:8081`) hoặc qua gateway.
-Mọi request cần header `X-User-Id: <uuid>` — dùng **cùng một uuid** cho cả luồng
-(đây là lecturer identity tạm thời cho tới khi tích hợp Keycloak; ownership check
-sẽ trả 404 nếu dùng uuid khác với lúc tạo lớp).
+Hai cách test (chi tiết: `docs/api/postman/FULL_FLOW_TESTING_GUIDE.md` §0):
+
+- **Trực tiếp service** (`http://localhost:8081`): gửi `X-User-Id: <uuid>` **và**
+  `X-Gateway-Secret: <GATEWAY_TRUSTED_SECRET>` — thiếu secret → `401` từ entry point,
+  request không tới controller. Dùng **cùng một uuid** cho cả luồng; ownership check
+  trả 404 nếu uuid khác với lúc tạo lớp.
+- **Qua api-gateway** (`http://localhost:8080`): gửi `Authorization: Bearer <token>`
+  Keycloak; gateway tự ghi `X-User-Id` từ `sub` của token và **gỡ** header client gửi
+  đi. Không có token → `401`.
+
+**Role (từ 2026-09-30, slice 2):** gateway đọc `realm_access.roles` từ token đã kiểm
+chứng, lọc theo `gateway.security.allowed-roles` (mặc định `LECTURER,STUDENT`) rồi gửi
+`X-User-Roles`; ở direct mode bạn tự gửi header đó cạnh `X-Gateway-Secret`. Services chỉ
+đọc role **sau khi** secret khớp, nên request không có role = không có role (fail closed).
+
+| Endpoint | Yêu cầu |
+|---|---|
+| `GET/POST /api/v1/classes`, `PUT /api/v1/classes/{id}/archive`, import/list sinh viên, score components, nhập điểm, transcript | `LECTURER` → khác role hoặc thiếu role: `403` |
+| mọi endpoint `/api/v1/assignments` (create, list, detail, update, publish, delete, gán docker image) | `LECTURER` |
+| mọi endpoint plan & step dưới `/api/v1/assignments/{assignmentId}/...` | `LECTURER` |
+| mọi endpoint `/api/v1/docker-images` | `LECTURER` |
+| `GET /api/v1/submissions/assignment/{assignmentId}` (hàng chờ chấm) | `LECTURER` |
+| `GET /api/v1/classes/{id}` | owner-scoped, **không** role gate (sinh viên xem lớp của mình) |
+| `GET /api/v1/submissions/{id}` | owner **hoặc** `LECTURER`; sai owner → `404` (giống id không tồn tại) |
+| `GET /api/v1/results/{submissionId}` | owner **hoặc** `LECTURER`; sai owner → `403` |
+| `/api/v1/student/**`, upload submission | enrollment/ownership, không role gate |
+
+FE chưa gửi bearer token nên UI đang trả `401` cho tới khi tích hợp login Keycloak
+(slice 3 — lúc đó realm role `LECTURER`/`STUDENT` của Keycloak sẽ là nguồn role hợp lệ).
 
 ### 1. Tạo lớp
 

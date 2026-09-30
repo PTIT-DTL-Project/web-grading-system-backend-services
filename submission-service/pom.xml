@@ -128,6 +128,14 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- Spring Boot 4 split the test slice annotations out of
+		     spring-boot-test-autoconfigure; @WebMvcTest / @AutoConfigureMockMvc live here.
+             Needed by the role-matrix authorization tests (Review: 2026-09-30, Pullfrog). -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>

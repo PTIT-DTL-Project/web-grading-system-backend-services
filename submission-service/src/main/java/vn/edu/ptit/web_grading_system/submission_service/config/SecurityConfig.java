@@ -27,7 +27,11 @@ public class SecurityConfig {
 
     private final HeaderAuthenticationFilter headerAuthenticationFilter;
 
-    private static final String[] PUBLIC_PATHS = {
+    // One list, two consumers: this permitAll chain and
+    // HeaderAuthenticationFilter.shouldNotFilter, so a path added here stops being
+    // context-populated too and the two cannot drift apart.
+    // Review: 2026-09-30, Pullfrog review (feat/DAT-8).
+    public static final String[] PUBLIC_PATHS = {
             "/actuator/**",
             "/swagger-ui/**",
             "/swagger-ui.html",

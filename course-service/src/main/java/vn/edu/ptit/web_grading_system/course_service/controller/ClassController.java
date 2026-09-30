@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateClassRequest;
@@ -28,6 +29,7 @@ public class ClassController {
 
     private final ClassService classService;
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PostMapping
     @ApiMessage("Class created")
     public ResponseEntity<ClassResponse> create(
@@ -37,6 +39,7 @@ public class ClassController {
                 .body(classService.create(UUID.fromString(ownerId), request));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @GetMapping
     public ResponseEntity<Page<ClassResponse>> listMine(
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId,
@@ -54,6 +57,9 @@ public class ClassController {
         return ResponseEntity.ok(classService.listMine(UUID.fromString(ownerId), search, status, pageable));
     }
 
+    // Class detail stays owner-scoped only (findByIdAndOwnerId → 404): unlike the roster
+    // and score reads above, a class's own detail may later be needed by enrolled students,
+    // so it carries no role gate. Review: 2026-09-30, Pullfrog review (feat/DAT-8).
     @GetMapping("/{id}")
     public ResponseEntity<ClassResponse> getById(
             @PathVariable UUID id,
@@ -61,6 +67,7 @@ public class ClassController {
         return ResponseEntity.ok(classService.getById(id, UUID.fromString(ownerId)));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PutMapping("/{id}/archive")
     @ApiMessage("Class archived")
     public ResponseEntity<ClassResponse> archive(
@@ -69,6 +76,7 @@ public class ClassController {
         return ResponseEntity.ok(classService.archive(id, UUID.fromString(ownerId)));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @PostMapping("/{id}/students/import")
     @ApiMessage("Students imported")
     public ResponseEntity<ClassService.ImportResult> importStudents(
@@ -78,6 +86,7 @@ public class ClassController {
         return ResponseEntity.ok(classService.importStudents(id, UUID.fromString(ownerId), file));
     }
 
+    @PreAuthorize("hasRole('LECTURER')")
     @GetMapping("/{id}/students")
     public ResponseEntity<Page<ClassStudentResponse>> listStudents(
             @PathVariable UUID id,

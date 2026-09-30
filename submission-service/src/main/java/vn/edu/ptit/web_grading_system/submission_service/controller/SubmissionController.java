@@ -7,9 +7,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.PresignedUrlResponse;
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.SubmissionResponse;
+import vn.edu.ptit.web_grading_system.submission_service.exception.ResourceNotFoundException;
+import vn.edu.ptit.web_grading_system.submission_service.security.SecurityUtils;
 import vn.edu.ptit.web_grading_system.submission_service.service.SubmissionService;
 import vn.edu.ptit.web_grading_system.submission_service.util.annotation.ApiMessage;
 
@@ -66,11 +69,28 @@ public class SubmissionController {
         return ResponseEntity.ok(submissionService.listByStudent(UUID.fromString(studentId), pageable));
     }
 
+    // Review: 2026-09-30, Pullfrog review (feat/DAT-8) — this endpoint had no ownership
+    // check at all: any authenticated caller could read any submission by guessing its id,
+    // while "my submissions" filtered by studentId. The check lives here rather than in
+    // SubmissionService so getById keeps its signature for existing callers/tests.
     @GetMapping("/{id}")
-    public ResponseEntity<SubmissionResponse> getById(@PathVariable UUID id) {
-        return ResponseEntity.ok(submissionService.getById(id));
+    public ResponseEntity<SubmissionResponse> getById(
+            @PathVariable UUID id,
+            @RequestHeader("X-User-Id") String callerIdHeader) {
+        UUID callerId = UUID.fromString(callerIdHeader);
+        SubmissionResponse submission = submissionService.getById(id);
+        // A lecturer reviews submissions across their classes; everyone else must own it.
+        // Reusing "not found" (rather than 403) keeps an existing id indistinguishable from
+        // a missing one, which is the project's documented ownership-miss convention.
+        if (!SecurityUtils.hasRole("LECTURER") && !callerId.equals(submission.getStudentId())) {
+            throw new ResourceNotFoundException("Submission not found: " + id);
+        }
+        return ResponseEntity.ok(submission);
     }
 
+    // Review: 2026-09-30, Pullfrog review (feat/DAT-8) — the per-assignment submission list
+    // is the lecturer's grading view; a student could otherwise read every classmate's rows.
+    @PreAuthorize("hasRole('LECTURER')")
     @GetMapping("/assignment/{assignmentId}")
     public ResponseEntity<List<SubmissionResponse>> listByAssignment(
             @PathVariable UUID assignmentId) {
