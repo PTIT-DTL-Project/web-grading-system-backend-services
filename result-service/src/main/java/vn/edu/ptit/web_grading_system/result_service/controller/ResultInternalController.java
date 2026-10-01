@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.result_service.dto.request.CreateResultRequest;
+import vn.edu.ptit.web_grading_system.result_service.dto.response.AssignmentResultGroupResponse;
 import vn.edu.ptit.web_grading_system.result_service.service.ResultService;
 
 import java.math.BigDecimal;
@@ -28,6 +29,20 @@ public class ResultInternalController {
             @RequestBody AverageRequest request) {
         BigDecimal weighted = resultService.weightedScoreByPlan(request.assignmentIds(), request.studentId());
         return ResponseEntity.ok(java.util.Collections.singletonMap("average", weighted));
+    }
+
+    /**
+     * Class-wide grading view for course-service's lecturer endpoints. Not routed by the
+     * gateway — course-service is the only caller and it has already verified that the
+     * requesting lecturer owns this assignment's class.
+     */
+    @GetMapping("/assignment/{assignmentId}")
+    public ResponseEntity<List<AssignmentResultGroupResponse>> byAssignment(
+            @PathVariable UUID assignmentId,
+            @RequestParam(required = false) UUID studentUserId,
+            @RequestParam(defaultValue = "false") boolean includeSteps) {
+        return ResponseEntity.ok(
+                resultService.getByAssignment(assignmentId, studentUserId, includeSteps));
     }
 
     @PostMapping

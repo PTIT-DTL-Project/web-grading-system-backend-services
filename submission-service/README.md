@@ -41,8 +41,8 @@ Submission Service handles all code submission operations in the Web Grading Sys
 #### Submissions
 - `POST /api/v1/submissions/presigned-url` - Request upload URL (query: `assignmentId`, `zipFileName`, optional `planId`); **requires `X-User-Id` header**
 - `GET /api/v1/submissions` - List user submissions (paginated, requires `X-User-Id`)
-- `GET /api/v1/submissions/{id}` - Get submission details
-- `GET /api/v1/submissions/assignment/{assignmentId}` - List by assignment
+- `GET /api/v1/submissions/{id}` - Get submission details (owner only; anyone else gets `404`, no role bypass)
+- `GET /api/v1/internal/submissions/assignment/{assignmentId}` - List by assignment (course-service's lecturer grading view; not gateway-routed — the old public route `GET /api/v1/submissions/assignment/{assignmentId}` was removed)
 - `PUT /api/v1/internal/submissions/{id}/status` - Update submission status (executor-only, not gateway-routed)
 - `POST /api/v1/submissions/webhook/upload-complete` - RustFS webhook, sole grading trigger
 

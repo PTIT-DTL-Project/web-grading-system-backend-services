@@ -3,7 +3,7 @@
     "_postman_id": "fc1a4a1c-da64-4ae6-8d04-003a921cfa53",
     "name": "Web grading service",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Auth (since 2026-09-30, Keycloak integration):\n- Direct to a service (default): send X-User-Id plus X-Gateway-Secret (Postman variable `serviceSecret` = GATEWAY_TRUSTED_SECRET from the repo .env). Requests without the secret are rejected with 401.\n- Through the api-gateway: enable the disabled `Authorization: Bearer {{token}}` header and obtain a token from the ptit-wgs realm. The gateway replaces any X-User-Id you send with the token subject, so X-User-Id is ignored in that mode.\nRoles (since 2026-09-30, slice 2): the collection sends `X-User-Roles: {{roles}}` on every request. `roles` defaults to `LECTURER` in the environment; set it to `STUDENT` (or delete the header) when exercising the student side, because class/assignment/plan/image and per-assignment submission endpoints now answer 403 without LECTURER.\nSee docs/api/postman/FULL_FLOW_TESTING_GUIDE.md section 0."
+    "description": "Auth (since 2026-09-30, Keycloak integration):\n- Direct to a service (default): send X-User-Id plus X-Gateway-Secret (Postman variable `serviceSecret` = GATEWAY_TRUSTED_SECRET from the repo .env). Requests without the secret are rejected with 401.\n- Through the api-gateway: enable the disabled `Authorization: Bearer {{token}}` header and obtain a token from the ptit-wgs realm. The gateway replaces any X-User-Id you send with the token subject, so X-User-Id is ignored in that mode.\nRoles (since 2026-09-30, slice 2): the collection sends `X-User-Roles: {{roles}}` on every request. `roles` defaults to `LECTURER` in the environment; set it to `STUDENT` (or delete the header) when exercising the student side, because class/assignment/plan/image endpoints and the two lecturer grading-view endpoints (GET /api/v1/assignments/{id}/results, GET /api/v1/assignments/{id}/submissions) now answer 403 without LECTURER. The old public route GET /api/v1/submissions/assignment/{id} is gone: it is internal now and course-service fronts it with an owner check.\nSee docs/api/postman/FULL_FLOW_TESTING_GUIDE.md section 0."
   },
   "item": [
     {
@@ -95,24 +95,104 @@
           "response": []
         },
         {
-          "name": "list by assignment",
+          "name": "list by assignment (internal, course-service)",
           "request": {
             "method": "GET",
+            "header": [],
             "url": {
-              "raw": "{{submission-service}}/api/v1/submissions/assignment/{assignmentId}",
+              "raw": "{{submission-service}}/api/v1/internal/submissions/assignment/{assignmentId}",
               "host": [
                 "{{submission-service}}"
               ],
               "path": [
                 "api",
                 "v1",
+                "internal",
                 "submissions",
                 "assignment",
                 "{assignmentId}"
               ]
-            }
+            },
+            "description": "Internal (not gateway-routed). Replacement for the removed public route GET /api/v1/submissions/assignment/{assignmentId}; only course-service calls it, after its owner check."
           },
-          "response": []
+          "response": [
+            {
+              "name": "200",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{submission-service}}/api/v1/internal/submissions/assignment/{assignmentId}",
+                  "host": [
+                    "{{submission-service}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "internal",
+                    "submissions",
+                    "assignment",
+                    "{assignmentId}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Content-Length",
+                  "value": "10801"
+                },
+                {
+                  "key": "Date",
+                  "value": "Wed, 30 Sep 2026 15:39:50 GMT"
+                }
+              ],
+              "cookie": [],
+              "body": "[{\"id\":\"fe198b79-9760-444b-9bae-3ae7509ec9dd\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"35d6edff-0ab4-430e-8d6a-97ff073011db\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T14:00:32.619187Z\"},{\"id\":\"e113b21f-2839-47e0-a9fe-7f43f2ff7e13\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"bf3f3d84-d85b-476c-8661-f48cd2fae8f1\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"GRADING\",\"latest\":true,\"createdAt\":\"2026-09-27T13:50:08.148253Z\"},{\"id\":\"778b353a-8e5f-4805-a76d-e5b2e5c51c3f\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"c4ce0377-0bf8-4893-bfdf-9b1c86315510\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T13:38:42.543791Z\"},{\"id\":\"59099ef3-cd94-4ccc-ac33-c9e89bb717af\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"f472fb14-05c1-40fa-9dc5-7d1dda7871ae\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T13:21:02.693134Z\"},{\"id\":\"eb202344-5de1-42c7-8754-74b67c66bed4\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"887de06e-0ea7-4418-8762-51613e6bb549\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"GRADING\",\"latest\":true,\"createdAt\":\"2026-09-27T13:09:11.832253Z\"},{\"id\":\"4c6596fa-fac2-4521-bc50-dace7a087e81\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"5812d465-9361-4df2-9ab6-54c9ef1cdfb0\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T13:03:50.536482Z\"},{\"id\":\"11ac29cc-a23a-46aa-afe3-23e87c7cabc1\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"d061262a-6842-4046-b359-23d9184ad037\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T12:26:39.695412Z\"},{\"id\":\"9c8e1760-494e-4b08-970a-afaeb70effa9\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"7a700976-9f0f-4d82-bb28-ff4d8a8152fd\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T12:20:47.463141Z\"},{\"id\":\"2b3a7cef-8eda-4e11-ad22-a72d8b9fe7b0\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"7e3028f6-5c65-45bc-8cb2-8c219b1e6ddb\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T12:16:12.673979Z\"},{\"id\":\"c498532e-716d-4ff9-b970-dc3805a9ab15\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"926803c8-5f7e-44e5-b95b-752977515d68\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T12:05:00.447481Z\"},{\"id\":\"d437cbaf-e75b-4f18-9882-5771d6fdb03c\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe9701c2-c3c3-4ccb-9471-1c91497cdcbc\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:45:58.732229Z\"},{\"id\":\"34bb06f5-7928-4129-a231-9423062da9cd\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"9f6b9934-9d99-4cfb-b11b-28bf5631e783\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:45:53.148958Z\"},{\"id\":\"a9b48ba1-84a6-4d68-ab7d-81feac8954d6\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"45cd1467-d8c2-4079-bdb7-9f34dbc43aaf\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-19T08:45:05.931571Z\"},{\"id\":\"74e1959d-863d-42f4-a950-0e133b6bc901\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"67243de3-73ae-44de-9bb5-5ae874996f2c\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:40:32.820592Z\"},{\"id\":\"580a6caa-feb7-477d-8067-7ce88d8b4818\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"065fb1b1-138d-4aed-abff-ba0b006c39e4\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:40:27.148337Z\"},{\"id\":\"b9cedd05-3fc8-48b4-93f5-94e97236cce5\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"02c6e70c-da67-4822-bb20-8c80f676bb99\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:34:13.032143Z\"},{\"id\":\"8a563229-cbba-4733-aa24-660d98691a48\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe98610e-757b-43cc-af53-bca1b2abdbd2\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:33:25.389467Z\"},{\"id\":\"295de4a6-935b-40a3-a919-7118a923a80a\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"94fbeeac-61d0-4ebd-a4a5-a467d264e59c\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:24:57.566618Z\"},{\"id\":\"12791ed8-be50-4c06-9340-c68f851755ff\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe9ec2b7-24f0-48c3-8a5a-b1a2c35f4779\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:24:50.525139Z\"},{\"id\":\"eaba9686-1f4b-4cfe-90c5-4e41c71f7a1c\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"52f20b91-2c0a-4114-b8ab-58961c2502de\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T07:48:57.653181Z\"},{\"id\":\"f643adc4-85cb-4c77-acea-d9d8177fcabe\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"515cb07a-cc73-4fb0-b57c-9d615f35261d\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T07:48:48.117938Z\"},{\"id\":\"6c7aa57f-cf4f-4d76-a6d2-c719b599abf7\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"a0b29040-9dda-41c3-ae6a-0faec1e8cc65\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T07:45:37.905547Z\"},{\"id\":\"bd282a57-8ea5-4cbb-aeeb-7c977acca817\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"981826d4-9b33-47ff-815f-eadc8f6444ea\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T07:38:44.729381Z\"},{\"id\":\"d924ff22-0f94-4a45-8dd1-1beed77e3de6\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"d906cc88-ab70-4d41-aaa2-dc76a4ffb35e\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T02:43:44.404216Z\"},{\"id\":\"014a5c03-2c2e-499d-bf8b-9a22f57c983d\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"c521e59d-dc50-45d1-9a59-b60472401860\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-19T02:35:36.85972Z\"},{\"id\":\"4258a958-6a55-4b7b-adc4-7fe485a4f9de\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"f9d5e5d9-d17c-4ebe-b161-b57886822a62\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-19T02:18:30.990369Z\"},{\"id\":\"2b8c110c-10e0-40c4-b34f-9153f5dd5128\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"6395abb7-33c9-4119-a74f-ca92147c3b9b\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T02:07:34.166187Z\"},{\"id\":\"16298058-cee2-4fbd-8c3a-d1406df59dbc\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"a2c3be08-0e88-4ba7-917a-7aa967591195\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"GRADING\",\"latest\":true,\"createdAt\":\"2026-09-17T16:28:30.835172Z\"},{\"id\":\"ba1b70d5-4dc5-4915-9e13-eb1c30c89fa7\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fb3ce21b-f9c0-4982-b3db-946a6d4ad676\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"FAILED\",\"latest\":true,\"createdAt\":\"2026-09-17T15:52:39.252014Z\"},{\"id\":\"f8f14757-1538-481d-a65f-7b40ca4ee58a\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"21c2572d-9488-47e6-a486-f9cec3600409\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"FAILED\",\"latest\":true,\"createdAt\":\"2026-09-17T15:32:53.629987Z\"},{\"id\":\"e3f64df5-1d93-462c-a9cc-130df37c03e4\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe48e137-18b5-4550-b3f2-21f071743897\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"FAILED\",\"latest\":true,\"createdAt\":\"2026-09-17T14:29:56.644387Z\"},{\"id\":\"f2e33d23-d45b-4367-8e7c-1783dbfc45ff\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"9f7ca6e7-6774-417a-b04c-7cd7763cc16d\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-14T15:41:21.619956Z\"},{\"id\":\"f909d996-a918-42ff-9c20-8b8d6d22b03e\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"7a9f527a-7b41-49ea-ad1e-f5ab9b0b2d15\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"FAILED\",\"latest\":true,\"createdAt\":\"2026-09-13T08:04:05.458188Z\"},{\"id\":\"734d9d45-31cc-41d1-9fe7-9ba04fac8c23\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"ee1dc886-3061-4ba7-afce-625999465f17\",\"zipFileName\":\"book-app.zip\",\"status\":\"FAILED\",\"latest\":true,\"createdAt\":\"2026-09-13T01:21:46.266841Z\"},{\"id\":\"292e415a-332e-4fd7-a320-ef5dc32954ab\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"2cc8f106-730b-43f7-90e5-8e76f9d9e18f\",\"zipFileName\":\"book-app.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T16:06:25.351846Z\"},{\"id\":\"c53ba06b-b450-4102-8531-fd4c8accccfe\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"d63124f9-95ea-4b71-947e-ab867617888f\",\"zipFileName\":\"book-app.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T15:28:06.839578Z\"},{\"id\":\"61fcd805-d091-4454-9aa9-71e9a3f204b1\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"c7d1b2f6-3511-4086-853f-3661c7a6f8e2\",\"zipFileName\":\"book-app.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T15:15:49.156021Z\"},{\"id\":\"8085cbda-2ba4-49f4-bde3-36f04ef0c295\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"97ec2b16-fe95-4684-951b-c13425ef3e70\",\"zipFileName\":\"book-app.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T15:11:11.438994Z\"},{\"id\":\"9f4f2be8-8df9-4c4a-9ed6-ec168fc435df\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"bd8dcbfa-a5cc-474a-aa85-1029bb86495d\",\"zipFileName\":\"book-app.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T15:08:26.166071Z\"},{\"id\":\"84ebd389-eeed-4b20-b1a4-b85c4bf1f60f\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"2c5700c3-22e2-44cc-8642-052ea2c8bd0d\",\"zipFileName\":\"book-app.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T14:29:52.302007Z\"},{\"id\":\"df345896-3658-4453-b2cc-9bcf771fe742\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"dfa20a37-3d9c-4828-a61d-4d2adf01b615\",\"zipFileName\":\"book-app.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T14:22:11.601695Z\"},{\"id\":\"a5c19e26-007c-4e13-aaf8-c0255c39e176\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"afa3f27a-ae62-4714-8e8e-b57c65db724d\",\"zipFileName\":\"lab01.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T14:10:42.990436Z\"}]"
+            }
+          ]
         },
         {
           "name": "update status (executor-internal)",
@@ -3344,6 +3424,552 @@
                   "body": "{\n    \"status\": 200,\n    \"message\": \"Assignment published\",\n    \"data\": {\n        \"id\": \"cf012ca0-9cf2-41ad-89cc-d43c49ee678b\",\n        \"ownerId\": \"2d93941a-4221-458b-a03d-43bd6315d02e\",\n        \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n        \"title\": \"Lab 01 - Book API-edited\",\n        \"description\": \"REST basics\",\n        \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n        \"dockerComposeTemplate\": null,\n        \"dockerComposePort\": 8080,\n        \"startupTimeoutMs\": 60000,\n        \"executionTimeoutMs\": 300000,\n        \"maxMemoryMb\": 256,\n        \"maxCpu\": 0.5,\n        \"published\": true,\n        \"createdAt\": \"2026-08-30T08:52:51.916464Z\",\n        \"updatedAt\": \"2026-08-30T09:35:45.531704Z\"\n    }\n}"
                 }
               ]
+            },
+            {
+              "name": "grading view — results (lecturer, owner-scoped)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-User-Id",
+                    "value": "{{fake_lecturer_id}}",
+                    "type": "default"
+                  }
+                ],
+                "url": {
+                  "raw": "{{course-service}}/api/v1/assignments/{assignmentId}/results",
+                  "host": [
+                    "{{course-service}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{assignmentId}",
+                    "results"
+                  ],
+                  "query": [
+                    {
+                      "key": "studentCode",
+                      "value": "",
+                      "disabled": true,
+                      "description": "roster code of one student; omit for the whole class"
+                    },
+                    {
+                      "key": "includeSteps",
+                      "value": "true",
+                      "disabled": true,
+                      "description": "adds each plan's steps[] (pass/fail, actual/expected)"
+                    }
+                  ]
+                },
+                "description": "UC-06 lecturer grading view. Requires X-User-Roles: LECTURER and an assignment owned by X-User-Id's class: another lecturer's assignment -> 404, no role -> 403. exerciseScore comes from result-service's weighted formula — same formula as the transcript, scoped to this assignment (the transcript applies it across all class assignments)."
+              },
+              "response": [
+                {
+                  "name": "results",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "2d93941a-4221-458b-a03d-43bd6315d02e",
+                        "type": "default"
+                      },
+                      {
+                        "key": "X-User-Roles",
+                        "value": "LECTURER",
+                        "type": "default"
+                      },
+                      {
+                        "key": "X-Gateway-Secret",
+                        "value": "{{serviceSecret}}",
+                        "type": "default"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{course-service}}/api/v1/assignments/{assignmentId}/results",
+                      "host": [
+                        "{{course-service}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "assignments",
+                        "{assignmentId}",
+                        "results"
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "X-Content-Type-Options",
+                      "value": "nosniff"
+                    },
+                    {
+                      "key": "X-XSS-Protection",
+                      "value": "0"
+                    },
+                    {
+                      "key": "Cache-Control",
+                      "value": "no-cache, no-store, max-age=0, must-revalidate"
+                    },
+                    {
+                      "key": "Pragma",
+                      "value": "no-cache"
+                    },
+                    {
+                      "key": "Expires",
+                      "value": "0"
+                    },
+                    {
+                      "key": "X-Frame-Options",
+                      "value": "DENY"
+                    },
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Content-Length",
+                      "value": "16897"
+                    },
+                    {
+                      "key": "Date",
+                      "value": "Wed, 30 Sep 2026 15:39:23 GMT"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\"status\":200,\"message\":\"Success\",\"data\":[{\"studentUserId\":\"fe48e137-18b5-4550-b3f2-21f071743897\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":0.00,\"results\":[{\"id\":\"fd4085d0-4986-498d-870b-b9e5b8de0f52\",\"submissionId\":\"e3f64df5-1d93-462c-a9cc-130df37c03e4\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe48e137-18b5-4550-b3f2-21f071743897\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":1,\"score\":0.00,\"maxScore\":10.00,\"status\":\"FAILED\",\"summaryLog\":\"Grading infrastructure failed: Container startup failed for image docker:25.0.5\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-17T14:35:52.651929Z\",\"steps\":null}]},{\"studentUserId\":\"21c2572d-9488-47e6-a486-f9cec3600409\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":0.00,\"results\":[{\"id\":\"d3451b53-2244-4a99-b85c-fc6d0cb7e90b\",\"submissionId\":\"f8f14757-1538-481d-a65f-7b40ca4ee58a\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"21c2572d-9488-47e6-a486-f9cec3600409\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":1,\"score\":0.00,\"maxScore\":10.00,\"status\":\"FAILED\",\"summaryLog\":\"Grading infrastructure failed: Container startup failed for image docker:25.0.5\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-17T15:36:29.149453Z\",\"steps\":null}]},{\"studentUserId\":\"d906cc88-ab70-4d41-aaa2-dc76a4ffb35e\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"ed6ad5a5-8650-4033-b42d-5632bb9684df\",\"submissionId\":\"d924ff22-0f94-4a45-8dd1-1beed77e3de6\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"d906cc88-ab70-4d41-aaa2-dc76a4ffb35e\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T02:57:20.58029Z\",\"steps\":null}]},{\"studentUserId\":\"981826d4-9b33-47ff-815f-eadc8f6444ea\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"7f49353d-2893-4aa8-b39f-1faa607b2e8c\",\"submissionId\":\"bd282a57-8ea5-4cbb-aeeb-7c977acca817\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"981826d4-9b33-47ff-815f-eadc8f6444ea\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T07:44:20.96157Z\",\"steps\":null}]},{\"studentUserId\":\"a0b29040-9dda-41c3-ae6a-0faec1e8cc65\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"803858aa-a333-47e7-a168-92f4ff07293e\",\"submissionId\":\"6c7aa57f-cf4f-4d76-a6d2-c719b599abf7\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"a0b29040-9dda-41c3-ae6a-0faec1e8cc65\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T07:47:40.617522Z\",\"steps\":null}]},{\"studentUserId\":\"52f20b91-2c0a-4114-b8ab-58961c2502de\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"230494cc-9b72-4bf1-bc96-dcca5e8de049\",\"submissionId\":\"eaba9686-1f4b-4cfe-90c5-4e41c71f7a1c\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"52f20b91-2c0a-4114-b8ab-58961c2502de\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T07:51:03.470387Z\",\"steps\":null}]},{\"studentUserId\":\"515cb07a-cc73-4fb0-b57c-9d615f35261d\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"03f79cde-effe-425b-8fdc-7b53b444b864\",\"submissionId\":\"f643adc4-85cb-4c77-acea-d9d8177fcabe\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"515cb07a-cc73-4fb0-b57c-9d615f35261d\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T07:52:52.94985Z\",\"steps\":null}]},{\"studentUserId\":\"fe9ec2b7-24f0-48c3-8a5a-b1a2c35f4779\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"5e6c1477-aab3-4ba1-a47e-af0f6b4594c0\",\"submissionId\":\"12791ed8-be50-4c06-9340-c68f851755ff\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe9ec2b7-24f0-48c3-8a5a-b1a2c35f4779\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T08:27:21.875345Z\",\"steps\":null}]},{\"studentUserId\":\"94fbeeac-61d0-4ebd-a4a5-a467d264e59c\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"12b3cb9f-1213-4a76-9745-32a95c19a961\",\"submissionId\":\"295de4a6-935b-40a3-a919-7118a923a80a\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"94fbeeac-61d0-4ebd-a4a5-a467d264e59c\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T08:30:29.994578Z\",\"steps\":null}]},{\"studentUserId\":\"fe98610e-757b-43cc-af53-bca1b2abdbd2\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"d50b3c7d-6a5f-46e3-8cd0-15672bcfc781\",\"submissionId\":\"8a563229-cbba-4733-aa24-660d98691a48\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe98610e-757b-43cc-af53-bca1b2abdbd2\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T08:37:37.039464Z\",\"steps\":null}]},{\"studentUserId\":\"02c6e70c-da67-4822-bb20-8c80f676bb99\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"ead497e1-7101-406b-aa10-ec71a85090e3\",\"submissionId\":\"b9cedd05-3fc8-48b4-93f5-94e97236cce5\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"02c6e70c-da67-4822-bb20-8c80f676bb99\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T08:39:34.144458Z\",\"steps\":null}]},{\"studentUserId\":\"9f6b9934-9d99-4cfb-b11b-28bf5631e783\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"e2d5ade1-7dd9-4572-9ba2-5985902c0404\",\"submissionId\":\"34bb06f5-7928-4129-a231-9423062da9cd\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"9f6b9934-9d99-4cfb-b11b-28bf5631e783\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T08:52:00.523666Z\",\"steps\":null}]},{\"studentUserId\":\"fe9701c2-c3c3-4ccb-9471-1c91497cdcbc\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"1eb7c6e3-3d83-457d-a420-882dae763e79\",\"submissionId\":\"d437cbaf-e75b-4f18-9882-5771d6fdb03c\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe9701c2-c3c3-4ccb-9471-1c91497cdcbc\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T08:52:01.139966Z\",\"steps\":null}]},{\"studentUserId\":\"67243de3-73ae-44de-9bb5-5ae874996f2c\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"be2887d9-6b48-44e0-b48b-b025de8af175\",\"submissionId\":\"74e1959d-863d-42f4-a950-0e133b6bc901\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"67243de3-73ae-44de-9bb5-5ae874996f2c\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T09:15:52.609902Z\",\"steps\":null}]},{\"studentUserId\":\"065fb1b1-138d-4aed-abff-ba0b006c39e4\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"082739b5-ba6e-438e-a8d3-58468f29b569\",\"submissionId\":\"580a6caa-feb7-477d-8067-7ce88d8b4818\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"065fb1b1-138d-4aed-abff-ba0b006c39e4\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T09:17:41.876304Z\",\"steps\":null}]},{\"studentUserId\":\"926803c8-5f7e-44e5-b95b-752977515d68\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"f25f9697-1bff-4c1b-9c67-01cb85d103e4\",\"submissionId\":\"c498532e-716d-4ff9-b970-dc3805a9ab15\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"926803c8-5f7e-44e5-b95b-752977515d68\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — connection.database is not a safe identifier: ''; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T12:09:52.842338Z\",\"steps\":null}]},{\"studentUserId\":\"7e3028f6-5c65-45bc-8cb2-8c219b1e6ddb\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"b27a234b-1720-4bdc-80e7-def529ad674d\",\"submissionId\":\"2b3a7cef-8eda-4e11-ad22-a72d8b9fe7b0\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"7e3028f6-5c65-45bc-8cb2-8c219b1e6ddb\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Connection failed using dialect 'postgres'. If your DB is MySQL/MariaDB, set connection.db_type: Connection to localhost:20001 refused. Check that the hostname and port are correct and that the postmaster is accepting TCP/IP connections.; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T12:18:19.182398Z\",\"steps\":null}]},{\"studentUserId\":\"7a700976-9f0f-4d82-bb28-ff4d8a8152fd\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"395513a9-4b9c-49bc-9c1b-9cfeab2bf769\",\"submissionId\":\"9c8e1760-494e-4b08-970a-afaeb70effa9\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"7a700976-9f0f-4d82-bb28-ff4d8a8152fd\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Connection failed using dialect 'postgres'. If your DB is MySQL/MariaDB, set connection.db_type: Connection to localhost:20001 refused. Check that the hostname and port are correct and that the postmaster is accepting TCP/IP connections.; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T12:24:13.022511Z\",\"steps\":null}]},{\"studentUserId\":\"d061262a-6842-4046-b359-23d9184ad037\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":6.67,\"results\":[{\"id\":\"094747f3-3c00-4801-9ef2-886c8eb59f6e\",\"submissionId\":\"11ac29cc-a23a-46aa-afe3-23e87c7cabc1\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"d061262a-6842-4046-b359-23d9184ad037\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Connection failed using dialect 'postgres'. If your DB is MySQL/MariaDB, set connection.db_type: Connection to localhost:20001 refused. Check that the hostname and port are correct and that the postmaster is accepting TCP/IP connections.; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T12:31:37.866321Z\",\"steps\":null}]},{\"studentUserId\":\"5812d465-9361-4df2-9ab6-54c9ef1cdfb0\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":7.50,\"results\":[{\"id\":\"4489b97f-9030-4af0-9fbb-2e6728a6b73a\",\"submissionId\":\"4c6596fa-fac2-4521-bc50-dace7a087e81\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"5812d465-9361-4df2-9ab6-54c9ef1cdfb0\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":7.50,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 3/4 steps (75%), Score: 7.50/10. Failed: Verify data in DB — DB step SQL error: ERROR: trailing junk after numeric literal at or near \\\"5775c416\\\"\\n  Position: 50\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T13:05:53.425364Z\",\"steps\":null}]},{\"studentUserId\":\"f472fb14-05c1-40fa-9dc5-7d1dda7871ae\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":10.00,\"results\":[{\"id\":\"9e0d0544-eb2a-4000-a094-b924dde85565\",\"submissionId\":\"59099ef3-cd94-4ccc-ac33-c9e89bb717af\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"f472fb14-05c1-40fa-9dc5-7d1dda7871ae\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":10.00,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 4/4 steps (100%), Score: 10.00/10\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T13:23:55.756436Z\",\"steps\":null}]},{\"studentUserId\":\"c4ce0377-0bf8-4893-bfdf-9b1c86315510\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":8.00,\"results\":[{\"id\":\"2614b080-f6b7-45cc-a3db-bf6a4b5b405c\",\"submissionId\":\"778b353a-8e5f-4805-a76d-e5b2e5c51c3f\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"c4ce0377-0bf8-4893-bfdf-9b1c86315510\",\"planId\":null,\"planWeight\":1,\"score\":8.00,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 8/10 steps (80%), Score: 8.00/10. Failed: Search by author — Illegal character in query at index 45: http://localhost:32768/api/v1/books?author=Tô Hoài; Verify book by ID — Skipped: required step failed earlier in plan; Update book — assertion failed; Delete book — Skipped: required step failed earlier in plan; Verify book deleted — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T13:44:15.586612Z\",\"steps\":null}]},{\"studentUserId\":\"35d6edff-0ab4-430e-8d6a-97ff073011db\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":10.00,\"results\":[{\"id\":\"d67971c0-4a89-4560-80e7-5e3e0ebffe9d\",\"submissionId\":\"fe198b79-9760-444b-9bae-3ae7509ec9dd\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"35d6edff-0ab4-430e-8d6a-97ff073011db\",\"planId\":null,\"planWeight\":1,\"score\":10.00,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 13/13 steps (100%), Score: 10.00/10\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T14:03:04.618121Z\",\"steps\":null}]}]}"
+                },
+                {
+                  "name": "results — other lecturer's assignment",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "11111111-2222-3333-4444-555555555555",
+                        "type": "default"
+                      },
+                      {
+                        "key": "X-User-Roles",
+                        "value": "LECTURER",
+                        "type": "default"
+                      },
+                      {
+                        "key": "X-Gateway-Secret",
+                        "value": "{{serviceSecret}}",
+                        "type": "default"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{course-service}}/api/v1/assignments/{assignmentId}/results",
+                      "host": [
+                        "{{course-service}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "assignments",
+                        "{assignmentId}",
+                        "results"
+                      ]
+                    }
+                  },
+                  "status": "Not Found",
+                  "code": 404,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "X-Content-Type-Options",
+                      "value": "nosniff"
+                    },
+                    {
+                      "key": "X-XSS-Protection",
+                      "value": "0"
+                    },
+                    {
+                      "key": "Cache-Control",
+                      "value": "no-cache, no-store, max-age=0, must-revalidate"
+                    },
+                    {
+                      "key": "Pragma",
+                      "value": "no-cache"
+                    },
+                    {
+                      "key": "Expires",
+                      "value": "0"
+                    },
+                    {
+                      "key": "X-Frame-Options",
+                      "value": "DENY"
+                    },
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Content-Length",
+                      "value": "85"
+                    },
+                    {
+                      "key": "Date",
+                      "value": "Wed, 30 Sep 2026 15:39:24 GMT"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\"status\":404,\"message\":\"Assignment not found: 76b359be-80f6-4e6a-bcbe-4643a57a8d07\"}"
+                },
+                {
+                  "name": "results — role STUDENT",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "2d93941a-4221-458b-a03d-43bd6315d02e",
+                        "type": "default"
+                      },
+                      {
+                        "key": "X-User-Roles",
+                        "value": "STUDENT",
+                        "type": "default"
+                      },
+                      {
+                        "key": "X-Gateway-Secret",
+                        "value": "{{serviceSecret}}",
+                        "type": "default"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{course-service}}/api/v1/assignments/{assignmentId}/results",
+                      "host": [
+                        "{{course-service}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "assignments",
+                        "{assignmentId}",
+                        "results"
+                      ]
+                    }
+                  },
+                  "status": "Forbidden",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "X-Content-Type-Options",
+                      "value": "nosniff"
+                    },
+                    {
+                      "key": "X-XSS-Protection",
+                      "value": "0"
+                    },
+                    {
+                      "key": "Cache-Control",
+                      "value": "no-cache, no-store, max-age=0, must-revalidate"
+                    },
+                    {
+                      "key": "Pragma",
+                      "value": "no-cache"
+                    },
+                    {
+                      "key": "Expires",
+                      "value": "0"
+                    },
+                    {
+                      "key": "X-Frame-Options",
+                      "value": "DENY"
+                    },
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Content-Length",
+                      "value": "75"
+                    },
+                    {
+                      "key": "Date",
+                      "value": "Wed, 30 Sep 2026 15:39:24 GMT"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\"status\":403,\"message\":\"Forbidden: Access denied\",\"error\":\"Access Denied\"}"
+                }
+              ]
+            },
+            {
+              "name": "grading view — submissions of an assignment (lecturer, owner-scoped)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-User-Id",
+                    "value": "{{fake_lecturer_id}}",
+                    "type": "default"
+                  }
+                ],
+                "url": {
+                  "raw": "{{course-service}}/api/v1/assignments/{assignmentId}/submissions",
+                  "host": [
+                    "{{course-service}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{assignmentId}",
+                    "submissions"
+                  ]
+                },
+                "description": "UC-06. Replaces the removed public route GET /api/v1/submissions/assignment/{assignmentId} (role-only, unscoped). Same two guards as the results route: LECTURER role -> 403 otherwise, owner check -> 404 otherwise."
+              },
+              "response": [
+                {
+                  "name": "submissions",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "2d93941a-4221-458b-a03d-43bd6315d02e",
+                        "type": "default"
+                      },
+                      {
+                        "key": "X-User-Roles",
+                        "value": "LECTURER",
+                        "type": "default"
+                      },
+                      {
+                        "key": "X-Gateway-Secret",
+                        "value": "{{serviceSecret}}",
+                        "type": "default"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{course-service}}/api/v1/assignments/{assignmentId}/submissions",
+                      "host": [
+                        "{{course-service}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "assignments",
+                        "{assignmentId}",
+                        "submissions"
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "X-Content-Type-Options",
+                      "value": "nosniff"
+                    },
+                    {
+                      "key": "X-XSS-Protection",
+                      "value": "0"
+                    },
+                    {
+                      "key": "Cache-Control",
+                      "value": "no-cache, no-store, max-age=0, must-revalidate"
+                    },
+                    {
+                      "key": "Pragma",
+                      "value": "no-cache"
+                    },
+                    {
+                      "key": "Expires",
+                      "value": "0"
+                    },
+                    {
+                      "key": "X-Frame-Options",
+                      "value": "DENY"
+                    },
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Content-Length",
+                      "value": "10843"
+                    },
+                    {
+                      "key": "Date",
+                      "value": "Wed, 30 Sep 2026 15:39:28 GMT"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\"status\":200,\"message\":\"Success\",\"data\":[{\"id\":\"fe198b79-9760-444b-9bae-3ae7509ec9dd\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"35d6edff-0ab4-430e-8d6a-97ff073011db\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T14:00:32.619187Z\"},{\"id\":\"e113b21f-2839-47e0-a9fe-7f43f2ff7e13\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"bf3f3d84-d85b-476c-8661-f48cd2fae8f1\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"GRADING\",\"latest\":true,\"createdAt\":\"2026-09-27T13:50:08.148253Z\"},{\"id\":\"778b353a-8e5f-4805-a76d-e5b2e5c51c3f\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"c4ce0377-0bf8-4893-bfdf-9b1c86315510\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T13:38:42.543791Z\"},{\"id\":\"59099ef3-cd94-4ccc-ac33-c9e89bb717af\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"f472fb14-05c1-40fa-9dc5-7d1dda7871ae\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T13:21:02.693134Z\"},{\"id\":\"eb202344-5de1-42c7-8754-74b67c66bed4\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"887de06e-0ea7-4418-8762-51613e6bb549\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"GRADING\",\"latest\":true,\"createdAt\":\"2026-09-27T13:09:11.832253Z\"},{\"id\":\"4c6596fa-fac2-4521-bc50-dace7a087e81\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"5812d465-9361-4df2-9ab6-54c9ef1cdfb0\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T13:03:50.536482Z\"},{\"id\":\"11ac29cc-a23a-46aa-afe3-23e87c7cabc1\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"d061262a-6842-4046-b359-23d9184ad037\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T12:26:39.695412Z\"},{\"id\":\"9c8e1760-494e-4b08-970a-afaeb70effa9\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"7a700976-9f0f-4d82-bb28-ff4d8a8152fd\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T12:20:47.463141Z\"},{\"id\":\"2b3a7cef-8eda-4e11-ad22-a72d8b9fe7b0\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"7e3028f6-5c65-45bc-8cb2-8c219b1e6ddb\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T12:16:12.673979Z\"},{\"id\":\"c498532e-716d-4ff9-b970-dc3805a9ab15\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"926803c8-5f7e-44e5-b95b-752977515d68\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-27T12:05:00.447481Z\"},{\"id\":\"d437cbaf-e75b-4f18-9882-5771d6fdb03c\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe9701c2-c3c3-4ccb-9471-1c91497cdcbc\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:45:58.732229Z\"},{\"id\":\"34bb06f5-7928-4129-a231-9423062da9cd\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"9f6b9934-9d99-4cfb-b11b-28bf5631e783\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:45:53.148958Z\"},{\"id\":\"a9b48ba1-84a6-4d68-ab7d-81feac8954d6\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"45cd1467-d8c2-4079-bdb7-9f34dbc43aaf\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-19T08:45:05.931571Z\"},{\"id\":\"74e1959d-863d-42f4-a950-0e133b6bc901\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"67243de3-73ae-44de-9bb5-5ae874996f2c\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:40:32.820592Z\"},{\"id\":\"580a6caa-feb7-477d-8067-7ce88d8b4818\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"065fb1b1-138d-4aed-abff-ba0b006c39e4\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:40:27.148337Z\"},{\"id\":\"b9cedd05-3fc8-48b4-93f5-94e97236cce5\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"02c6e70c-da67-4822-bb20-8c80f676bb99\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:34:13.032143Z\"},{\"id\":\"8a563229-cbba-4733-aa24-660d98691a48\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe98610e-757b-43cc-af53-bca1b2abdbd2\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:33:25.389467Z\"},{\"id\":\"295de4a6-935b-40a3-a919-7118a923a80a\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"94fbeeac-61d0-4ebd-a4a5-a467d264e59c\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:24:57.566618Z\"},{\"id\":\"12791ed8-be50-4c06-9340-c68f851755ff\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe9ec2b7-24f0-48c3-8a5a-b1a2c35f4779\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T08:24:50.525139Z\"},{\"id\":\"eaba9686-1f4b-4cfe-90c5-4e41c71f7a1c\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"52f20b91-2c0a-4114-b8ab-58961c2502de\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T07:48:57.653181Z\"},{\"id\":\"f643adc4-85cb-4c77-acea-d9d8177fcabe\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"515cb07a-cc73-4fb0-b57c-9d615f35261d\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T07:48:48.117938Z\"},{\"id\":\"6c7aa57f-cf4f-4d76-a6d2-c719b599abf7\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"a0b29040-9dda-41c3-ae6a-0faec1e8cc65\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T07:45:37.905547Z\"},{\"id\":\"bd282a57-8ea5-4cbb-aeeb-7c977acca817\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"981826d4-9b33-47ff-815f-eadc8f6444ea\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T07:38:44.729381Z\"},{\"id\":\"d924ff22-0f94-4a45-8dd1-1beed77e3de6\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"d906cc88-ab70-4d41-aaa2-dc76a4ffb35e\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T02:43:44.404216Z\"},{\"id\":\"014a5c03-2c2e-499d-bf8b-9a22f57c983d\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"c521e59d-dc50-45d1-9a59-b60472401860\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-19T02:35:36.85972Z\"},{\"id\":\"4258a958-6a55-4b7b-adc4-7fe485a4f9de\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"f9d5e5d9-d17c-4ebe-b161-b57886822a62\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-19T02:18:30.990369Z\"},{\"id\":\"2b8c110c-10e0-40c4-b34f-9153f5dd5128\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"6395abb7-33c9-4119-a74f-ca92147c3b9b\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"DONE\",\"latest\":true,\"createdAt\":\"2026-09-19T02:07:34.166187Z\"},{\"id\":\"16298058-cee2-4fbd-8c3a-d1406df59dbc\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"a2c3be08-0e88-4ba7-917a-7aa967591195\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"GRADING\",\"latest\":true,\"createdAt\":\"2026-09-17T16:28:30.835172Z\"},{\"id\":\"ba1b70d5-4dc5-4915-9e13-eb1c30c89fa7\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fb3ce21b-f9c0-4982-b3db-946a6d4ad676\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"FAILED\",\"latest\":true,\"createdAt\":\"2026-09-17T15:52:39.252014Z\"},{\"id\":\"f8f14757-1538-481d-a65f-7b40ca4ee58a\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"21c2572d-9488-47e6-a486-f9cec3600409\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"FAILED\",\"latest\":true,\"createdAt\":\"2026-09-17T15:32:53.629987Z\"},{\"id\":\"e3f64df5-1d93-462c-a9cc-130df37c03e4\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe48e137-18b5-4550-b3f2-21f071743897\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"FAILED\",\"latest\":true,\"createdAt\":\"2026-09-17T14:29:56.644387Z\"},{\"id\":\"f2e33d23-d45b-4367-8e7c-1783dbfc45ff\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"9f7ca6e7-6774-417a-b04c-7cd7763cc16d\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-14T15:41:21.619956Z\"},{\"id\":\"f909d996-a918-42ff-9c20-8b8d6d22b03e\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"7a9f527a-7b41-49ea-ad1e-f5ab9b0b2d15\",\"zipFileName\":\"book-app-test.zip\",\"status\":\"FAILED\",\"latest\":true,\"createdAt\":\"2026-09-13T08:04:05.458188Z\"},{\"id\":\"734d9d45-31cc-41d1-9fe7-9ba04fac8c23\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"ee1dc886-3061-4ba7-afce-625999465f17\",\"zipFileName\":\"book-app.zip\",\"status\":\"FAILED\",\"latest\":true,\"createdAt\":\"2026-09-13T01:21:46.266841Z\"},{\"id\":\"292e415a-332e-4fd7-a320-ef5dc32954ab\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"2cc8f106-730b-43f7-90e5-8e76f9d9e18f\",\"zipFileName\":\"book-app.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T16:06:25.351846Z\"},{\"id\":\"c53ba06b-b450-4102-8531-fd4c8accccfe\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"d63124f9-95ea-4b71-947e-ab867617888f\",\"zipFileName\":\"book-app.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T15:28:06.839578Z\"},{\"id\":\"61fcd805-d091-4454-9aa9-71e9a3f204b1\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"c7d1b2f6-3511-4086-853f-3661c7a6f8e2\",\"zipFileName\":\"book-app.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T15:15:49.156021Z\"},{\"id\":\"8085cbda-2ba4-49f4-bde3-36f04ef0c295\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"97ec2b16-fe95-4684-951b-c13425ef3e70\",\"zipFileName\":\"book-app.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T15:11:11.438994Z\"},{\"id\":\"9f4f2be8-8df9-4c4a-9ed6-ec168fc435df\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"bd8dcbfa-a5cc-474a-aa85-1029bb86495d\",\"zipFileName\":\"book-app.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T15:08:26.166071Z\"},{\"id\":\"84ebd389-eeed-4b20-b1a4-b85c4bf1f60f\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"2c5700c3-22e2-44cc-8642-052ea2c8bd0d\",\"zipFileName\":\"book-app.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T14:29:52.302007Z\"},{\"id\":\"df345896-3658-4453-b2cc-9bcf771fe742\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"dfa20a37-3d9c-4828-a61d-4d2adf01b615\",\"zipFileName\":\"book-app.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T14:22:11.601695Z\"},{\"id\":\"a5c19e26-007c-4e13-aaf8-c0255c39e176\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"afa3f27a-ae62-4714-8e8e-b57c65db724d\",\"zipFileName\":\"lab01.zip\",\"status\":\"PENDING\",\"latest\":true,\"createdAt\":\"2026-09-12T14:10:42.990436Z\"}]}"
+                },
+                {
+                  "name": "submissions — other lecturer's assignment",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "11111111-2222-3333-4444-555555555555",
+                        "type": "default"
+                      },
+                      {
+                        "key": "X-User-Roles",
+                        "value": "LECTURER",
+                        "type": "default"
+                      },
+                      {
+                        "key": "X-Gateway-Secret",
+                        "value": "{{serviceSecret}}",
+                        "type": "default"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{course-service}}/api/v1/assignments/{assignmentId}/submissions",
+                      "host": [
+                        "{{course-service}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "assignments",
+                        "{assignmentId}",
+                        "submissions"
+                      ]
+                    }
+                  },
+                  "status": "Not Found",
+                  "code": 404,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "X-Content-Type-Options",
+                      "value": "nosniff"
+                    },
+                    {
+                      "key": "X-XSS-Protection",
+                      "value": "0"
+                    },
+                    {
+                      "key": "Cache-Control",
+                      "value": "no-cache, no-store, max-age=0, must-revalidate"
+                    },
+                    {
+                      "key": "Pragma",
+                      "value": "no-cache"
+                    },
+                    {
+                      "key": "Expires",
+                      "value": "0"
+                    },
+                    {
+                      "key": "X-Frame-Options",
+                      "value": "DENY"
+                    },
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Content-Length",
+                      "value": "85"
+                    },
+                    {
+                      "key": "Date",
+                      "value": "Wed, 30 Sep 2026 15:39:28 GMT"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\"status\":404,\"message\":\"Assignment not found: 76b359be-80f6-4e6a-bcbe-4643a57a8d07\"}"
+                },
+                {
+                  "name": "submissions — role STUDENT",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "2d93941a-4221-458b-a03d-43bd6315d02e",
+                        "type": "default"
+                      },
+                      {
+                        "key": "X-User-Roles",
+                        "value": "STUDENT",
+                        "type": "default"
+                      },
+                      {
+                        "key": "X-Gateway-Secret",
+                        "value": "{{serviceSecret}}",
+                        "type": "default"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{course-service}}/api/v1/assignments/{assignmentId}/submissions",
+                      "host": [
+                        "{{course-service}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "assignments",
+                        "{assignmentId}",
+                        "submissions"
+                      ]
+                    }
+                  },
+                  "status": "Forbidden",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "X-Content-Type-Options",
+                      "value": "nosniff"
+                    },
+                    {
+                      "key": "X-XSS-Protection",
+                      "value": "0"
+                    },
+                    {
+                      "key": "Cache-Control",
+                      "value": "no-cache, no-store, max-age=0, must-revalidate"
+                    },
+                    {
+                      "key": "Pragma",
+                      "value": "no-cache"
+                    },
+                    {
+                      "key": "Expires",
+                      "value": "0"
+                    },
+                    {
+                      "key": "X-Frame-Options",
+                      "value": "DENY"
+                    },
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Content-Length",
+                      "value": "75"
+                    },
+                    {
+                      "key": "Date",
+                      "value": "Wed, 30 Sep 2026 15:39:29 GMT"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\"status\":403,\"message\":\"Forbidden: Access denied\",\"error\":\"Access Denied\"}"
+                }
+              ]
             }
           ]
         },
@@ -4639,7 +5265,110 @@
       "item": [
         {
           "name": "internal",
-          "item": []
+          "item": [
+            {
+              "name": "get results by assignment (course-service grading view)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{result-service}}/api/v1/internal/results/assignment/{assignmentId}",
+                  "host": [
+                    "{{result-service}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "internal",
+                    "results",
+                    "assignment",
+                    "{assignmentId}"
+                  ],
+                  "query": [
+                    {
+                      "key": "studentUserId",
+                      "value": "",
+                      "disabled": true,
+                      "description": "restrict to one student; omit for the whole class"
+                    },
+                    {
+                      "key": "includeSteps",
+                      "value": "true",
+                      "disabled": true,
+                      "description": "adds step rows under each result"
+                    }
+                  ]
+                },
+                "description": "Internal (not gateway-routed). Only caller: course-service GET /api/v1/assignments/{id}/results, which has already checked that the lecturer owns the assignment's class."
+              },
+              "response": [
+                {
+                  "name": "200 (includeSteps=false)",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{result-service}}/api/v1/internal/results/assignment/{assignmentId}",
+                      "host": [
+                        "{{result-service}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "internal",
+                        "results",
+                        "assignment",
+                        "{assignmentId}"
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "X-Content-Type-Options",
+                      "value": "nosniff"
+                    },
+                    {
+                      "key": "X-XSS-Protection",
+                      "value": "0"
+                    },
+                    {
+                      "key": "Cache-Control",
+                      "value": "no-cache, no-store, max-age=0, must-revalidate"
+                    },
+                    {
+                      "key": "Pragma",
+                      "value": "no-cache"
+                    },
+                    {
+                      "key": "Expires",
+                      "value": "0"
+                    },
+                    {
+                      "key": "X-Frame-Options",
+                      "value": "DENY"
+                    },
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Content-Length",
+                      "value": "15981"
+                    },
+                    {
+                      "key": "Date",
+                      "value": "Wed, 30 Sep 2026 15:39:48 GMT"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "[{\"studentUserId\":\"fe48e137-18b5-4550-b3f2-21f071743897\",\"exerciseScore\":0.00,\"results\":[{\"id\":\"fd4085d0-4986-498d-870b-b9e5b8de0f52\",\"submissionId\":\"e3f64df5-1d93-462c-a9cc-130df37c03e4\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe48e137-18b5-4550-b3f2-21f071743897\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":1,\"score\":0.00,\"maxScore\":10.00,\"status\":\"FAILED\",\"summaryLog\":\"Grading infrastructure failed: Container startup failed for image docker:25.0.5\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-17T14:35:52.651929Z\",\"steps\":null}]},{\"studentUserId\":\"21c2572d-9488-47e6-a486-f9cec3600409\",\"exerciseScore\":0.00,\"results\":[{\"id\":\"d3451b53-2244-4a99-b85c-fc6d0cb7e90b\",\"submissionId\":\"f8f14757-1538-481d-a65f-7b40ca4ee58a\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"21c2572d-9488-47e6-a486-f9cec3600409\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":1,\"score\":0.00,\"maxScore\":10.00,\"status\":\"FAILED\",\"summaryLog\":\"Grading infrastructure failed: Container startup failed for image docker:25.0.5\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-17T15:36:29.149453Z\",\"steps\":null}]},{\"studentUserId\":\"d906cc88-ab70-4d41-aaa2-dc76a4ffb35e\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"ed6ad5a5-8650-4033-b42d-5632bb9684df\",\"submissionId\":\"d924ff22-0f94-4a45-8dd1-1beed77e3de6\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"d906cc88-ab70-4d41-aaa2-dc76a4ffb35e\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T02:57:20.58029Z\",\"steps\":null}]},{\"studentUserId\":\"981826d4-9b33-47ff-815f-eadc8f6444ea\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"7f49353d-2893-4aa8-b39f-1faa607b2e8c\",\"submissionId\":\"bd282a57-8ea5-4cbb-aeeb-7c977acca817\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"981826d4-9b33-47ff-815f-eadc8f6444ea\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T07:44:20.96157Z\",\"steps\":null}]},{\"studentUserId\":\"a0b29040-9dda-41c3-ae6a-0faec1e8cc65\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"803858aa-a333-47e7-a168-92f4ff07293e\",\"submissionId\":\"6c7aa57f-cf4f-4d76-a6d2-c719b599abf7\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"a0b29040-9dda-41c3-ae6a-0faec1e8cc65\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T07:47:40.617522Z\",\"steps\":null}]},{\"studentUserId\":\"52f20b91-2c0a-4114-b8ab-58961c2502de\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"230494cc-9b72-4bf1-bc96-dcca5e8de049\",\"submissionId\":\"eaba9686-1f4b-4cfe-90c5-4e41c71f7a1c\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"52f20b91-2c0a-4114-b8ab-58961c2502de\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T07:51:03.470387Z\",\"steps\":null}]},{\"studentUserId\":\"515cb07a-cc73-4fb0-b57c-9d615f35261d\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"03f79cde-effe-425b-8fdc-7b53b444b864\",\"submissionId\":\"f643adc4-85cb-4c77-acea-d9d8177fcabe\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"515cb07a-cc73-4fb0-b57c-9d615f35261d\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T07:52:52.94985Z\",\"steps\":null}]},{\"studentUserId\":\"fe9ec2b7-24f0-48c3-8a5a-b1a2c35f4779\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"5e6c1477-aab3-4ba1-a47e-af0f6b4594c0\",\"submissionId\":\"12791ed8-be50-4c06-9340-c68f851755ff\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe9ec2b7-24f0-48c3-8a5a-b1a2c35f4779\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T08:27:21.875345Z\",\"steps\":null}]},{\"studentUserId\":\"94fbeeac-61d0-4ebd-a4a5-a467d264e59c\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"12b3cb9f-1213-4a76-9745-32a95c19a961\",\"submissionId\":\"295de4a6-935b-40a3-a919-7118a923a80a\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"94fbeeac-61d0-4ebd-a4a5-a467d264e59c\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T08:30:29.994578Z\",\"steps\":null}]},{\"studentUserId\":\"fe98610e-757b-43cc-af53-bca1b2abdbd2\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"d50b3c7d-6a5f-46e3-8cd0-15672bcfc781\",\"submissionId\":\"8a563229-cbba-4733-aa24-660d98691a48\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe98610e-757b-43cc-af53-bca1b2abdbd2\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T08:37:37.039464Z\",\"steps\":null}]},{\"studentUserId\":\"02c6e70c-da67-4822-bb20-8c80f676bb99\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"ead497e1-7101-406b-aa10-ec71a85090e3\",\"submissionId\":\"b9cedd05-3fc8-48b4-93f5-94e97236cce5\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"02c6e70c-da67-4822-bb20-8c80f676bb99\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T08:39:34.144458Z\",\"steps\":null}]},{\"studentUserId\":\"9f6b9934-9d99-4cfb-b11b-28bf5631e783\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"e2d5ade1-7dd9-4572-9ba2-5985902c0404\",\"submissionId\":\"34bb06f5-7928-4129-a231-9423062da9cd\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"9f6b9934-9d99-4cfb-b11b-28bf5631e783\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T08:52:00.523666Z\",\"steps\":null}]},{\"studentUserId\":\"fe9701c2-c3c3-4ccb-9471-1c91497cdcbc\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"1eb7c6e3-3d83-457d-a420-882dae763e79\",\"submissionId\":\"d437cbaf-e75b-4f18-9882-5771d6fdb03c\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"fe9701c2-c3c3-4ccb-9471-1c91497cdcbc\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T08:52:01.139966Z\",\"steps\":null}]},{\"studentUserId\":\"67243de3-73ae-44de-9bb5-5ae874996f2c\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"be2887d9-6b48-44e0-b48b-b025de8af175\",\"submissionId\":\"74e1959d-863d-42f4-a950-0e133b6bc901\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"67243de3-73ae-44de-9bb5-5ae874996f2c\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T09:15:52.609902Z\",\"steps\":null}]},{\"studentUserId\":\"065fb1b1-138d-4aed-abff-ba0b006c39e4\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"082739b5-ba6e-438e-a8d3-58468f29b569\",\"submissionId\":\"580a6caa-feb7-477d-8067-7ce88d8b4818\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"065fb1b1-138d-4aed-abff-ba0b006c39e4\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Unknown step type: DB_SCHEMA_CHECK; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-19T09:17:41.876304Z\",\"steps\":null}]},{\"studentUserId\":\"926803c8-5f7e-44e5-b95b-752977515d68\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"f25f9697-1bff-4c1b-9c67-01cb85d103e4\",\"submissionId\":\"c498532e-716d-4ff9-b970-dc3805a9ab15\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"926803c8-5f7e-44e5-b95b-752977515d68\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — connection.database is not a safe identifier: ''; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T12:09:52.842338Z\",\"steps\":null}]},{\"studentUserId\":\"7e3028f6-5c65-45bc-8cb2-8c219b1e6ddb\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"b27a234b-1720-4bdc-80e7-def529ad674d\",\"submissionId\":\"2b3a7cef-8eda-4e11-ad22-a72d8b9fe7b0\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"7e3028f6-5c65-45bc-8cb2-8c219b1e6ddb\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Connection failed using dialect 'postgres'. If your DB is MySQL/MariaDB, set connection.db_type: Connection to localhost:20001 refused. Check that the hostname and port are correct and that the postmaster is accepting TCP/IP connections.; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T12:18:19.182398Z\",\"steps\":null}]},{\"studentUserId\":\"7a700976-9f0f-4d82-bb28-ff4d8a8152fd\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"395513a9-4b9c-49bc-9c1b-9cfeab2bf769\",\"submissionId\":\"9c8e1760-494e-4b08-970a-afaeb70effa9\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"7a700976-9f0f-4d82-bb28-ff4d8a8152fd\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Connection failed using dialect 'postgres'. If your DB is MySQL/MariaDB, set connection.db_type: Connection to localhost:20001 refused. Check that the hostname and port are correct and that the postmaster is accepting TCP/IP connections.; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T12:24:13.022511Z\",\"steps\":null}]},{\"studentUserId\":\"d061262a-6842-4046-b359-23d9184ad037\",\"exerciseScore\":6.67,\"results\":[{\"id\":\"094747f3-3c00-4801-9ef2-886c8eb59f6e\",\"submissionId\":\"11ac29cc-a23a-46aa-afe3-23e87c7cabc1\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"d061262a-6842-4046-b359-23d9184ad037\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":6.67,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 2/3 steps (67%), Score: 6.67/10. Failed: Check DB schema — Connection failed using dialect 'postgres'. If your DB is MySQL/MariaDB, set connection.db_type: Connection to localhost:20001 refused. Check that the hostname and port are correct and that the postmaster is accepting TCP/IP connections.; Verify data in DB — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T12:31:37.866321Z\",\"steps\":null}]},{\"studentUserId\":\"5812d465-9361-4df2-9ab6-54c9ef1cdfb0\",\"exerciseScore\":7.50,\"results\":[{\"id\":\"4489b97f-9030-4af0-9fbb-2e6728a6b73a\",\"submissionId\":\"4c6596fa-fac2-4521-bc50-dace7a087e81\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"5812d465-9361-4df2-9ab6-54c9ef1cdfb0\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":7.50,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 3/4 steps (75%), Score: 7.50/10. Failed: Verify data in DB — DB step SQL error: ERROR: trailing junk after numeric literal at or near \\\"5775c416\\\"\\n  Position: 50\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T13:05:53.425364Z\",\"steps\":null}]},{\"studentUserId\":\"f472fb14-05c1-40fa-9dc5-7d1dda7871ae\",\"exerciseScore\":10.00,\"results\":[{\"id\":\"9e0d0544-eb2a-4000-a094-b924dde85565\",\"submissionId\":\"59099ef3-cd94-4ccc-ac33-c9e89bb717af\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"f472fb14-05c1-40fa-9dc5-7d1dda7871ae\",\"planId\":\"c20f3182-825b-48b2-be92-e848c1538810\",\"planWeight\":10,\"score\":10.00,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 4/4 steps (100%), Score: 10.00/10\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T13:23:55.756436Z\",\"steps\":null}]},{\"studentUserId\":\"c4ce0377-0bf8-4893-bfdf-9b1c86315510\",\"exerciseScore\":8.00,\"results\":[{\"id\":\"2614b080-f6b7-45cc-a3db-bf6a4b5b405c\",\"submissionId\":\"778b353a-8e5f-4805-a76d-e5b2e5c51c3f\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"c4ce0377-0bf8-4893-bfdf-9b1c86315510\",\"planId\":null,\"planWeight\":1,\"score\":8.00,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 8/10 steps (80%), Score: 8.00/10. Failed: Search by author — Illegal character in query at index 45: http://localhost:32768/api/v1/books?author=Tô Hoài; Verify book by ID — Skipped: required step failed earlier in plan; Update book — assertion failed; Delete book — Skipped: required step failed earlier in plan; Verify book deleted — Skipped: required step failed earlier in plan\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T13:44:15.586612Z\",\"steps\":null}]},{\"studentUserId\":\"35d6edff-0ab4-430e-8d6a-97ff073011db\",\"exerciseScore\":10.00,\"results\":[{\"id\":\"d67971c0-4a89-4560-80e7-5e3e0ebffe9d\",\"submissionId\":\"fe198b79-9760-444b-9bae-3ae7509ec9dd\",\"assignmentId\":\"76b359be-80f6-4e6a-bcbe-4643a57a8d07\",\"studentId\":\"35d6edff-0ab4-430e-8d6a-97ff073011db\",\"planId\":null,\"planWeight\":1,\"score\":10.00,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 13/13 steps (100%), Score: 10.00/10\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-09-27T14:03:04.618121Z\",\"steps\":null}]}]"
+                }
+              ]
+            }
+          ]
         },
         {
           "name": "weighted (plan-weighted exercise score)",

@@ -30,14 +30,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Ownership/role matrix for {@link ResultController} (Review: 2026-09-30, Pullfrog review
- * feat/DAT-8).
+ * Ownership matrix for {@link ResultController} (Review: 2026-09-30, Pullfrog review
+ * feat/DAT-8; rework: 2026-09-30 role-split slice, plan role-split-result-apis-v1.0 D3).
  *
- * <p>The lecturer case is the point of this class: since the gateway started injecting
- * {@code X-User-Id} on every request, this endpoint's unconditional ownership check turned
- * every lecturer read of a student's result into 403. A lecturer now bypasses it, everyone
- * else still only sees their own rows. The trust-header setup and the chain-only MockMvc
- * rationale are the same as in the course-service {@code ClassAuthorizationTest}.
+ * <p>This route is the STUDENT's own-results endpoint and answers only for its owner. The
+ * {@code hasRole("LECTURER")} bypass that used to live here is deliberately gone: it skipped
+ * ownership for every lecturer in the system without checking that the assignment belonged
+ * to a class they own. A lecturer reading a class's results now goes through
+ * {@code GET /api/v1/assignments/{id}/results} in course-service, which is role-gated AND
+ * owner-scoped — see course-service {@code AssignmentGradingAuthorizationTest}.
+ *
+ * <p>The trust-header setup and the chain-only MockMvc rationale are the same as in the
+ * course-service {@code ClassAuthorizationTest}.
  */
 @WebMvcTest(controllers = ResultController.class)
 @Import({SecurityConfig.class, HeaderAuthenticationFilter.class})
@@ -115,13 +119,15 @@ class ResultControllerAuthorizationTest {
     }
 
     @Test
-    void lecturerMayReadAnyStudentsResults() throws Exception {
-        // The regression this slice fixes: without the bypass a lecturer gets 403 here,
-        // because the gateway now sends their own X-User-Id and it never matches the row.
+    void lecturerMayNotReadOtherStudentsResultsThroughTheStudentEndpoint() throws Exception {
+        // Review: 2026-09-30, role-split slice — the old expectation here was 200. The
+        // LECTURER bypass it asserted had no class-ownership check, so any lecturer could
+        // read any student's results. The role now buys nothing on this route: the lecturer
+        // grading view moved to course-service's owner-scoped endpoint.
         stubResultsOwnedBy(OTHER_STUDENT);
 
         mockMvc.perform(asCaller(get("/api/v1/results/{submissionId}", SUBMISSION_ID), "LECTURER"))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -130,6 +136,25 @@ class ResultControllerAuthorizationTest {
 
         mockMvc.perform(get("/api/v1/results/{submissionId}", SUBMISSION_ID)
                         .header("X-User-Id", CALLER))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void validSecretWithAbsentUserIdRejectsBeforeOwnershipRule() throws Exception {
+        stubResultsOwnedBy(CALLER);
+
+        mockMvc.perform(get("/api/v1/results/{submissionId}", SUBMISSION_ID)
+                        .header("X-Gateway-Secret", SECRET))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void validSecretWithBlankUserIdRejectsBeforeOwnershipRule() throws Exception {
+        stubResultsOwnedBy(CALLER);
+
+        mockMvc.perform(get("/api/v1/results/{submissionId}", SUBMISSION_ID)
+                        .header("X-User-Id", "   ")
+                        .header("X-Gateway-Secret", SECRET))
                 .andExpect(status().isUnauthorized());
     }
 }

@@ -29,14 +29,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Authorization matrix for {@link SubmissionController} (Review: 2026-09-30, Pullfrog
- * review feat/DAT-8).
+ * review feat/DAT-8; rework: 2026-09-30 role-split slice, plan role-split-result-apis-v1.0).
  *
- * <p>Two fixes are locked in here:
+ * <p>Two properties are locked in here:
  * <ul>
- *   <li>the per-assignment list is the lecturer's grading view and is role-gated;</li>
- *   <li>reading one submission by id now enforces ownership — before this, any authenticated
- *       caller could fetch any submission by guessing its id while the list endpoint
- *       filtered by studentId.</li>
+ *   <li>the per-assignment list is NO LONGER public — it moved to
+ *       {@code /api/v1/internal/submissions/assignment/{id}} and is served by course-service's
+ *       owner-scoped {@code GET /api/v1/assignments/{id}/submissions} instead, because a
+ *       role check alone let any lecturer list any class;</li>
+ *   <li>reading one submission by id enforces ownership for EVERY role — the lecturer bypass
+ *       is gone for the same reason.</li>
  * </ul>
  *
  * <p>An ownership miss answers 404 rather than 403 so an existing id stays indistinguishable
@@ -94,28 +96,21 @@ class SubmissionControllerAuthorizationTest {
                         .build());
     }
 
-    // --- per-assignment list (lecturer-only) ----------------------------------
+    // --- per-assignment list (moved off the public surface) -------------------
 
     @Test
-    void lecturerMayListTheSubmissionsOfAnAssignment() throws Exception {
+    void thePublicPerAssignmentListRouteIsGoneForEveryRole() throws Exception {
+        // Review: 2026-09-30, role-split slice — this used to be role-gated (200/403/403).
+        // Role alone never scoped it to a class, so the route itself moved internal and only
+        // course-service's owner-scoped facade reaches it now. 404 for a lecturer too: the
+        // assertion fails if anyone re-adds a public route here without an owner check.
         mockMvc.perform(asCaller(
                         get("/api/v1/submissions/assignment/{assignmentId}", ASSIGNMENT_ID), "LECTURER"))
-                .andExpect(status().isOk());
-    }
+                .andExpect(status().isNotFound());
 
-    @Test
-    void studentMayNotListTheSubmissionsOfAnAssignment() throws Exception {
         mockMvc.perform(asCaller(
                         get("/api/v1/submissions/assignment/{assignmentId}", ASSIGNMENT_ID), "STUDENT"))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void callerWithNoRolesMayNotListTheSubmissionsOfAnAssignment() throws Exception {
-        // Fail closed: absent X-User-Roles must mean no role, never "unrestricted".
-        mockMvc.perform(asCaller(
-                        get("/api/v1/submissions/assignment/{assignmentId}", ASSIGNMENT_ID), null))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
     }
 
     // --- read one submission (ownership) --------------------------------------
@@ -146,16 +141,42 @@ class SubmissionControllerAuthorizationTest {
     }
 
     @Test
-    void lecturerMayReadAnySubmission() throws Exception {
+    void lecturerMayNotReadAnotherStudentsSubmission() throws Exception {
+        // Review: 2026-09-30, role-split slice — the old expectation here was 200. The
+        // LECTURER bypass had no class-ownership check, so any lecturer could read any
+        // submission. Lecturers now go through course-service's owner-scoped
+        // GET /api/v1/assignments/{id}/submissions.
         stubSubmissionOwnedBy(OTHER_STUDENT);
 
         mockMvc.perform(asCaller(get("/api/v1/submissions/{id}", SUBMISSION_ID), "LECTURER"))
-                .andExpect(status().isOk());
+                .andExpect(status().isNotFound());
     }
 
     @Test
     void requestWithoutTrustSecretIsRejectedBeforeAnyOwnershipRule() throws Exception {
         mockMvc.perform(get("/api/v1/submissions/{id}", SUBMISSION_ID).header("X-User-Id", CALLER))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void validSecretWithAbsentUserIdRejectsBeforeHandlerRuns() throws Exception {
+        // Coverage gap per Pullfrog review: a present-but-unusable caller identity
+        // (valid secret, no X-User-Id) must not reach the handler.
+        mockMvc.perform(get("/api/v1/submissions/{id}", SUBMISSION_ID)
+                        .header("X-Gateway-Secret", SECRET))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void validSecretWithBlankUserIdRejectsBeforeHandlerRuns() throws Exception {
+        mockMvc.perform(get("/api/v1/submissions/{id}", SUBMISSION_ID)
+                        .header("X-User-Id", "")
+                        .header("X-Gateway-Secret", SECRET))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/v1/submissions/{id}", SUBMISSION_ID)
+                        .header("X-User-Id", "   ")
+                        .header("X-Gateway-Secret", SECRET))
                 .andExpect(status().isUnauthorized());
     }
 }

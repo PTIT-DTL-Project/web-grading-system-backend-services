@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.ptit.web_grading_system.result_service.dto.request.CreateResultRequest;
+import vn.edu.ptit.web_grading_system.result_service.dto.response.AssignmentResultGroupResponse;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.ResultResponse;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.StepResultResponse;
 import vn.edu.ptit.web_grading_system.result_service.entity.Result;
@@ -15,8 +16,12 @@ import vn.edu.ptit.web_grading_system.result_service.repository.StepResultReposi
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -32,7 +37,19 @@ public class ResultService {
      * (live partial score). Null when the student has no results.
      */
     public BigDecimal weightedScoreByPlan(List<UUID> assignmentIds, UUID studentId) {
-        List<Result> results = resultRepository.findByAssignmentIdInAndStudentIdAndLatestTrue(assignmentIds, studentId);
+        return weightedAverage(
+                resultRepository.findByAssignmentIdInAndStudentIdAndLatestTrue(assignmentIds, studentId));
+    }
+
+    /**
+     * Single source of the weight-weighted formula: {@link #weightedScoreByPlan} and
+     * {@link #getByAssignment} both call it, so the per-student exercise score in the
+     * transcript and the one in the lecturer's class-wide view use the **same formula**
+     * — scoped to this assignment, while the transcript applies the same formula across
+     * all assignments of the class.
+     * Null when there is nothing to average.
+     */
+    private static BigDecimal weightedAverage(List<Result> results) {
         if (results.isEmpty()) {
             return null;
         }
@@ -53,6 +70,52 @@ public class ResultService {
     }
 
     /**
+     * Latest rows of one assignment grouped per student, for the lecturer's grading view
+     * (course-service owns the "may this lecturer see this assignment" decision and calls
+     * this only after its own owner check).
+     *
+     * @param studentUserId restricts to one student; null returns the whole class
+     * @param includeSteps  false keeps the class-wide read on ONE query — a class of N
+     *                      students × M plans would otherwise be N×M round trips. Steps
+     *                      are then batched into a single query when they are requested.
+     */
+    @Transactional(readOnly = true)
+    public List<AssignmentResultGroupResponse> getByAssignment(
+            UUID assignmentId, UUID studentUserId, boolean includeSteps) {
+        List<Result> rows = resultRepository.findByAssignmentIdAndLatestTrue(assignmentId);
+        if (studentUserId != null) {
+            rows = rows.stream()
+                    .filter(r -> studentUserId.equals(r.getStudentId()))
+                    .toList();
+        }
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, List<Result>> byStudent = new LinkedHashMap<>();
+        for (Result row : rows) {
+            byStudent.computeIfAbsent(row.getStudentId(), key -> new ArrayList<>()).add(row);
+        }
+        Map<UUID, List<StepResult>> stepsByResult = includeSteps
+                ? stepResultRepository.findByResultIdIn(rows.stream().map(Result::getId).toList())
+                        .stream()
+                        .collect(Collectors.groupingBy(StepResult::getResultId))
+                : Map.of();
+
+        List<AssignmentResultGroupResponse> groups = new ArrayList<>();
+        byStudent.forEach((studentId, plans) -> groups.add(AssignmentResultGroupResponse.builder()
+                .studentUserId(studentId)
+                .exerciseScore(weightedAverage(plans))
+                .results(plans.stream()
+                        .map(result -> toResponse(result,
+                                includeSteps
+                                        ? stepsByResult.getOrDefault(result.getId(), List.of())
+                                        : null))
+                        .toList())
+                .build()));
+        return groups;
+    }
+
+    /**
      * All result rows for one submission (one per graded plan), each with its
      * step rows. Empty when the submission hasn't been graded yet — callers
      * poll this endpoint.
@@ -65,6 +128,7 @@ public class ResultService {
                 .toList();
     }
 
+    /** {@code steps == null} means "not requested", not "no steps" — see {@code includeSteps}. */
     private static ResultResponse toResponse(Result result, List<StepResult> steps) {
         return ResultResponse.builder()
                 .id(result.getId())
@@ -80,7 +144,8 @@ public class ResultService {
                 .latest(result.getLatest())
                 .startedAt(result.getStartedAt())
                 .completedAt(result.getCompletedAt())
-                .steps(steps.stream().map(ResultService::toStepResponse).toList())
+                .steps(steps == null ? null
+                        : steps.stream().map(ResultService::toStepResponse).toList())
                 .build();
     }
 
