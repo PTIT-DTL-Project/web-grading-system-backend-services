@@ -44,7 +44,9 @@ public class ResultService {
     /**
      * Single source of the weight-weighted formula: {@link #weightedScoreByPlan} and
      * {@link #getByAssignment} both call it, so the per-student exercise score in the
-     * transcript and the one in the lecturer's class-wide view can never drift apart.
+     * transcript and the one in the lecturer's class-wide view use the **same formula**
+     * — scoped to this assignment, while the transcript applies the same formula across
+     * all assignments of the class.
      * Null when there is nothing to average.
      */
     private static BigDecimal weightedAverage(List<Result> results) {

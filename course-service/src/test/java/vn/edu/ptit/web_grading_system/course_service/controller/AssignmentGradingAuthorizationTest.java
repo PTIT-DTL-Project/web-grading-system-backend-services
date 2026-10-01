@@ -193,4 +193,28 @@ class AssignmentGradingAuthorizationTest {
                         .header("X-User-Roles", "LECTURER"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void validSecretWithAbsentUserIdRejectsBeforeHandlerRuns() throws Exception {
+        mockMvc.perform(get("/api/v1/assignments/{id}/results", ASSIGNMENT_ID)
+                        .header("X-Gateway-Secret", SECRET))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/v1/assignments/{id}/submissions", ASSIGNMENT_ID)
+                        .header("X-Gateway-Secret", SECRET))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void validSecretWithBlankUserIdRejectsBeforeHandlerRuns() throws Exception {
+        mockMvc.perform(get("/api/v1/assignments/{id}/results", ASSIGNMENT_ID)
+                        .header("X-User-Id", "   ")
+                        .header("X-Gateway-Secret", SECRET))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/v1/assignments/{id}/submissions", ASSIGNMENT_ID)
+                        .header("X-User-Id", "")
+                        .header("X-Gateway-Secret", SECRET))
+                .andExpect(status().isUnauthorized());
+    }
 }

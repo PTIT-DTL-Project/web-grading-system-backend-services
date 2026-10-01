@@ -3463,7 +3463,7 @@
                     }
                   ]
                 },
-                "description": "UC-06 lecturer grading view. Requires X-User-Roles: LECTURER and an assignment owned by X-User-Id's class: another lecturer's assignment -> 404, no role -> 403. exerciseScore comes from result-service's weighted formula, so it matches the class transcript."
+                "description": "UC-06 lecturer grading view. Requires X-User-Roles: LECTURER and an assignment owned by X-User-Id's class: another lecturer's assignment -> 404, no role -> 403. exerciseScore comes from result-service's weighted formula — same formula as the transcript, scoped to this assignment (the transcript applies it across all class assignments)."
               },
               "response": [
                 {

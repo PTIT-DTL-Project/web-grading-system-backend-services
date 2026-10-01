@@ -138,4 +138,23 @@ class ResultControllerAuthorizationTest {
                         .header("X-User-Id", CALLER))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void validSecretWithAbsentUserIdRejectsBeforeOwnershipRule() throws Exception {
+        stubResultsOwnedBy(CALLER);
+
+        mockMvc.perform(get("/api/v1/results/{submissionId}", SUBMISSION_ID)
+                        .header("X-Gateway-Secret", SECRET))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void validSecretWithBlankUserIdRejectsBeforeOwnershipRule() throws Exception {
+        stubResultsOwnedBy(CALLER);
+
+        mockMvc.perform(get("/api/v1/results/{submissionId}", SUBMISSION_ID)
+                        .header("X-User-Id", "   ")
+                        .header("X-Gateway-Secret", SECRET))
+                .andExpect(status().isUnauthorized());
+    }
 }

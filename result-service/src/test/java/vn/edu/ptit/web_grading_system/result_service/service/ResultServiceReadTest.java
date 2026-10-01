@@ -119,7 +119,9 @@ class ResultServiceReadTest {
         assertEquals(STUDENT_A, groupA.getStudentUserId());
         assertEquals(2, groupA.getResults().size());
         // (8/10×10 × 1 + 6/10×10 × 3) / (1 + 3) = 26 / 4 = 6.50 — the same formula
-        // weightedScoreByPlan uses, so this view and the transcript cannot drift apart.
+        // weightedScoreByPlan uses, scoped to this assignment; the transcript applies
+        // the same formula across all class assignments, so the two figures agree only
+        // when the class has exactly one assignment.
         assertEquals(new BigDecimal("6.50"), groupA.getExerciseScore());
 
         AssignmentResultGroupResponse groupB = groups.get(1);

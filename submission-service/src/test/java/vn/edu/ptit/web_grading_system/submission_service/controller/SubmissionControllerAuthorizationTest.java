@@ -157,4 +157,26 @@ class SubmissionControllerAuthorizationTest {
         mockMvc.perform(get("/api/v1/submissions/{id}", SUBMISSION_ID).header("X-User-Id", CALLER))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void validSecretWithAbsentUserIdRejectsBeforeHandlerRuns() throws Exception {
+        // Coverage gap per Pullfrog review: a present-but-unusable caller identity
+        // (valid secret, no X-User-Id) must not reach the handler.
+        mockMvc.perform(get("/api/v1/submissions/{id}", SUBMISSION_ID)
+                        .header("X-Gateway-Secret", SECRET))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void validSecretWithBlankUserIdRejectsBeforeHandlerRuns() throws Exception {
+        mockMvc.perform(get("/api/v1/submissions/{id}", SUBMISSION_ID)
+                        .header("X-User-Id", "")
+                        .header("X-Gateway-Secret", SECRET))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/v1/submissions/{id}", SUBMISSION_ID)
+                        .header("X-User-Id", "   ")
+                        .header("X-Gateway-Secret", SECRET))
+                .andExpect(status().isUnauthorized());
+    }
 }

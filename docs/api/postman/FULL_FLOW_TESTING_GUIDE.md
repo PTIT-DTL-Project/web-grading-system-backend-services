@@ -366,10 +366,6 @@ Negatives: `X-User-Id: {{ownerLecturer2}}` (other lecturer) → `404` ·
 
 ## 6. Optional — verify rows directly in Neon
 
-```bash
-psql "postgresql://neondb_owner:npg_Vmfuxhe1WPO5@ep-frosty-hill-ayd5wchg-pooler.c-5.us-east-2.aws.neon.tech/assignment_db"
-```
-
 | Check | Query |
 |---|---|
 | assignment soft-deleted | `select title, deleted_at from assignments where id='…'` |

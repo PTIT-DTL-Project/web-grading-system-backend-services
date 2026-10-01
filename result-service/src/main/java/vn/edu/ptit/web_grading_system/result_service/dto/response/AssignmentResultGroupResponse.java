@@ -16,7 +16,8 @@ import java.util.UUID;
  *
  * <p>{@code exerciseScore} is the weight-weighted average over {@code results} — the very
  * same formula {@code ResultService.weightedScoreByPlan} applies, so the class-wide view
- * and the transcript can never disagree. Null when the student has no submitted plan.
+ * and the transcript use the **same formula** — scoped to this assignment, while the
+ * transcript applies the same formula across **all assignments of the class**.
  */
 @Data
 @Builder

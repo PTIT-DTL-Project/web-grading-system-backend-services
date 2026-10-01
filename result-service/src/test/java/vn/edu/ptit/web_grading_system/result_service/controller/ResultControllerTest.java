@@ -23,14 +23,16 @@ class ResultControllerTest {
     void getBySubmission_returnsServicePayload() {
         ResultService service = Mockito.mock(ResultService.class);
         UUID submissionId = UUID.randomUUID();
+        UUID studentId = UUID.fromString("00000000-0000-0000-0000-000000000001");
         List<ResultResponse> payload = List.of(ResultResponse.builder()
                 .submissionId(submissionId)
+                .studentId(studentId)
                 .score(new BigDecimal("7.50"))
                 .build());
         Mockito.when(service.getBySubmissionId(submissionId)).thenReturn(payload);
 
         ResponseEntity<List<ResultResponse>> response =
-                new ResultController(service).getBySubmission(submissionId, null);
+                new ResultController(service).getBySubmission(submissionId, studentId.toString());
 
         assertEquals(200, response.getStatusCode().value());
         assertEquals(payload, response.getBody());
@@ -43,7 +45,8 @@ class ResultControllerTest {
         Mockito.when(service.getBySubmissionId(submissionId)).thenReturn(List.of());
 
         ResponseEntity<List<ResultResponse>> response =
-                new ResultController(service).getBySubmission(submissionId, null);
+                new ResultController(service).getBySubmission(submissionId,
+                        "00000000-0000-0000-0000-000000000001");
 
         assertEquals(200, response.getStatusCode().value());
         assertTrue(response.getBody().isEmpty());

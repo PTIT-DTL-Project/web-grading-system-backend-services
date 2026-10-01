@@ -39,12 +39,22 @@ public class ResultController {
         // own, and it made one route serve two audiences. Lecturers now read through
         // GET /api/v1/assignments/{id}/results in course-service, which is role-gated AND
         // owner-scoped, so this route answers strictly for its owner.
-        if (xUserId != null && !results.isEmpty()) {
-            UUID callerId = UUID.fromString(xUserId);
-            boolean allMatch = results.stream().allMatch(r -> r.getStudentId().equals(callerId));
-            if (!allMatch) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not owner of submission");
-            }
+        //
+        // Fail-closed on a present-but-unusable caller identity: the gateway substitutes
+        // X-User-Id: "" when the JWT has no sub, and HeaderAuthenticationFilter rejects
+        // blank ids before this handler runs. A non-blank id therefore always reaches here,
+        // and ownership is enforced uniformly on every returned row.
+        //
+        // An empty (not-yet-graded) submission returns 200 [] regardless of caller — there
+        // are no rows to check against, and result-service cannot confirm submission
+        // ownership without grading rows (cross-service lookup it does not perform). This
+        // is the documented polling contract: "empty list while still queued or grading."
+        if (xUserId == null || xUserId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Caller identity required");
+        }
+        UUID callerId = UUID.fromString(xUserId);
+        if (!results.stream().allMatch(r -> callerId.equals(r.getStudentId()))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not owner of submission");
         }
         return ResponseEntity.ok(results);
     }

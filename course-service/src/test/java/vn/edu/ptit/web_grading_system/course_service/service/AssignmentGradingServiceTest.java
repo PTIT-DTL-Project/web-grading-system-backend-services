@@ -140,6 +140,19 @@ class AssignmentGradingServiceTest {
     }
 
     @Test
+    void results_studentWithNullUserIdReturnsEmptyWithoutCallingResultService() {
+        ownerExistsOnMyClass();
+        ClassStudent student = rostered("SV0001", "Nguyen Van A");
+        student.setStudentUserId(null);
+        when(classStudentRepository.findAllByClassId(CLASS_ID))
+                .thenReturn(List.of(student));
+
+        assertTrue(service().results(ASSIGNMENT_ID, OWNER, "SV0001", false).isEmpty());
+
+        verifyNoInteractions(resultServiceClient);
+    }
+
+    @Test
     void results_forwardsIncludeStepsSoTheClassWideReadStaysCheap() {
         ownerExistsOnMyClass();
         when(classStudentRepository.findAllByClassId(CLASS_ID)).thenReturn(List.of());

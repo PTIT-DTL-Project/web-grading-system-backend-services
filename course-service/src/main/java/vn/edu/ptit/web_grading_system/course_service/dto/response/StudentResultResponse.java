@@ -19,7 +19,10 @@ import java.util.UUID;
  * roster keeps its raw {@code studentUserId} with null code/name rather than being hidden.
  *
  * <p>{@code exerciseScore} comes pre-computed from result-service's single weighted
- * formula — course-service never re-derives it, so it cannot drift from the transcript.
+ * formula — course-service never re-derives it, so it cannot drift from the transcript
+ * **for the same assignment**. The transcript applies the same formula across all
+ * assignments of the class; a grading-view score for one assignment will not equal the
+ * transcript figure when the class has more than one assignment.
  */
 @Data
 @Builder

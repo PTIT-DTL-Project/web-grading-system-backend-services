@@ -84,6 +84,9 @@ public class AssignmentGradingService {
                 return List.of();
             }
             studentUserId = match.getStudentUserId();
+            if (studentUserId == null) {
+                return List.of();
+            }
         }
 
         // Deliberately NOT swallowed by try/catch (the "degrade gracefully" rule in skill §10
