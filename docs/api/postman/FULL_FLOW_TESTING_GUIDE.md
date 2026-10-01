@@ -1,11 +1,17 @@
 # Postman — Full-Flow API Testing Guide
 
-Step-by-step Postman instructions covering **every flow** of the system:
-Classes → Students → Scores → Assignments → Plans & Steps → Student Submissions,
-plus negative tests and optional DB verification.
-
-> Canonical flows live in `docs/design/usecase-flows.md` (UC-01…03).
-> Automated runner alternative: `docs/api/scenarios/*.sh`.
+> There are now **two** Postman collections:
+> - `Web grading service.postman_collection.json` — **mode A** (direct to service, `{{baseUrl}}` = service host, `X-Gateway-Secret` required). Use for internal/endpoint debugging and executor testing.
+> - `Web grading service - gateway.postman_collection.json` — **mode B** (through api-gateway, `{{api-gateway}}` = gateway host, Bearer token). Use for production-like regression testing — this is the FE's path.
+>
+> ---
+>
+> Step-by-step Postman instructions covering **every flow** of the system:
+> Classes → Students → Scores → Assignments → Plans & Steps → Student Submissions,
+> plus negative tests and optional DB verification.
+>
+> > Canonical flows live in `docs/design/usecase-flows.md` (UC-01…03).
+> > Automated runner alternative: `docs/api/scenarios/*.sh`.
 
 ---
 
@@ -25,14 +31,14 @@ plus negative tests and optional DB verification.
 > paths are unchanged: `/actuator/**`, `/swagger-ui/**`, `/v3/api-docs/**`,
 > `/api/v1/internal/**` and the `/api/v1/submissions/webhook/**` RustFS callback.
 >
-> **UI note:** the frontend still sends no bearer token, so every screen returns `401` until the
-> Keycloak login flow ships. Use this guide for regression testing meanwhile.
+> **UI note:** the frontend now logs in via Keycloak (password grant → Bearer token); the direct mode with `X-User-Id` is deprecated. Use this guide for regression testing — mode B (gateway + token) is the FE's path.
 
 Create a Postman Environment (`⚙ Environments → Create`) with:
 
 | Variable | Initial value | Purpose |
 |---|---|---|
-| `baseUrl` | `http://localhost:18081` | mode A: service port when booted locally (or `https://web-dev1-course.vucongtuanduong.dpdns.org` — submission/result likewise); switch to the gateway host for mode B |
+| `api-gateway` | `http://localhost:8080` | mode B — gateway host (or `https://web-dev1-api.vucongtuanduong.dpdns.org`) |
+| `baseUrl` | `http://localhost:18081` | mode A: service port when booted locally (or `https://web-dev1-course.vucongtuanduong.dpdns.org` — submission/result likewise) |
 | `serviceSecret` | value of `GATEWAY_TRUSTED_SECRET` in the repo `.env` | mode A only — sent as `X-Gateway-Secret`; leave empty and everything returns `401` |
 | `token` | empty | mode B only — Keycloak access token for `ptit-wgs`; enable the collection's `Authorization` header to use it |
 | `roles` | `LECTURER` | sent as `X-User-Roles` by every request in the collection (mode A). Set to `STUDENT`, or delete the collection header, to exercise the student side |
@@ -54,7 +60,7 @@ if (j.data && j.data.id) pm.environment.set("classId", j.data.id);
 A different UUID on a later request = ownership miss → indistinguishable `404`.
 Most identity endpoints default a missing header to `anonymous` → `400 invalid UUID`. The two submission endpoints have no default → `Missing required header: X-User-Id`. These `400`s describe the controller layer and only appear on the direct path — through the gateway a missing identity surfaces as `401` first.
 
-**Identity rule (mode B — gateway):** identity is the token subject. `{{ownerLecturer1}}` / `{{fake_student_id}}` must equal the `sub` of the tokens you use, and any `X-User-Id` header you send is stripped and replaced by the gateway, so sending it changes nothing.
+**Identity rule (mode B — gateway, use `Web grading service - gateway.postman_collection.json`):** identity is the token subject. `{{ownerLecturer1}}` / `{{fake_student_id}}` must equal the `sub` of the tokens you use, and any `X-User-Id` header you send is stripped and replaced by the gateway, so sending it changes nothing. The collection's `{{api-gateway}}` variable points at `http://localhost:8080` (local) or `https://web-dev1-api.vucongtuanduong.dpdns.org` (dev host).
 
 **Role rule (2026-09-30, slice 2):** everything that creates or edits grading data — creating/listing/archiving
 classes, importing students, score components, entering scores, transcripts, assignments, plans & steps,

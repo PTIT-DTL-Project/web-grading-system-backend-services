@@ -36,7 +36,7 @@ spring:
 gateway:
   security:
     secret: ${GATEWAY_TRUSTED_SECRET:}
-    allowed-roles: ${GATEWAY_ALLOWED_ROLES:LECTURER,STUDENT}
+    allowed-roles: ${GATEWAY_ALLOWED_ROLES:ROLE_LECTURER,ROLE_STUDENT}
 
 management:
   endpoints:
