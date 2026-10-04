@@ -188,6 +188,7 @@
 							<artifactId>lombok</artifactId>
 						</exclude>
 					</excludes>
+					<mainClass>vn.edu.ptit.web_grading_system.submission_service.SubmissionServiceApplication</mainClass>
 				</configuration>
 			</plugin>
 			<plugin>
