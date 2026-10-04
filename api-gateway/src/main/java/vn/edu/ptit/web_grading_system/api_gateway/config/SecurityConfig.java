@@ -31,12 +31,15 @@ public class SecurityConfig {
      * token broke the "this endpoint never 401s" invariant. With no bearer processing on
      * this chain the guarantee is structural: a bad header here cannot produce 401.
      * Review: 2026-10-04, Pullfrog review (permitAll does not guarantee no-401).
+     * Matcher narrowed to the single endpoint (not /api/v1/account/**) so future
+     * handlers added under that path must be explicit — widening is a deliberate act,
+     * not an accident. Review: 2026-10-04, Pullfrog review (matcher too wide).
      */
     @Bean
     @Order(1)
     public SecurityWebFilterChain changePasswordFilterChain(ServerHttpSecurity http) {
         return http
-                .securityMatcher(ServerWebExchangeMatchers.pathMatchers("/api/v1/account/**"))
+                .securityMatcher(ServerWebExchangeMatchers.pathMatchers("/api/v1/account/change-password"))
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchanges -> exchanges
                         .anyExchange().permitAll()

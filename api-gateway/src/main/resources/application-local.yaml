@@ -22,10 +22,12 @@ keycloak:
   admin:
     issuer-uri: ${KEYCLOAK_ISSUER_URI:https://web-dev1-keycloak.vucongtuanduong.dpdns.org/realms/ptit-wgs}
 
-# The change-password endpoint must exist in local runs (runbook §6.2 curl contract) —
-# the base profile defaults the exposure switch to false.
+# The change-password endpoint is opt-in via RATE_LIMIT_ENABLED; local
+# profile defaults to false (same fail-closed behaviour as base profile).
+# Set to true only when the realm brute-force config is confirmed and the
+# dev realm is not shared with untrusted users.
 rate-limit:
-  enabled: true
+  enabled: false
 
 gateway:
   security:

@@ -70,8 +70,10 @@ class KeycloakAdminWebClientTest {
     @Test
     void verifyPassword_blankSecret_sendsNoClientSecret() {
         // Default fixture: no passwordClientSecret configured → the form must look
-        // exactly like before Phase 3 (public client, nothing extra on the wire), so a
-        // deployment that has not set KEYCLOAK_PASSWORD_CLIENT_SECRET yet keeps working.
+        // exactly like before Phase 3 (public client, nothing extra on the wire).
+        // This verifies the wire format only — runtime success against the
+        // deployed realm requires KEYCLOAK_PASSWORD_CLIENT_SECRET (the public-client
+        // fallback is dead since web-grading-fe direct grants were removed).
         KeycloakAdminWebClient client = client(call -> respond(HttpStatus.OK,
                 "{\"access_token\":\"short-lived\",\"token_type\":\"Bearer\"}"));
 
