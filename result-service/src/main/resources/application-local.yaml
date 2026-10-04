@@ -1,0 +1,7 @@
+spring:
+  datasource:
+    url: ${JDBC_URL:jdbc:postgresql://ep-frosty-hill-ayd5wchg-pooler.c-5.us-east-2.aws.neon.tech/result_db?sslmode=require}
+    username: ${DB_USERNAME:neondb_owner}
+    password: ${DB_PASSWORD:npg_Vmfuxhe1WPO5}
+    hikari:
+      maximum-pool-size: 10
