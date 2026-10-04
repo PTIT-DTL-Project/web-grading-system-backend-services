@@ -1,0 +1,60 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  # Sửa cú pháp định danh profile theo chuẩn Spring Boot mới
+  config:
+    activate:
+      on-profile: local
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:https://web-dev1-keycloak.vucongtuanduong.dpdns.org/realms/ptit-wgs}
+
+gateway:
+  security:
+    secret: ${GATEWAY_TRUSTED_SECRET:}
+    allowed-roles: ${GATEWAY_ALLOWED_ROLES:ROLE_LECTURER,ROLE_STUDENT}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+    export:
+      enabled: false
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTLP_TRACES_ENDPOINT:http://alloy.observability.svc.cluster.local:4318/v1/traces}
+  otlp:
+    metrics:
+      export:
+        enabled: false
+        url: ${OTLP_METRICS_ENDPOINT:http://alloy.observability.svc.cluster.local:4318/v1/metrics}
+        step: 30s
+
+logging:
+  level:
+    root: DEBUG
+    vn.edu.ptit.web_grading_system.api_gateway: TRACE
+    org.springframework.security: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+  pattern:
+    level: "%5p [${spring.application.name:},%X{trace_id:-},%X{span_id:-}]"
+
+pyroscope:
+  enabled: true
+  endpoint: ${PYROSCOPE_ENDPOINT:http://pyroscope.observability.svc.cluster.local:4100}
+  application-name: ${spring.application.name}
+  labels:
+    region: ${REGION:dev}
+    cluster: ${CLUSTER:dev}

@@ -38,6 +38,24 @@ gateway:
     secret: ${GATEWAY_TRUSTED_SECRET:}
     allowed-roles: ${GATEWAY_ALLOWED_ROLES:ROLE_LECTURER,ROLE_STUDENT}
 
+# Keycloak credentials for the self-service change-password endpoint (UC-14).
+#   admin-client-*      -> confidential service account (wgs-user-service) for the admin
+#                          API; the secret lives only in the K8s Secret, never in the FE.
+#   password-client-*   -> client whose password grant verifies the current password.
+#                          Phase 3 (2026-10-03, D11): the confidential wgs-password-verify
+#                          + its secret, because Direct Access Grants go OFF on
+#                          web-grading-fe. SECRET DEFAULT IS BLANK on purpose — blank
+#                          sends no client_secret (the old public-client behaviour), so
+#                          a deployment that has not set the variable yet is not broken.
+# The admin base URI is derived from issuer-uri in code (no separate config key).
+keycloak:
+  admin:
+    issuer-uri: ${KEYCLOAK_ISSUER_URI:https://web-dev1-keycloak.vucongtuanduong.dpdns.org/realms/ptit-wgs}
+    admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:wgs-user-service}
+    admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
+    password-client-id: ${KEYCLOAK_PASSWORD_CLIENT_ID:web-grading-fe}
+    password-client-secret: ${KEYCLOAK_PASSWORD_CLIENT_SECRET:}
+
 management:
   endpoints:
     web:

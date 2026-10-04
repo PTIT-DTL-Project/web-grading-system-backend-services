@@ -46,3 +46,5 @@ config-repos/
 # Aiven secrets
 **/test.txt
 **/docker/kafka-ca.pem
+keycloak/realm-export.json
+keycloak/ptit-wgs-realm.json
