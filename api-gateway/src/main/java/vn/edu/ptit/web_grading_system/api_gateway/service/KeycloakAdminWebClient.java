@@ -32,8 +32,14 @@ import java.util.Map;
 @Service
 public class KeycloakAdminWebClient implements KeycloakAdminClient {
 
-    /** Keycloak's {@code invalid_grant} description while UPDATE_PASSWORD is pending. */
-    static final String FORCED_CHANGE_MARKER = "Account is not fully set up";
+    /**
+     * Keycloak's {@code invalid_grant} description while ANY required action is pending.
+     * Named for the predicate, not for UPDATE_PASSWORD: the same sentence appears for
+     * VERIFY_PROFILE, VERIFY_EMAIL, CONFIGURE_TOTP, etc. The verdict (password accepted)
+     * is what the flow relies on — the frontend must not infer "forced password change"
+     * from this signal alone.
+     */
+    static final String PENDING_REQUIRED_ACTION_MARKER = "Account is not fully set up";
 
     private static final JsonMapper JSON = JsonMapper.shared();
 
@@ -124,19 +130,22 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
         if (status.is2xxSuccessful()) {
             return Mono.just(Boolean.TRUE);
         }
-        // Required action UPDATE_PASSWORD pending: Keycloak answers invalid_grant with
-        // this description although the password IS correct, so the forced change can
-        // proceed (UC-14 flow A).
-        if (body.contains(FORCED_CHANGE_MARKER)) {
+        // A required action is pending (most often UPDATE_PASSWORD = forced change; the
+        // marker also covers VERIFY_PROFILE / VERIFY_EMAIL / CONFIGURE_TOTP): Keycloak
+        // answers invalid_grant with this description although the password IS correct,
+        // so the change can proceed (UC-14 flow A).
+        if (body.contains(PENDING_REQUIRED_ACTION_MARKER)) {
             return Mono.just(Boolean.TRUE);
         }
-        // Keycloak 26 answers invalid credentials with 401 (not 400 as assumed when this
-        // was written): curl against the live realm returns
-        // 401 {"error":"invalid_grant","error_description":"Invalid user credentials"}.
-        // Accepting both keeps every wrong-password case a clean current_password_invalid
-        // instead of a 502, while a body without those markers (invalid_client, 5xx) still
-        // falls through to provider trouble.
-        // Review: 2026-10-03, PASSWORD-GATEWAY-RUNBOOK §6.2 live verification.
+        // Keycloak 26.x answers invalid credentials with 401 on some releases and 400 on
+        // others (26.0 -> 401 in the release/26.0 source; Red Hat's KB and some later
+        // builds -> 400; a live 401 capture is recorded in PASSWORD-GATEWAY-RUNBOOK §6.2).
+        // Do NOT "clean up" one branch as dead: the deployed build decides, so accepting
+        // both keeps every wrong-password case a clean current_password_invalid instead of
+        // a 502, while a body without those markers (invalid_client, 5xx) still falls
+        // through to provider trouble.
+        // Review: 2026-10-03, PASSWORD-GATEWAY-RUNBOOK §6.2 live verification;
+        // 2026-10-04, Pullfrog review (version-dependent status).
         if (status.value() == 400 || status.value() == 401) {
             if (body.contains("invalid_grant") || body.contains("Invalid user credentials")) {
                 return Mono.just(Boolean.FALSE);
@@ -237,10 +246,15 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
      *
      * <p>{@code client_secret} is added ONLY when a secret is configured: since Phase 3
      * (2026-10-03, D11) the gateway verifies against the confidential client
-     * {@code wgs-password-verify} and must authenticate itself, while a blank secret has
-     * to keep behaving exactly like before (public client, no secret on the wire) so a
-     * deployment that has not set {@code KEYCLOAK_PASSWORD_CLIENT_SECRET} yet is not
-     * silently broken. Review: 2026-10-03, Phase 3 PKCE plan (D11).
+     * {@code wgs-password-verify} and must authenticate itself. A blank
+     * {@code KEYCLOAK_PASSWORD_CLIENT_SECRET} still means "nothing secret is appended to
+     * the form" — but that is NOT a working fallback: a confidential client answers that
+     * request with {@code unauthorized_client} -> 502 identity_provider_unavailable,
+     * which is deliberate fail-loud for an unconfigured deployment (the pre-Phase-3
+     * public-client behaviour died with fe Direct Access Grants). Wire the env var
+     * (runbook §10.2) instead of expecting the form shape to compensate.
+     * Review: 2026-10-03, Phase 3 PKCE plan (D11); 2026-10-04, Pullfrog review
+     * (shipped default contradicted Phase 3).
      */
     static MultiValueMap<String, String> passwordGrantForm(String clientId, String clientSecret,
             String username, String password) {

@@ -53,13 +53,10 @@ public class ChangePasswordException extends RuntimeException {
                 .build();
     }
 
-    /** This ip+username is over the attempt window. */
-    public static ChangePasswordException rateLimited() {
-        return ChangePasswordException.builder()
-                .status(HttpStatus.TOO_MANY_REQUESTS)
-                .code("rate_limited")
-                .build();
-    }
+    // rateLimited()/429 was removed 2026-10-04: no gateway-side limiter was ever
+    // implemented, so the factory was unreachable and the code advertised a control that
+    // did not exist. Reintroduce it together with the actual limiter.
+    // Review: 2026-10-04, Pullfrog review (RateLimitProperties dead code).
 
     /** Keycloak was unreachable or answered something the flow cannot interpret. */
     public static ChangePasswordException identityProviderUnavailable(Throwable cause) {

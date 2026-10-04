@@ -7,10 +7,13 @@ import org.springframework.http.HttpStatus;
  * it by {@code keys ⊆ {status,message,data,error}} with a numeric {@code status}
  * ({@code ENVELOPE_KEYS} in {@code frontend-src/web-grading-system-fe/src/shared/api/http.ts}).
  * {@code message} is a machine code ({@code current_password_invalid}, {@code weak_password},
- * {@code validation_failed}, {@code rate_limited}, {@code identity_provider_unavailable})
- * that the frontend maps to i18n — never a sentence to show raw.
+ * {@code validation_failed}, {@code identity_provider_unavailable})
+ * that the frontend maps to i18n — never a sentence to show raw. (A {@code rate_limited}
+ * code existed in the draft only and was removed 2026-10-04 with the unreachable 429
+ * factory — no limiter was ever built. Re-add both together with the limiter.)
  *
- * <p>Review: 2026-10-03, Phase 1 plan keycloak-password-gateway-plan-2026-10-03-v1.
+ * <p>Review: 2026-10-03, Phase 1 plan keycloak-password-gateway-plan-2026-10-03-v1;
+ * 2026-10-04, Pullfrog review (unreachable rate_limited code).
  */
 public record ApiEnvelope(int status, String message, Object data) {
 

@@ -15,6 +15,18 @@ spring:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:https://web-dev1-keycloak.vucongtuanduong.dpdns.org/realms/ptit-wgs}
 
+# Local profile talks to the deployed Keycloak, so the admin/change-password issuer must
+# follow the resource-server issuer above — otherwise passwords would go to the
+# localhost:8180 fallback while JWTs validate against the dpdns host.
+keycloak:
+  admin:
+    issuer-uri: ${KEYCLOAK_ISSUER_URI:https://web-dev1-keycloak.vucongtuanduong.dpdns.org/realms/ptit-wgs}
+
+# The change-password endpoint must exist in local runs (runbook §6.2 curl contract) —
+# the base profile defaults the exposure switch to false.
+rate-limit:
+  enabled: true
+
 gateway:
   security:
     secret: ${GATEWAY_TRUSTED_SECRET:}

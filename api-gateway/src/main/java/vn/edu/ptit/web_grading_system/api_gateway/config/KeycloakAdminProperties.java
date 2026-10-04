@@ -18,9 +18,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *       {@code wgs-password-verify}: Phase 3 turns Direct Access Grants off on
  *       {@code web-grading-fe}, so the gateway can no longer reuse the browser's client
  *       for this grant. The secret comes from the environment only — it must never reach
- *       the frontend. An EMPTY secret keeps the pre-Phase-3 behaviour (public client,
- *       no {@code client_secret} in the form) so nothing breaks for a deployment that
- *       has not set the new variable yet.</li>
+ *       the frontend. An EMPTY secret only means the form carries no {@code client_secret};
+ *       against the confidential client that fails {@code unauthorized_client} (-> 502),
+ *       i.e. fail-loud for an unconfigured deployment — not a working public-client
+ *       fallback. Set {@code KEYCLOAK_PASSWORD_CLIENT_SECRET} (runbook §10.2).</li>
  * </ul>
  *
  * <p>The admin base URI is derived from {@code issuerUri} (everything from {@code /realms/}

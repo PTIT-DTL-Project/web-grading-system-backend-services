@@ -21,13 +21,16 @@ public interface KeycloakAdminClient {
      * (2026-10-03, D11) that grant runs against the gateway's own confidential client
      * {@code wgs-password-verify} (sent with {@code client_secret}) rather than the
      * browser's {@code web-grading-fe}, whose Direct Access Grants are switched off —
-     * a blank configured secret means "no secret on the wire", i.e. the older public
-     * client behaviour. The issued tokens are discarded inside the implementation —
+     * a blank configured secret means "no client_secret on the wire", which a CONFIDENTIAL
+     * client rejects with {@code unauthorized_client} (-> 502): fail-loud, not a working
+     * public-client fallback. The issued tokens are discarded inside the implementation —
      * never persisted, never forwarded.
      *
      * @return {@code TRUE} = password correct, including a Keycloak
-     *         {@code "Account is not fully set up"} answer (forced change pending —
-     *         the password is right, only the required action blocks the grant);
+     *         {@code "Account is not fully set up"} answer (some required action pending —
+     *         most often forced UPDATE_PASSWORD, but the marker also fires for
+     *         VERIFY_PROFILE / VERIFY_EMAIL / CONFIGURE_TOTP — the password is right, only
+     *         the required action blocks the grant);
      *         {@code FALSE} = Keycloak rejected the credentials
      *         ({@code invalid_grant} / {@code Invalid user credentials})
      */

@@ -370,7 +370,46 @@ Negatives: `X-User-Id: {{ownerLecturer2}}` (other lecturer) → `404` ·
 
 ---
 
-## 6. Optional — verify rows directly in Neon
+## 6. Change password (UC-14, gateway-only)
+
+```
+POST {{api-gateway}}/api/v1/account/change-password
+Content-Type: application/json
+NO Authorization header (a garbage bearer is tolerated — never 401)
+{ "username": "lecturer_test", "currentPassword": "<current>", "newPassword": "<NewPassw0rd!>" }
+```
+
+Mode B only — the endpoint lives on the gateway, there is no direct-to-service twin.
+The controller exists only when `rate-limit.enabled=true` (`RATE_LIMIT_ENABLED`; the
+`local` profile sets it) — base default is `false`, so an unconfigured deployment answers
+**404** (fail-closed, not a routing bug). There is no rate limiter behind the switch yet
+(Pullfrog review 2026-10-04); repeated wrong passwords are throttled by Keycloak brute
+force (`bruteForceProtected=true`, `failureFactor=30` → ~15 min lockout per user).
+
+Real responses below were captured 2026-10-04 against a local gateway + live dev
+Keycloak with a throwaway probe user (deleted after capture); the same examples are
+attached to the request in `Web grading service - gateway.postman_collection.json`
+→ `account` → `POST change password`:
+
+| Case | Expected | Captured |
+|---|---|---|
+| correct current password | `204` empty | `204 No Content` |
+| wrong current password | `400` | `{"status":400,"message":"current_password_invalid","data":null}` |
+| missing fields `{}` | `400` | `{"status":400,"message":"validation_failed","data":null}` |
+| `Authorization: Bearer not-a-jwt` | **never `401`** | `400` `current_password_invalid` (bearer ignored by the dedicated chain) |
+| gate off (`rate-limit.enabled=false`) | `404` | Spring `{"status":404,…,"path":"/api/v1/account/change-password"}` |
+
+Unknown user and wrong current password share `current_password_invalid` on purpose (no
+user enumeration). Keycloak unreachable → `502 identity_provider_unavailable`. The gateway
+never returns `401` from this path (dedicated `SecurityWebFilterChain` without
+`oauth2ResourceServer`) — a `401` would send the FE interceptor into a silent-refresh
+`/login` loop during forced change. For the full step-by-step (flow A forced change /
+flow B plain change, live Keycloak captures) see
+`docs/guide/PASSWORD-GATEWAY-RUNBOOK.md` §6.
+
+---
+
+## 7. Optional — verify rows directly in Neon
 
 | Check | Query |
 |---|---|
@@ -381,7 +420,7 @@ Negatives: `X-User-Id: {{ownerLecturer2}}` (other lecturer) → `404` ·
 
 ---
 
-## 7. Consolidated negative checklist
+## 8. Consolidated negative checklist
 
 | Endpoint hit wrongly | Expected |
 |---|---|

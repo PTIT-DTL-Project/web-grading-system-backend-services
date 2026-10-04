@@ -43,18 +43,38 @@ gateway:
 #                          API; the secret lives only in the K8s Secret, never in the FE.
 #   password-client-*   -> client whose password grant verifies the current password.
 #                          Phase 3 (2026-10-03, D11): the confidential wgs-password-verify
-#                          + its secret, because Direct Access Grants go OFF on
-#                          web-grading-fe. SECRET DEFAULT IS BLANK on purpose — blank
-#                          sends no client_secret (the old public-client behaviour), so
-#                          a deployment that has not set the variable yet is not broken.
-# The admin base URI is derived from issuer-uri in code (no separate config key).
+#                          + its secret, because Direct Access Grants are OFF on
+#                          web-grading-fe since 2026-10-03 — the gateway can no longer
+#                          reuse the browser client for this grant. The default id is
+#                          wgs-password-verify for that reason (it used to default to
+#                          web-grading-fe, which now yields unauthorized_client -> 502).
+#                          SECRET DEFAULT IS BLANK: a blank secret sends no client_secret
+#                          on the wire, and against a confidential client that fails
+#                          unauthorized_client -> 502 identity_provider_unavailable.
+#                          That is deliberate fail-loud: set KEYCLOAK_PASSWORD_CLIENT_SECRET
+#                          (runbook §10.2) instead of expecting an old public-client
+#                          fallback — that fallback is dead while fe direct grants are off.
+# The admin base URI is derived from issuer-uri in code (no separate config key), so this
+# issuer MUST default to the SAME value as spring.security.oauth2.resourceserver.jwt.issuer-uri
+# above: with two different fallbacks an unset KEYCLOAK_ISSUER_URI would validate JWTs
+# against one Keycloak while sending end-user passwords to another.
 keycloak:
   admin:
-    issuer-uri: ${KEYCLOAK_ISSUER_URI:https://web-dev1-keycloak.vucongtuanduong.dpdns.org/realms/ptit-wgs}
+    issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/ptit-wgs}
     admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:wgs-user-service}
     admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
-    password-client-id: ${KEYCLOAK_PASSWORD_CLIENT_ID:web-grading-fe}
+    password-client-id: ${KEYCLOAK_PASSWORD_CLIENT_ID:wgs-password-verify}
     password-client-secret: ${KEYCLOAK_PASSWORD_CLIENT_SECRET:}
+
+# Exposure switch for POST /api/v1/account/change-password (UC-14). NO rate limiter is
+# implemented yet — this does NOT throttle anything; it only decides whether the
+# controller is registered at all. Default false = an unconfigured deployment never
+# exposes an anonymous password-verification oracle (the path answers 404). A deployment
+# opts in with RATE_LIMIT_ENABLED=true only once realm brute-force protection is confirmed
+# (runbook §3: bruteForceProtected=true). The real limiter is a follow-up change.
+# Review: 2026-10-04, Pullfrog review (unthrottled public endpoint).
+rate-limit:
+  enabled: ${RATE_LIMIT_ENABLED:false}
 
 management:
   endpoints:
