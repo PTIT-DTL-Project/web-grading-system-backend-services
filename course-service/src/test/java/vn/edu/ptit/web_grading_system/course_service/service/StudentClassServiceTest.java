@@ -1,0 +1,109 @@
+package vn.edu.ptit.web_grading_system.course_service.service;
+
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import vn.edu.ptit.web_grading_system.course_service.dto.response.StudentClassResponse;
+import vn.edu.ptit.web_grading_system.course_service.entity.ClassStudent;
+import vn.edu.ptit.web_grading_system.course_service.entity.CourseClass;
+import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
+import vn.edu.ptit.web_grading_system.course_service.mapper.ClassMapper;
+import vn.edu.ptit.web_grading_system.course_service.repository.ClassStudentRepository;
+import vn.edu.ptit.web_grading_system.course_service.repository.CourseClassRepository;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+// Review: 2026-10-08 — student class list + detail (FE StudentClassesPage).
+class StudentClassServiceTest {
+
+    private final ClassStudentRepository studentRepo = Mockito.mock(ClassStudentRepository.class);
+    private final CourseClassRepository classRepo = Mockito.mock(CourseClassRepository.class);
+    private final ClassMapper mapper = Mockito.mock(ClassMapper.class);
+    private final StudentClassService service = new StudentClassService(studentRepo, classRepo, mapper);
+
+    private static ClassStudent enrollment(UUID classId) {
+        ClassStudent row = new ClassStudent();
+        row.setClassId(classId);
+        return row;
+    }
+
+    @Test
+    void listEnrolledClasses_returnsEmptyWithoutQueryingClasses_whenNotEnrolled() {
+        UUID studentId = UUID.randomUUID();
+        Mockito.when(studentRepo.findAllByStudentUserId(studentId)).thenReturn(List.of());
+
+        Page<StudentClassResponse> result = service.listEnrolledClasses(
+                studentId, null, null, PageRequest.of(0, 20));
+
+        assertTrue(result.isEmpty());
+        Mockito.verify(classRepo, Mockito.never()).findEnrolled(
+                Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    void listEnrolledClasses_scopesToEnrollments() {
+        UUID studentId = UUID.randomUUID();
+        UUID classId = UUID.randomUUID();
+        Mockito.when(studentRepo.findAllByStudentUserId(studentId))
+                .thenReturn(List.of(enrollment(classId)));
+
+        CourseClass klass = new CourseClass();
+        StudentClassResponse response = StudentClassResponse.builder().id(classId).build();
+        Mockito.when(classRepo.findEnrolled(
+                        Mockito.eq(List.of(classId)), Mockito.any(), Mockito.isNull(), Mockito.any()))
+                .thenReturn(new PageImpl<>(List.of(klass)));
+        Mockito.when(mapper.toStudentResponse(klass)).thenReturn(response);
+
+        Page<StudentClassResponse> result = service.listEnrolledClasses(
+                studentId, "name:PTIT", null, PageRequest.of(0, 20));
+
+        assertEquals(1, result.getTotalElements());
+        assertEquals(response, result.getContent().get(0));
+    }
+
+    @Test
+    void getEnrolledClass_throws404_whenNotEnrolled() {
+        UUID studentId = UUID.randomUUID();
+        UUID classId = UUID.randomUUID();
+        Mockito.when(studentRepo.findAllByStudentUserId(studentId)).thenReturn(List.of());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.getEnrolledClass(studentId, classId));
+        Mockito.verify(classRepo, Mockito.never()).findById(Mockito.any());
+    }
+
+    @Test
+    void getEnrolledClass_returnsClass_whenEnrolled() {
+        UUID studentId = UUID.randomUUID();
+        UUID classId = UUID.randomUUID();
+        Mockito.when(studentRepo.findAllByStudentUserId(studentId))
+                .thenReturn(List.of(enrollment(classId)));
+
+        CourseClass klass = new CourseClass();
+        StudentClassResponse response = StudentClassResponse.builder().id(classId).build();
+        Mockito.when(classRepo.findById(classId)).thenReturn(Optional.of(klass));
+        Mockito.when(mapper.toStudentResponse(klass)).thenReturn(response);
+
+        assertEquals(response, service.getEnrolledClass(studentId, classId));
+    }
+
+    @Test
+    void getEnrolledClass_throws404_whenClassMissing() {
+        UUID studentId = UUID.randomUUID();
+        UUID classId = UUID.randomUUID();
+        Mockito.when(studentRepo.findAllByStudentUserId(studentId))
+                .thenReturn(List.of(enrollment(classId)));
+        Mockito.when(classRepo.findById(classId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.getEnrolledClass(studentId, classId));
+    }
+}
