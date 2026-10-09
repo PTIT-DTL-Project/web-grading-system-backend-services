@@ -28,12 +28,20 @@ public interface ClassStudentRepository extends JpaRepository<ClassStudent, UUID
 
     /**
      * Binds a Keycloak identity to roster rows by email. Only rows that have
-     * never been linked are touched — an already-owned row keeps its owner, so
-     * an email collision can never steal another student's row.
+     * never been linked are touched — an already-owned row keeps its owner.
+     *
+     * <p>Trust assumption (review before changing realm policy): the caller
+     * must be the unique holder of the presented email. This holds because the
+     * {@code ptit-wgs} realm has self-registration off
+     * ({@code registrationAllowed=false}) and forbids duplicate emails
+     * ({@code duplicateEmailsAllowed=false}) — whoever presents an email is
+     * its sole owner, so first-come-first-served can only bind one's own rows.
      *
      * @return number of rows linked
      */
     // Review: 2026-10-08 — student identity linking (auto-bind from CSV email).
+    // Review: 2026-10-09, Pullfrog — scope note: the no-steal guarantee covers
+    // already-linked rows; unlinked rows are claimable by their email holder.
     @Modifying
     @Query("""
             update ClassStudent s
