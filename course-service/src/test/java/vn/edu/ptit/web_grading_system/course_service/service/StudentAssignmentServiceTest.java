@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class StudentAssignmentServiceTest {
 
     private final UUID STUDENT = UUID.randomUUID();
+    private final String EMAIL = "student@ptit.edu.vn";
     private final UUID CLASS_ID = UUID.randomUUID();
     private final UUID ASSIGNMENT_ID = UUID.randomUUID();
     private final UUID PLAN_ID = UUID.randomUUID();
@@ -49,7 +50,8 @@ class StudentAssignmentServiceTest {
             assignmentRepo, classStudentRepo, imageLinkRepo, dockerImageRepo,
             planRepo, stepRepo,
             Mockito.mock(AssignmentMapper.class),
-            new ObjectMapper());
+            new ObjectMapper(),
+            Mockito.mock(StudentIdentityService.class));
 
     private void stubVisible() {
         Mockito.when(classStudentRepo.findAllByStudentUserId(STUDENT))
@@ -77,7 +79,7 @@ class StudentAssignmentServiceTest {
         Mockito.when(stepRepo.findAllByPlanIdInOrderByStepOrderAsc(List.of(PLAN_ID)))
                 .thenReturn(List.of(http, delay, db));
 
-        List<PlanResponse> plans = service.listPlans(STUDENT, ASSIGNMENT_ID);
+        List<PlanResponse> plans = service.listPlans(STUDENT, EMAIL, ASSIGNMENT_ID);
 
         assertEquals(1, plans.size());
         assertEquals(2, plans.get(0).getSteps().size()); // DELAY dropped
@@ -96,7 +98,7 @@ class StudentAssignmentServiceTest {
         Mockito.when(assignmentRepo.findById(ASSIGNMENT_ID))
                 .thenReturn(Optional.of(Assignment.builder().classId(CLASS_ID).published(false).build()));
 
-        assertThrows(ResourceNotFoundException.class, () -> service.listPlans(STUDENT, ASSIGNMENT_ID));
+        assertThrows(ResourceNotFoundException.class, () -> service.listPlans(STUDENT, EMAIL, ASSIGNMENT_ID));
     }
 
     @Test
@@ -104,7 +106,7 @@ class StudentAssignmentServiceTest {
         Mockito.when(classStudentRepo.findAllByStudentUserId(STUDENT))
                 .thenReturn(List.of()); // student in no class
 
-        assertThrows(ResourceNotFoundException.class, () -> service.listPlans(STUDENT, ASSIGNMENT_ID));
+        assertThrows(ResourceNotFoundException.class, () -> service.listPlans(STUDENT, EMAIL, ASSIGNMENT_ID));
     }
 
     // Review: 2026-09-27, Pullfrog PR #20 — student visibility must resolve
@@ -118,7 +120,7 @@ class StudentAssignmentServiceTest {
         Mockito.when(dockerImageRepo.findAllByIdIn(List.of(img)))
                 .thenReturn(List.of(DockerImage.builder().id(img).name("db").imageUrl("db:16").build()));
 
-        List<DockerImageResponse> images = service.getStudentImages(STUDENT, ASSIGNMENT_ID);
+        List<DockerImageResponse> images = service.getStudentImages(STUDENT, EMAIL, ASSIGNMENT_ID);
 
         assertThat(images).hasSize(1);
         assertThat(images.get(0).getName()).isEqualTo("db");

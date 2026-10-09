@@ -91,6 +91,44 @@ class ScoreServiceTest {
         assertEquals(new BigDecimal("3.7"), res.getGpa());
     }
 
+    // Review: 2026-10-09 — student "my scores" tab (FE StudentScoresTab).
+    @Test
+    void getMyScores_resolvesCodeFromIdentity() {
+        UUID classId = UUID.randomUUID();
+        UUID studentId = UUID.randomUUID();
+        stubOwnedClassWithComponents(classId, UUID.randomUUID());
+        stubManualScores(classId);
+        Mockito.when(studentRepo.findAllByStudentUserId(studentId))
+                .thenReturn(List.of(ClassStudent.builder().classId(classId).studentCode(CODE).build()));
+
+        StudentScoresResponse res = service.getMyScores(classId, studentId);
+
+        assertEquals(CODE, res.getStudentCode());
+        assertEquals(new BigDecimal("8.50"), res.getTotal());
+        assertEquals("A", res.getLetterGrade());
+    }
+
+    @Test
+    void getMyScores_notEnrolled_is404() {
+        UUID classId = UUID.randomUUID();
+        UUID studentId = UUID.randomUUID();
+        UUID otherClass = UUID.randomUUID();
+        Mockito.when(studentRepo.findAllByStudentUserId(studentId))
+                .thenReturn(List.of(ClassStudent.builder().classId(otherClass).studentCode(CODE).build()));
+
+        assertThrows(ResourceNotFoundException.class, () -> service.getMyScores(classId, studentId));
+        Mockito.verify(componentRepo, Mockito.never()).findAllByClassId(Mockito.any());
+    }
+
+    @Test
+    void getMyScores_unlinkedUser_is404() {
+        UUID classId = UUID.randomUUID();
+        UUID studentId = UUID.randomUUID();
+        Mockito.when(studentRepo.findAllByStudentUserId(studentId)).thenReturn(List.of());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.getMyScores(classId, studentId));
+    }
+
     @Test
     void getStudentScores_zeroSubScore_forcesF_despitePassingTotal() {
         UUID classId = UUID.randomUUID();

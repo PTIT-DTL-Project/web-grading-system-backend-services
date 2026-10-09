@@ -20,6 +20,19 @@ public final class CourseClassSpecifications {
     }
 
     /**
+     * Enrollment scope for student reads: only classes whose id is in the
+     * caller's enrolled set. An empty set matches nothing (callers short-circuit
+     * to {@code Page.empty} before reaching here, same convention as the
+     * student assignment listing).
+     */
+    public static Specification<CourseClass> enrolledIn(java.util.Collection<UUID> classIds) {
+        if (classIds == null || classIds.isEmpty()) {
+            return (root, query, criteriaBuilder) -> criteriaBuilder.disjunction();
+        }
+        return (root, query, criteriaBuilder) -> root.get(CourseClassAttr.ID).in(classIds);
+    }
+
+    /**
      * Case-insensitive contains filter on class name.
      * Null / blank input returns {@code conjunction()} (no predicate).
      */

@@ -49,4 +49,27 @@ public interface CourseClassRepository extends JpaRepository<CourseClass, UUID>,
                         .and(CourseClassSpecifications.statusIs(status)),
                 pageable);
     }
+
+    /**
+     * Enrollment-scoped listing with optional structured search and status filter.
+     * Mirrors {@link #findMine} with the owner predicate swapped for enrollment.
+     * Null/blank arguments are ignored.
+     *
+     * @param classIds caller enrollments from class_students; empty → no rows
+     * @param filter   parsed search filter; null or empty → no text filter
+     * @param status   optional status filter; null → both ACTIVE and ARCHIVED
+     * @param pageable paging + sort from controller
+     */
+    // Review: 2026-10-08 — student class list (FE StudentClassesPage).
+    default Page<CourseClass> findEnrolled(
+            java.util.Collection<UUID> classIds,
+            ClassFilter filter,
+            ClassStatus status,
+            Pageable pageable) {
+        return findAll(
+                CourseClassSpecifications.enrolledIn(classIds)
+                        .and(CourseClassSpecifications.from(filter))
+                        .and(CourseClassSpecifications.statusIs(status)),
+                pageable);
+    }
 }

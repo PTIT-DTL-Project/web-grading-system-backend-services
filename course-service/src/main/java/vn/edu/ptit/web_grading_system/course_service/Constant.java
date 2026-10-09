@@ -34,6 +34,7 @@ public final class Constant {
     // attribute path, so "owner_id" would throw at runtime; the correct value is
     // "ownerId" (attribute), not the mapped column name.
     public static final class CourseClassAttr {
+        public static final String ID       = "id";
         public static final String OWNER_ID = "ownerId";
         public static final String NAME     = "name";
         public static final String SEMESTER = "semester";

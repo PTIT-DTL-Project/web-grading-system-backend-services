@@ -140,6 +140,27 @@ public class ScoreService {
 
     public StudentScoresResponse getStudentScores(UUID classId, UUID ownerId, String studentCode) {
         final String code = requireStudentInClass(classId, ownerId, studentCode);
+        return buildScores(classId, code);
+    }
+
+    /**
+     * Student's own scores, resolved from their identity instead of a
+     * caller-supplied code. Returns 404 when the caller isn't enrolled — same
+     * ownership convention as every other student read. When several roster
+     * rows share one user id (shouldn't happen), the first one wins.
+     */
+    // Review: 2026-10-09 — student "my scores" tab (FE StudentScoresTab).
+    @Transactional(readOnly = true)
+    public StudentScoresResponse getMyScores(UUID classId, UUID studentId) {
+        String code = classStudentRepository.findAllByStudentUserId(studentId).stream()
+                .filter(row -> classId.equals(row.getClassId()))
+                .map(ClassStudent::getStudentCode)
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Class not found: " + classId));
+        return buildScores(classId, code);
+    }
+
+    private StudentScoresResponse buildScores(UUID classId, String code) {
         List<ScoreComponent> components = scoreComponentRepository.findAllByClassId(classId);
         Map<UUID, BigDecimal> manual = studentScoreRepository
                 .findAllByClassIdAndStudentCode(classId, code).stream()

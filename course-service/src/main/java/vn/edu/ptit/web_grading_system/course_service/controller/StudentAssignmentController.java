@@ -24,33 +24,37 @@ public class StudentAssignmentController {
     @GetMapping
     public ResponseEntity<Page<AssignmentResponse>> list(
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String studentId,
+            @RequestHeader(value = "X-User-Email", defaultValue = "") String email,
             @RequestParam(required = false) UUID classId,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(studentAssignmentService.listAssignments(
-                UUID.fromString(studentId), classId, search, pageable));
+                UUID.fromString(studentId), email, classId, search, pageable));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<AssignmentResponse> detail(
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String studentId,
+            @RequestHeader(value = "X-User-Email", defaultValue = "") String email,
             @PathVariable UUID id) {
-        return ResponseEntity.ok(studentAssignmentService.getAssignment(UUID.fromString(studentId), id));
+        return ResponseEntity.ok(studentAssignmentService.getAssignment(UUID.fromString(studentId), email, id));
     }
 
     @GetMapping("/{id}/plans")
     public ResponseEntity<List<PlanResponse>> plans(
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String studentId,
+            @RequestHeader(value = "X-User-Email", defaultValue = "") String email,
             @PathVariable UUID id) {
-        return ResponseEntity.ok(studentAssignmentService.listPlans(UUID.fromString(studentId), id));
+        return ResponseEntity.ok(studentAssignmentService.listPlans(UUID.fromString(studentId), email, id));
     }
 
     @GetMapping("/{id}/docker-images")
     public ResponseEntity<List<DockerImageResponse>> images(
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String studentId,
+            @RequestHeader(value = "X-User-Email", defaultValue = "") String email,
             @PathVariable UUID id) {
-        return ResponseEntity.ok(studentAssignmentService.getStudentImages(UUID.fromString(studentId), id));
+        return ResponseEntity.ok(studentAssignmentService.getStudentImages(UUID.fromString(studentId), email, id));
     }
 }

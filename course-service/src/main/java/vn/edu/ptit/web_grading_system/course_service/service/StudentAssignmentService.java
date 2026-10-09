@@ -50,6 +50,7 @@ public class StudentAssignmentService {
     private final TestStepRepository testStepRepository;
     private final AssignmentMapper assignmentMapper;
     private final ObjectMapper objectMapper;
+    private final StudentIdentityService studentIdentityService;
 
     private List<UUID> enrolledClassIds(UUID studentId) {
         return classStudentRepository.findAllByStudentUserId(studentId).stream()
@@ -58,8 +59,9 @@ public class StudentAssignmentService {
     }
 
     @Transactional(readOnly = true)
-    public Page<AssignmentResponse> listAssignments(UUID studentId, UUID classId,
+    public Page<AssignmentResponse> listAssignments(UUID studentId, String email, UUID classId,
                                                     String search, Pageable pageable) {
+        studentIdentityService.linkStudent(studentId, email);
         List<UUID> classIds = enrolledClassIds(studentId);
         if (classIds.isEmpty()) {
             return Page.empty(pageable);
@@ -70,13 +72,15 @@ public class StudentAssignmentService {
     }
 
     @Transactional(readOnly = true)
-    public AssignmentResponse getAssignment(UUID studentId, UUID assignmentId) {
+    public AssignmentResponse getAssignment(UUID studentId, String email, UUID assignmentId) {
+        studentIdentityService.linkStudent(studentId, email);
         requireVisible(studentId, assignmentId);
         return assignmentMapper.toResponse(assignmentRepository.getReferenceById(assignmentId));
     }
 
     @Transactional(readOnly = true)
-    public List<PlanResponse> listPlans(UUID studentId, UUID assignmentId) {
+    public List<PlanResponse> listPlans(UUID studentId, String email, UUID assignmentId) {
+        studentIdentityService.linkStudent(studentId, email);
         requireVisible(studentId, assignmentId);
         List<TestPlan> plans = testPlanRepository
                 .findAllByAssignmentIdOrderBySequenceOrderAsc(assignmentId);
@@ -100,7 +104,8 @@ public class StudentAssignmentService {
     }
 
     @Transactional(readOnly = true)
-    public List<DockerImageResponse> getStudentImages(UUID studentId, UUID assignmentId) {
+    public List<DockerImageResponse> getStudentImages(UUID studentId, String email, UUID assignmentId) {
+        studentIdentityService.linkStudent(studentId, email);
         requireVisible(studentId, assignmentId);
         List<UUID> ids = assignmentDockerImageRepository.findDockerImageIdsByAssignmentId(assignmentId);
         List<DockerImage> images = dockerImageRepository.findAllByIdIn(ids);
