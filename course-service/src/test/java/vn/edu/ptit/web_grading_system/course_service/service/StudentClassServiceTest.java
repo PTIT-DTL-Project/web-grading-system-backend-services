@@ -107,7 +107,6 @@ class StudentClassServiceTest {
         me.setClassId(classId);
         me.setStudentCode("S001");
         Mockito.when(studentRepo.findAllByStudentUserId(studentId)).thenReturn(List.of(me));
-        Mockito.when(studentRepo.findAllByStudentUserId(studentId)).thenReturn(List.of(me));
         Mockito.when(classRepo.findById(classId)).thenReturn(Optional.of(new CourseClass()));
         // getEnrolledClass maps through the mocked mapper: an unstubbed mock
         // returns null, and Optional.map(null) becomes empty -> 404.
