@@ -8,7 +8,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.StudentClassResponse;
+import vn.edu.ptit.web_grading_system.course_service.dto.response.StudentScoresResponse;
 import vn.edu.ptit.web_grading_system.course_service.entity.ClassStatus;
+import vn.edu.ptit.web_grading_system.course_service.service.ScoreService;
 import vn.edu.ptit.web_grading_system.course_service.service.StudentClassService;
 
 import java.util.UUID;
@@ -19,6 +21,7 @@ import java.util.UUID;
 public class StudentClassController {
 
     private final StudentClassService studentClassService;
+    private final ScoreService scoreService;
 
     @GetMapping
     public ResponseEntity<Page<StudentClassResponse>> list(
@@ -39,5 +42,16 @@ public class StudentClassController {
             @RequestHeader(value = "X-User-Email", defaultValue = "") String email,
             @PathVariable UUID id) {
         return ResponseEntity.ok(studentClassService.getEnrolledClass(UUID.fromString(studentId), email, id));
+    }
+
+    // Review: 2026-10-09 — student "my scores" tab (FE StudentScoresTab).
+    @GetMapping("/{id}/my-scores")
+    public ResponseEntity<StudentScoresResponse> myScores(
+            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String studentId,
+            @RequestHeader(value = "X-User-Email", defaultValue = "") String email,
+            @PathVariable UUID id) {
+        UUID studentUuid = UUID.fromString(studentId);
+        studentClassService.getEnrolledClass(studentUuid, email, id);
+        return ResponseEntity.ok(scoreService.getMyScores(id, studentUuid));
     }
 }
