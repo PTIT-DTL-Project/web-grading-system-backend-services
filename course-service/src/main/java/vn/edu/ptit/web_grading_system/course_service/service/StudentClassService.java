@@ -30,10 +30,12 @@ public class StudentClassService {
     private final ClassStudentRepository classStudentRepository;
     private final CourseClassRepository courseClassRepository;
     private final ClassMapper classMapper;
+    private final StudentIdentityService studentIdentityService;
 
     @Transactional(readOnly = true)
-    public Page<StudentClassResponse> listEnrolledClasses(UUID studentId, String search,
+    public Page<StudentClassResponse> listEnrolledClasses(UUID studentId, String email, String search,
                                                           ClassStatus status, Pageable pageable) {
+        studentIdentityService.linkStudent(studentId, email);
         List<UUID> classIds = enrolledClassIds(studentId);
         if (classIds.isEmpty()) {
             return Page.empty(pageable);
@@ -44,7 +46,8 @@ public class StudentClassService {
     }
 
     @Transactional(readOnly = true)
-    public StudentClassResponse getEnrolledClass(UUID studentId, UUID classId) {
+    public StudentClassResponse getEnrolledClass(UUID studentId, String email, UUID classId) {
+        studentIdentityService.linkStudent(studentId, email);
         if (!enrolledClassIds(studentId).contains(classId)) {
             throw new ResourceNotFoundException("Class not found: " + classId);
         }

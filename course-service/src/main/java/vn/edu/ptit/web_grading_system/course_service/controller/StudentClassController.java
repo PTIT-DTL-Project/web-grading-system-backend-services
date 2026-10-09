@@ -23,19 +23,21 @@ public class StudentClassController {
     @GetMapping
     public ResponseEntity<Page<StudentClassResponse>> list(
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String studentId,
+            @RequestHeader(value = "X-User-Email", defaultValue = "") String email,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) ClassStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         return ResponseEntity.ok(studentClassService.listEnrolledClasses(
-                UUID.fromString(studentId), search, status, pageable));
+                UUID.fromString(studentId), email, search, status, pageable));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<StudentClassResponse> detail(
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String studentId,
+            @RequestHeader(value = "X-User-Email", defaultValue = "") String email,
             @PathVariable UUID id) {
-        return ResponseEntity.ok(studentClassService.getEnrolledClass(UUID.fromString(studentId), id));
+        return ResponseEntity.ok(studentClassService.getEnrolledClass(UUID.fromString(studentId), email, id));
     }
 }

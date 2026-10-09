@@ -27,7 +27,9 @@ class StudentClassServiceTest {
     private final ClassStudentRepository studentRepo = Mockito.mock(ClassStudentRepository.class);
     private final CourseClassRepository classRepo = Mockito.mock(CourseClassRepository.class);
     private final ClassMapper mapper = Mockito.mock(ClassMapper.class);
-    private final StudentClassService service = new StudentClassService(studentRepo, classRepo, mapper);
+    private final StudentIdentityService linker = Mockito.mock(StudentIdentityService.class);
+    private final StudentClassService service = new StudentClassService(studentRepo, classRepo, mapper, linker);
+    private final String email = "student@ptit.edu.vn";
 
     private static ClassStudent enrollment(UUID classId) {
         ClassStudent row = new ClassStudent();
@@ -41,7 +43,7 @@ class StudentClassServiceTest {
         Mockito.when(studentRepo.findAllByStudentUserId(studentId)).thenReturn(List.of());
 
         Page<StudentClassResponse> result = service.listEnrolledClasses(
-                studentId, null, null, PageRequest.of(0, 20));
+                studentId, email, null, null, PageRequest.of(0, 20));
 
         assertTrue(result.isEmpty());
         Mockito.verify(classRepo, Mockito.never()).findEnrolled(
@@ -63,10 +65,11 @@ class StudentClassServiceTest {
         Mockito.when(mapper.toStudentResponse(klass)).thenReturn(response);
 
         Page<StudentClassResponse> result = service.listEnrolledClasses(
-                studentId, "name:PTIT", null, PageRequest.of(0, 20));
+                studentId, email, "name:PTIT", null, PageRequest.of(0, 20));
 
         assertEquals(1, result.getTotalElements());
         assertEquals(response, result.getContent().get(0));
+        Mockito.verify(linker).linkStudent(studentId, email);
     }
 
     @Test
@@ -76,7 +79,7 @@ class StudentClassServiceTest {
         Mockito.when(studentRepo.findAllByStudentUserId(studentId)).thenReturn(List.of());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> service.getEnrolledClass(studentId, classId));
+                () -> service.getEnrolledClass(studentId, email, classId));
         Mockito.verify(classRepo, Mockito.never()).findById(Mockito.any());
     }
 
@@ -92,7 +95,7 @@ class StudentClassServiceTest {
         Mockito.when(classRepo.findById(classId)).thenReturn(Optional.of(klass));
         Mockito.when(mapper.toStudentResponse(klass)).thenReturn(response);
 
-        assertEquals(response, service.getEnrolledClass(studentId, classId));
+        assertEquals(response, service.getEnrolledClass(studentId, email, classId));
     }
 
     @Test
@@ -104,6 +107,6 @@ class StudentClassServiceTest {
         Mockito.when(classRepo.findById(classId)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> service.getEnrolledClass(studentId, classId));
+                () -> service.getEnrolledClass(studentId, email, classId));
     }
 }
