@@ -98,6 +98,47 @@ class StudentClassServiceTest {
         assertEquals(response, service.getEnrolledClass(studentId, email, classId));
     }
 
+    // Review: 2026-10-09 — student class roster tab (FE StudentRosterTab).
+    @Test
+    void listRoster_returnsClassmatesWithoutContactDetails() {
+        UUID studentId = UUID.randomUUID();
+        UUID classId = UUID.randomUUID();
+        ClassStudent me = new ClassStudent();
+        me.setClassId(classId);
+        me.setStudentCode("S001");
+        Mockito.when(studentRepo.findAllByStudentUserId(studentId)).thenReturn(List.of(me));
+        Mockito.when(studentRepo.findAllByStudentUserId(studentId)).thenReturn(List.of(me));
+        Mockito.when(classRepo.findById(classId)).thenReturn(Optional.of(new CourseClass()));
+        // getEnrolledClass maps through the mocked mapper: an unstubbed mock
+        // returns null, and Optional.map(null) becomes empty -> 404.
+        Mockito.when(mapper.toStudentResponse(Mockito.any()))
+                .thenReturn(StudentClassResponse.builder().build());
+        ClassStudent mate = new ClassStudent();
+        mate.setClassId(classId);
+        mate.setStudentCode("S002");
+        mate.setStudentName("Hai");
+        mate.setEmail("hai@ptit.edu.vn");
+        Mockito.when(studentRepo.findAllByClassId(Mockito.eq(classId), Mockito.any()))
+                .thenReturn(new PageImpl<>(List.of(me, mate)));
+
+        var result = service.listRoster(studentId, email, classId, PageRequest.of(0, 20));
+
+        assertEquals(2, result.getTotalElements());
+        assertEquals("S002", result.getContent().get(1).getStudentCode());
+        assertEquals("Hai", result.getContent().get(1).getStudentName());
+    }
+
+    @Test
+    void listRoster_notEnrolled_is404() {
+        UUID studentId = UUID.randomUUID();
+        UUID classId = UUID.randomUUID();
+        Mockito.when(studentRepo.findAllByStudentUserId(studentId)).thenReturn(List.of());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.listRoster(studentId, email, classId, PageRequest.of(0, 20)));
+        Mockito.verify(studentRepo, Mockito.never()).findAllByClassId(Mockito.any(), Mockito.any());
+    }
+
     @Test
     void getEnrolledClass_throws404_whenClassMissing() {
         UUID studentId = UUID.randomUUID();
