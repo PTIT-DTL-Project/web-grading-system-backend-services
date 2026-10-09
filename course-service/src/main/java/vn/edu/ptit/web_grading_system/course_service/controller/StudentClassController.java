@@ -8,6 +8,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.StudentClassResponse;
+import vn.edu.ptit.web_grading_system.course_service.dto.response.StudentRosterResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.StudentScoresResponse;
 import vn.edu.ptit.web_grading_system.course_service.entity.ClassStatus;
 import vn.edu.ptit.web_grading_system.course_service.service.ScoreService;
@@ -53,5 +54,18 @@ public class StudentClassController {
         UUID studentUuid = UUID.fromString(studentId);
         studentClassService.getEnrolledClass(studentUuid, email, id);
         return ResponseEntity.ok(scoreService.getMyScores(id, studentUuid));
+    }
+
+    // Review: 2026-10-09 — student class roster tab (FE StudentRosterTab).
+    @GetMapping("/{id}/students")
+    public ResponseEntity<Page<StudentRosterResponse>> roster(
+            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String studentId,
+            @RequestHeader(value = "X-User-Email", defaultValue = "") String email,
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("studentCode").ascending());
+        return ResponseEntity.ok(studentClassService.listRoster(
+                UUID.fromString(studentId), email, id, pageable));
     }
 }

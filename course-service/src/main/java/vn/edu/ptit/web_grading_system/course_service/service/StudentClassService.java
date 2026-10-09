@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.StudentClassResponse;
+import vn.edu.ptit.web_grading_system.course_service.dto.response.StudentRosterResponse;
 import vn.edu.ptit.web_grading_system.course_service.entity.ClassStatus;
 import vn.edu.ptit.web_grading_system.course_service.entity.ClassStudent;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
@@ -54,6 +55,23 @@ public class StudentClassService {
         return courseClassRepository.findById(classId)
                 .map(classMapper::toStudentResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Class not found: " + classId));
+    }
+
+    /**
+     * Classmates visible to an enrolled student: codes and names only.
+     * Reuses {@link #getEnrolledClass} for the enrollment gate (404) and the
+     * identity-link side effect, so this method itself needs no guard.
+     */
+    // Review: 2026-10-09 — student class roster tab (FE StudentRosterTab).
+    @Transactional(readOnly = true)
+    public Page<StudentRosterResponse> listRoster(UUID studentId, String email, UUID classId,
+                                                  Pageable pageable) {
+        getEnrolledClass(studentId, email, classId);
+        return classStudentRepository.findAllByClassId(classId, pageable)
+                .map(row -> StudentRosterResponse.builder()
+                        .studentCode(row.getStudentCode())
+                        .studentName(row.getStudentName())
+                        .build());
     }
 
     private List<UUID> enrolledClassIds(UUID studentId) {
