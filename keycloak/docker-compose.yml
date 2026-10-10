@@ -1,16 +1,20 @@
 services:
 
   # ─── Keycloak IAM (Local Container -> Neon DB) ───────────────────
-  # Run from the repo root (paths below resolve against this file's dir):
+  # Paths below resolve against this file's backend-repo directory (keycloak/),
+  # not the shell CWD and not any outer checkout overlay. From the backend
+  # repo root:
   #   set -a; source .env; set +a   # load secrets for ${} interpolation
-  #   docker compose -f src-services/keycloak/docker-compose.yml up
+  #   docker compose -f keycloak/docker-compose.yml up
+  # Review: Pullfrog — ../../.env used to overshoot the repo root (an overlay
+  # checkout masked it); ../.env is the backend-root .env.
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     container_name: wgs-keycloak
     restart: unless-stopped
     command: start-dev
     env_file:
-      - ../../.env
+      - ../.env
     environment:
       KC_DB: postgres
       KC_DB_URL: ${KEYCLOAK_DB_URL:-jdbc:postgresql://localhost:5432/keycloak?sslmode=require}
@@ -40,9 +44,8 @@ services:
       start_period: 30s
 
   # ─── API Gateway ──────────────────────────────────────────────────
-  # Paths resolve against THIS file's directory (src-services/keycloak/), not
-  # the shell CWD — hence the ../ hops. Run from the repo root:
-  #   docker compose -f src-services/keycloak/docker-compose.yml up
+  # Same backend-repo-relative resolution as above (context ../api-gateway =
+  # <backend-root>/api-gateway).
   # Review: Pullfrog — ./api-gateway used to resolve to keycloak/api-gateway.
   api-gateway:
     build:
@@ -53,7 +56,7 @@ services:
     ports:
       - "8080:8080"
     env_file:
-      - ../../.env
+      - ../.env
     environment:
       KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ptit-wgs
     depends_on:
