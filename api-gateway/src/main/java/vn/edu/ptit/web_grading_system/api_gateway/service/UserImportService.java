@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -161,7 +162,12 @@ public class UserImportService {
         if (cols.length < 3) {
             return Mono.just(RowResult.failed(line, cell(cols, 0), "STUDENT", "not_enough_columns"));
         }
-        String username = cols[0].trim();
+        // Keycloak stores usernames lowercased but keeps the password verbatim:
+        // importing "B22DCCN001" as-is mints user b22dccn001 with password
+        // B22DCCN001 — unguessable. Normalize once here so lookup, creation
+        // and the initial password all use the stored form.
+        // Review: 2026-10-10, uppercase-CSV login mismatch.
+        String username = cols[0].trim().toLowerCase(Locale.ROOT);
         String fullName = cols[1].trim();
         String email = cols[2].trim();
         if (!StringUtils.hasText(username) || !StringUtils.hasText(email)) {

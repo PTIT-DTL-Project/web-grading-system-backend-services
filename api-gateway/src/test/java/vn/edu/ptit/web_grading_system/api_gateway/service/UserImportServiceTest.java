@@ -58,7 +58,9 @@ class UserImportServiceTest {
         Mockito.when(ops.findUserId(Mockito.anyString()))
                 .thenReturn(Mono.empty());
         // Row 2 collides on username, row 3 on email; the rest are new.
-        Mockito.when(ops.findUserId("B22DCCN001"))
+        // Usernames are lowercased before lookup (2026-10-10), so the stub
+        // uses the normalized form the service actually queries.
+        Mockito.when(ops.findUserId("b22dccn001"))
                 .thenReturn(Mono.just("existing-id"));
         Mockito.when(ops.findUserId("taken@ptit.edu.vn"))
                 .thenReturn(Mono.just("other-id"));
@@ -94,8 +96,13 @@ class UserImportServiceTest {
         Mockito.verify(ops, Mockito.times(1)).findRealmRole("ROLE_LECTURER");
         // The duplicate-username row short-circuits before creation.
         Mockito.verify(ops, Mockito.never()).createUser(
-                Mockito.eq("B22DCCN001"), Mockito.anyString(), Mockito.anyString(),
+                Mockito.eq("b22dccn001"), Mockito.anyString(), Mockito.anyString(),
                 Mockito.anyString());
+        // The username-duplicate row stops at the username check: the taken
+        // email is looked up exactly once — by the email-duplicate row only.
+        // This keeps the two skip scenarios distinguishable (the summary
+        // reports only the skipped count, not reasons).
+        Mockito.verify(ops, Mockito.times(1)).findUserId("taken@ptit.edu.vn");
         // The created lecturer row splits the Vietnamese name: family name
         // first token → lastName, rest → firstName.
         org.mockito.ArgumentCaptor<String> firstCaptor =
@@ -139,6 +146,39 @@ class UserImportServiceTest {
         // a student-only import.
         Mockito.verify(ops, Mockito.never()).findRealmRole("ROLE_LECTURER");
         Mockito.verify(ops, Mockito.times(1)).findRealmRole("ROLE_STUDENT");
+    }
+
+    @Test
+    void uppercaseUsername_normalizedToLowercaseEverywhere() {
+        stubSession();
+        Mockito.when(ops.findRealmRole("ROLE_STUDENT"))
+                .thenReturn(Mono.just(Map.of("id", "s", "name", "ROLE_STUDENT")));
+        Mockito.when(ops.findUserId(Mockito.anyString())).thenReturn(Mono.empty());
+        Mockito.when(ops.createUser(Mockito.anyString(), Mockito.anyString(),
+                        Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(Mono.just("new-id"));
+        Mockito.when(ops.setTemporaryPassword(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(Mono.just(Boolean.TRUE));
+        Mockito.when(ops.assignRealmRoles(Mockito.anyString(), Mockito.any()))
+                .thenReturn(Mono.empty());
+        String csv = String.join("\n",
+                "username,fullName,email,role",
+                "B22DCCN099,Nguyen Van Bay,b22dccn099@ptit.edu.vn,");
+
+        StepVerifier.create(service.importUsers(filePart(csv)))
+                .assertNext(summary -> assertThat(summary.failed()).isEmpty())
+                .verifyComplete();
+
+        // Keycloak stores the user lowercased: lookup, creation and the
+        // initial password must all use the normalized form, or the password
+        // (verbatim) stops matching the stored username.
+        Mockito.verify(ops).findUserId("b22dccn099");
+        Mockito.verify(ops).createUser(Mockito.eq("b22dccn099"), Mockito.anyString(),
+                Mockito.anyString(), Mockito.anyString());
+        org.mockito.ArgumentCaptor<String> passwordCaptor =
+                org.mockito.ArgumentCaptor.forClass(String.class);
+        Mockito.verify(ops).setTemporaryPassword(Mockito.eq("new-id"), passwordCaptor.capture());
+        assertThat(passwordCaptor.getValue()).isEqualTo("b22dccn099");
     }
 
     @Test
@@ -189,10 +229,10 @@ class UserImportServiceTest {
                 org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<String> lastCaptor =
                 org.mockito.ArgumentCaptor.forClass(String.class);
-        Mockito.verify(ops).createUser(Mockito.eq("B22DCCN012"), Mockito.anyString(),
+        Mockito.verify(ops).createUser(Mockito.eq("b22dccn012"), Mockito.anyString(),
                 firstCaptor.capture(), lastCaptor.capture());
-        assertThat(firstCaptor.getValue()).isEqualTo("B22DCCN012");
-        assertThat(lastCaptor.getValue()).isEqualTo("B22DCCN012");
+        assertThat(firstCaptor.getValue()).isEqualTo("b22dccn012");
+        assertThat(lastCaptor.getValue()).isEqualTo("b22dccn012");
     }
 
     @Test
