@@ -1,45 +1,59 @@
 services:
 
   # ─── Keycloak IAM (Local Container -> Neon DB) ───────────────────
+  # Run from the repo root (paths below resolve against this file's dir):
+  #   set -a; source .env; set +a   # load secrets for ${} interpolation
+  #   docker compose -f src-services/keycloak/docker-compose.yml up
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     container_name: wgs-keycloak
     restart: unless-stopped
     command: start-dev
     env_file:
-      - .env
+      - ../../.env
     environment:
       KC_DB: postgres
       KC_DB_URL: ${KEYCLOAK_DB_URL:-jdbc:postgresql://localhost:5432/keycloak?sslmode=require}
       KC_DB_USERNAME: ${KEYCLOAK_DB_USERNAME:-your_db_username}
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-your_db_password}
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Review: Pullfrog — sourced from env (gitignored root .env:
+      # KEYCLOAK_ADMIN_USERNAME/PASSWORD), never hardcoded. The :-admin
+      # defaults keep a throwaway local stack working with zero setup.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
       KC_HTTP_PORT: 8080
       KC_HOSTNAME_STRICT: "false"
       KC_HTTP_ENABLED: "true"
+      # Pinned on: health must be servable for the depends_on gate below.
+      KC_HEALTH_ENABLED: "true"
     ports:
       - "8180:8080"
     networks:
       - wgs-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
+      # Review: Pullfrog — the Keycloak image ships no curl, and /health/ready
+      # is served on the management port 9000, not 8080. Bash /dev/tcp probe.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.0\r\n\r\n' >&3 && grep -q ' 200 ' <&3"]
       interval: 15s
       timeout: 10s
       retries: 10
       start_period: 30s
 
   # ─── API Gateway ──────────────────────────────────────────────────
+  # Paths resolve against THIS file's directory (src-services/keycloak/), not
+  # the shell CWD — hence the ../ hops. Run from the repo root:
+  #   docker compose -f src-services/keycloak/docker-compose.yml up
+  # Review: Pullfrog — ./api-gateway used to resolve to keycloak/api-gateway.
   api-gateway:
     build:
-      context: ./api-gateway
+      context: ../api-gateway
       dockerfile: Dockerfile
     container_name: wgs-api-gateway
     restart: unless-stopped
     ports:
       - "8080:8080"
     env_file:
-      - .env
+      - ../../.env
     environment:
       KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ptit-wgs
     depends_on:
