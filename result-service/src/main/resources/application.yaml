@@ -54,6 +54,16 @@ logging:
 feign:
   course-service:
     url: ${COURSE_SERVICE_URI:http://grading-course-service:8081}
+  client:
+    config:
+      # Review: 2026-10-10, Pullfrog — scoring reads call course-service from
+      # inside the read path (pool: 10 Hikari connections). A slow course must
+      # fail fast into carried-weight fallback instead of holding connections
+      # up to Feign's 60s default read timeout. Steady state rarely calls at
+      # all (5-minute weight cache), so these only bound the miss/outage window.
+      course-service:
+        connectTimeout: 2000
+        readTimeout: 3000
 
 # Pyroscope continuous profiling
 pyroscope:

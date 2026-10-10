@@ -67,6 +67,71 @@ class ResultServiceTest {
         assertNull(service(repo).weightedScoreByPlan(List.of(UUID.randomUUID()), student));
     }
 
+    private Result failedPlanRow(UUID student, UUID assignment, UUID plan) {
+        return Result.builder()
+                .studentId(student)
+                .assignmentId(assignment)
+                .planId(plan)
+                .scope(ResultScope.PLAN)
+                .score(BigDecimal.ZERO.setScale(2))
+                .maxScore(new BigDecimal("10.00"))
+                .planWeight(1)
+                .status(ResultStatus.FAILED)
+                .build();
+    }
+
+    @Test
+    void weightedScoreByPlan_failedAttemptDoesNotBeatBest() {
+        ScoringFixture f = scoringFixture();
+        UUID student = UUID.randomUUID();
+        UUID assignment = UUID.randomUUID();
+        UUID plan = UUID.randomUUID();
+        Mockito.when(f.repo().findByAssignmentIdInAndStudentId(Mockito.any(), Mockito.eq(student)))
+                .thenReturn(List.of(
+                        result(student, assignment, plan, "10.00", "10.00", 1),
+                        failedPlanRow(student, assignment, plan)));
+
+        // The failed attempt's stored 0 is a candidate but max keeps the 10.
+        assertEquals(new BigDecimal("10.00"),
+                f.service().weightedScoreByPlan(List.of(assignment), student));
+    }
+
+    @Test
+    void weightedScoreByPlan_failedOnlyPlanRowScoresZero() {
+        ScoringFixture f = scoringFixture();
+        UUID student = UUID.randomUUID();
+        UUID assignment = UUID.randomUUID();
+        Mockito.when(f.repo().findByAssignmentIdInAndStudentId(Mockito.any(), Mockito.eq(student)))
+                .thenReturn(List.of(failedPlanRow(student, assignment, UUID.randomUUID())));
+
+        // Today's transcript behavior preserved: a failed attempt still reads 0.00.
+        assertEquals(BigDecimal.ZERO.setScale(2),
+                f.service().weightedScoreByPlan(List.of(assignment), student));
+    }
+
+    @Test
+    void weightedScoreByPlan_steplessFullRowContributesNothing() {
+        ScoringFixture f = scoringFixture();
+        UUID student = UUID.randomUUID();
+        UUID assignment = UUID.randomUUID();
+        Result failedFull = Result.builder()
+                .studentId(student)
+                .assignmentId(assignment)
+                .scope(ResultScope.FULL)
+                .score(BigDecimal.ZERO.setScale(2))
+                .maxScore(new BigDecimal("10.00"))
+                .planWeight(1)
+                .status(ResultStatus.FAILED)
+                .build();
+        failedFull.setId(UUID.randomUUID());
+        Mockito.when(f.repo().findByAssignmentIdInAndStudentId(Mockito.any(), Mockito.eq(student)))
+                .thenReturn(List.of(failedFull));
+
+        // Executor's fail path posts no step items, so there is nothing to
+        // decompose — reads missing, not 0.00 (acked 2026-10-10).
+        assertNull(f.service().weightedScoreByPlan(List.of(assignment), student));
+    }
+
     private record ScoringFixture(ResultService service, ResultRepository repo,
             vn.edu.ptit.web_grading_system.result_service.repository.StepResultRepository steps,
             CourseServicePlansClient plans) {

@@ -70,6 +70,13 @@ public class ResultService {
      * {@link #getByAssignment} both call it, so the per-student exercise score in the
      * transcript and the one in the lecturer's class-wide view use the **same formula**.
      * Null when there is nothing to average.
+     *
+     * <p>Attempt-status rule (explicit, 2026-10-10): a FAILED attempt is an infra
+     * failure, not a score — a PLAN-scoped one still contributes its stored 0
+     * (today's transcript behavior), while a FULL-scoped one is always stepless
+     * (executor's fail path posts no items) and contributes nothing. A student
+     * whose only attempt is a failed FULL run therefore reads missing, not 0.00.
+     * A DONE FULL row without attributable steps is likewise unscorable.
      */
     private BigDecimal maxPerPlanAverage(List<Result> rows, Map<UUID, List<StepResult>> stepsByResult) {
         Map<PlanKey, BigDecimal> best = new LinkedHashMap<>();
