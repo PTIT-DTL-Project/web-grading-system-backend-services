@@ -16,6 +16,7 @@ import tools.jackson.databind.json.JsonMapper;
 import vn.edu.ptit.web_grading_system.api_gateway.config.KeycloakAdminProperties;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -47,6 +48,7 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
     private final WebClient webClient;
     private final String tokenEndpoint;
     private final String usersUri;
+    private final String rolesUri;
 
     @Autowired
     public KeycloakAdminWebClient(KeycloakAdminProperties properties) {
@@ -64,6 +66,7 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
         // load instead of surfacing as a 502 on the first password change.
         this.tokenEndpoint = properties.issuerUri() + "/protocol/openid-connect/token";
         this.usersUri = properties.adminBaseUri() + "/admin/realms/" + properties.realm() + "/users";
+        this.rolesUri = properties.adminBaseUri() + "/admin/realms/" + properties.realm() + "/roles";
     }
 
     @Override
@@ -114,6 +117,104 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
                 .exchangeToMono(response -> response.bodyToMono(String.class)
                         .defaultIfEmpty("")
                         .flatMap(body -> resetVerdict(response.statusCode(), body))));
+    }
+
+    /**
+     * Bulk account import (admin UI): create → temporary password → realm role,
+     * one user at a time so a single bad row cannot kill the batch. The caller
+     * checks existence first; a {@code 409} here is a race, surfaced as an error
+     * so the row lands in the report instead of vanishing.
+     *
+     * <p>Review: 2026-10-09, bulk user import plan.
+     */
+    @Override
+    public Mono<String> createUser(String username, String email, String firstName) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("username", username);
+        body.put("email", email);
+        body.put("firstName", firstName);
+        body.put("enabled", Boolean.TRUE);
+        body.put("requiredActions", List.of("UPDATE_PASSWORD"));
+        return adminAccessToken().flatMap(token -> webClient.post()
+                .uri(usersUri)
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .bodyValue(body)
+                .exchangeToMono(response -> {
+                    if (response.statusCode().value() != 201) {
+                        log.warn("User creation failed: status={} username={}",
+                                response.statusCode().value(), username);
+                        return Mono.error(new CreateUserException(response.statusCode().value(),
+                                "user creation answered " + response.statusCode().value()));
+                    }
+                    String location = response.headers().header(HttpHeaders.LOCATION).stream()
+                            .findFirst().orElse("");
+                    String id = location.contains("/")
+                            ? location.substring(location.lastIndexOf('/') + 1)
+                            : "";
+                    if (!StringUtils.hasText(id)) {
+                        log.warn("User creation answered 201 without a Location id");
+                        return Mono.error(new IllegalStateException(
+                                "user creation carried no user id"));
+                    }
+                    return Mono.just(id);
+                }));
+    }
+
+    @Override
+    public Mono<Boolean> setTemporaryPassword(String userId, String newPassword) {
+        return adminAccessToken().flatMap(token -> webClient.put()
+                .uri(usersUri + "/" + userId + "/reset-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .bodyValue(temporaryCredential(newPassword))
+                .exchangeToMono(response -> response.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(body -> resetVerdict(response.statusCode(), body))));
+    }
+
+    @Override
+    public Mono<Map<String, String>> findRealmRole(String roleName) {
+        return adminAccessToken().flatMap(token -> webClient.get()
+                .uri(rolesUri + "/" + roleName)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .exchangeToMono(response -> response.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(body -> {
+                            if (!response.statusCode().is2xxSuccessful()) {
+                                log.warn("Role lookup failed: status={} role={}",
+                                        response.statusCode().value(), roleName);
+                                return Mono.error(new IllegalStateException(
+                                        "role lookup answered " + response.statusCode().value()));
+                            }
+                            JsonNode role = JSON.readTree(body);
+                            String id = role.path("id").asString();
+                            String name = role.path("name").asString();
+                            if (!StringUtils.hasText(id) || !StringUtils.hasText(name)) {
+                                log.warn("Role lookup body carried no id/name: {}", body);
+                                return Mono.error(new IllegalStateException(
+                                        "role lookup body carried no id/name"));
+                            }
+                            return Mono.just(Map.of("id", id, "name", name));
+                        })));
+    }
+
+    @Override
+    public Mono<Void> assignRealmRoles(String userId, List<Map<String, String>> roles) {
+        return adminAccessToken().flatMap(token -> webClient.post()
+                .uri(usersUri + "/" + userId + "/role-mappings/realm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .bodyValue(roles)
+                .exchangeToMono(response -> {
+                    if (response.statusCode().value() != 204) {
+                        log.warn("Role assignment failed: status={} user={}",
+                                response.statusCode().value(), userId);
+                        return Mono.error(new IllegalStateException(
+                                "role assignment answered " + response.statusCode().value()));
+                    }
+                    return Mono.empty();
+                }));
     }
 
     /**
@@ -290,6 +391,20 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
         credential.put("type", "password");
         credential.put("value", newPassword);
         credential.put("temporary", false);
+        return credential;
+    }
+
+    /**
+     * Same flat shape, but {@code temporary: true} — Keycloak stamps the
+     * {@code UPDATE_PASSWORD} required action itself (verified in
+     * {@code UserResource.resetPassword}, Keycloak 26), so the credential
+     * doubles as the forced-change trigger for freshly imported accounts.
+     */
+    static Map<String, Object> temporaryCredential(String newPassword) {
+        Map<String, Object> credential = new LinkedHashMap<>();
+        credential.put("type", "password");
+        credential.put("value", newPassword);
+        credential.put("temporary", true);
         return credential;
     }
 }
