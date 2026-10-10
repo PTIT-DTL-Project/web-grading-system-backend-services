@@ -11,6 +11,7 @@ import reactor.core.publisher.Mono;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +40,8 @@ import java.util.Map;
 public class UserImportService {
 
     /** Caps bulk imports: sequential admin calls per row add up. */
+    // Mirrored client-side in AdminUsersPage (MAX_BYTES/MAX_ROWS) for instant
+    // feedback — the server stays the source of truth; keep both in sync.
     static final int MAX_ROWS = 2000;
     /** Caps bulk imports: rejects oversized uploads before parsing. */
     static final int MAX_BYTES = 2 * 1024 * 1024;
@@ -126,26 +129,34 @@ public class UserImportService {
     }
 
     private Mono<ImportSummary> runImport(List<String[]> rows) {
-        // Both realm roles are resolved once per import: per-row lookups would
-        // multiply admin calls for no benefit on a two-value domain. If role
-        // resolution fails the whole batch aborts — without roles nothing can
-        // be provisioned correctly.
-        Mono<Map<String, Map<String, String>>> roles = Mono.zip(
-                        keycloak.findRealmRole("ROLE_STUDENT"),
-                        keycloak.findRealmRole("ROLE_LECTURER"))
-                .map(tuple -> Map.of("STUDENT", tuple.getT1(), "LECTURER", tuple.getT2()))
-                .onErrorMap(error -> UserImportException.identityProviderUnavailable(error));
+        // One shared admin token for the whole batch (the session memoizes it),
+        // and role representations resolved lazily: a student-only import never
+        // touches ROLE_LECTURER, so its absence or unreadability cannot abort it.
         // Sequential on purpose: deterministic report order and gentle load on
-        // Keycloak for a rare admin operation.
-        return roles.flatMap(roleReps -> Flux.fromIterable(rows)
+        // Keycloak for a rare admin operation; the plain HashMap cache below is
+        // safe exactly because of that sequencing.
+        KeycloakAdminClient.BulkOperations admin = keycloak.bulk();
+        Map<String, Map<String, String>> roleCache = new HashMap<>();
+        return Flux.fromIterable(rows)
                 .index()
                 .concatMap(indexed -> importRow(
-                        indexed.getT1().intValue() + 1, indexed.getT2(), roleReps))
+                        indexed.getT1().intValue() + 1, indexed.getT2(), admin, roleCache))
                 .collectList()
-                .map(UserImportService::summarize));
+                .map(UserImportService::summarize);
     }
 
-    private Mono<RowResult> importRow(int line, String[] cols, Map<String, Map<String, String>> roleReps) {
+    private Mono<Map<String, String>> roleRep(KeycloakAdminClient.BulkOperations admin,
+            Map<String, Map<String, String>> roleCache, String role) {
+        Map<String, String> cached = roleCache.get(role);
+        if (cached != null) {
+            return Mono.just(cached);
+        }
+        return admin.findRealmRole("ROLE_" + role)
+                .doOnNext(rep -> roleCache.put(role, rep));
+    }
+
+    private Mono<RowResult> importRow(int line, String[] cols,
+            KeycloakAdminClient.BulkOperations admin, Map<String, Map<String, String>> roleCache) {
         if (cols.length < 3) {
             return Mono.just(RowResult.failed(line, cell(cols, 0), "STUDENT", "not_enough_columns"));
         }
@@ -160,33 +171,33 @@ public class UserImportService {
             return Mono.just(RowResult.failed(line, username, cols.length > 3 ? cols[3].trim() : "",
                     "unknown_role"));
         }
-        Map<String, String> roleRep = roleReps.get(role);
-        if (roleRep == null) {
-            return Mono.error(UserImportException.identityProviderUnavailable(
-                    new IllegalStateException("role representation missing for " + role)));
-        }
         // findUserId completes empty when Keycloak knows nobody by that value —
-        // empty is "absent", never an error, so duplicates skip cleanly.
-        return keycloak.findUserId(username)
+        // empty is "absent", never an error, so duplicates skip cleanly. The
+        // role lookup is lazy per row: an unknown role name fails this row
+        // only (unknown_role below covers typos before any call is made, and
+        // a provider-side role failure surfaces as provider_error for the row,
+        // never as a batch abort).
+        return admin.findUserId(username)
                 .flatMap(id -> Mono.just(RowResult.skipped(line, username, role, "duplicate_username")))
-                .switchIfEmpty(Mono.defer(() -> keycloak.findUserId(email)
+                .switchIfEmpty(Mono.defer(() -> admin.findUserId(email)
                         .flatMap(id -> Mono.just(RowResult.skipped(line, username, role, "duplicate_email")))
-                        .switchIfEmpty(Mono.defer(() -> createAndProvision(
-                                line, username, fullName, email, role, roleRep)))))
+                        .switchIfEmpty(Mono.defer(() -> roleRep(admin, roleCache, role)
+                                .flatMap(rep -> createAndProvision(
+                                        admin, line, username, fullName, email, role, rep))))))
                 .onErrorResume(error -> error instanceof UserImportException
                         ? Mono.error(error)
                         : Mono.just(RowResult.failed(line, username, role, "provider_error")));
     }
 
-    private Mono<RowResult> createAndProvision(int line, String username, String fullName,
-            String email, String role, Map<String, String> roleRep) {
-        return keycloak.createUser(username, email, fullName)
-                .flatMap(userId -> keycloak.setTemporaryPassword(userId, username)
+    private Mono<RowResult> createAndProvision(KeycloakAdminClient.BulkOperations admin, int line,
+            String username, String fullName, String email, String role, Map<String, String> roleRep) {
+        return admin.createUser(username, email, fullName)
+                .flatMap(userId -> admin.setTemporaryPassword(userId, username)
                         .flatMap(applied -> {
                             if (!applied) {
                                 return Mono.just(RowResult.failed(line, username, role, "weak_password"));
                             }
-                            return keycloak.assignRealmRoles(userId, List.of(roleRep))
+                            return admin.assignRealmRoles(userId, List.of(roleRep))
                                     .thenReturn(RowResult.created(line, username, role))
                                     // The user now exists with a password but possibly no
                                     // role — re-running skips as duplicate, so the report

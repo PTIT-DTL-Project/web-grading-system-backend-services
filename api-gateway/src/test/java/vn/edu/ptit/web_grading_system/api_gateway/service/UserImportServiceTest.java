@@ -19,14 +19,23 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Covers the import orchestration with a mocked {@link KeycloakAdminClient}: a
  * mixed batch (new student, new lecturer, duplicate username, duplicate email,
  * unknown role, short row) must report each row correctly while the batch runs
- * to the end, and role representations resolve once per import, not per row.
+ * to the end, and role representations resolve lazily once per role, never for
+ * roles the batch does not use.
  *
  * <p>Review: 2026-10-09, bulk user import plan.
  */
 class UserImportServiceTest {
 
     private final KeycloakAdminClient keycloak = Mockito.mock(KeycloakAdminClient.class);
+    private final KeycloakAdminClient.BulkOperations ops =
+            Mockito.mock(KeycloakAdminClient.BulkOperations.class);
     private final UserImportService service = new UserImportService(keycloak);
+
+    private void stubSession() {
+        Mockito.when(keycloak.bulk()).thenReturn(ops);
+        // The session delegates to the same stubbed answers: existing tests
+        // keep stubbing/verify on the ops mock below.
+    }
 
     private static FilePart filePart(String csv) {
         byte[] bytes = csv.getBytes(StandardCharsets.UTF_8);
@@ -39,24 +48,25 @@ class UserImportServiceTest {
 
     @Test
     void mixedBatch_reportsEachRowAndCachesRoleLookups() {
-        Mockito.when(keycloak.findRealmRole("ROLE_STUDENT"))
+        stubSession();
+        Mockito.when(ops.findRealmRole("ROLE_STUDENT"))
                 .thenReturn(Mono.just(Map.of("id", "s", "name", "ROLE_STUDENT")));
-        Mockito.when(keycloak.findRealmRole("ROLE_LECTURER"))
+        Mockito.when(ops.findRealmRole("ROLE_LECTURER"))
                 .thenReturn(Mono.just(Map.of("id", "l", "name", "ROLE_LECTURER")));
         // Generic empty first: Mockito matches later stubs first, so the two
         // specific duplicates below still resolve while everything else is absent.
-        Mockito.when(keycloak.findUserId(Mockito.anyString()))
+        Mockito.when(ops.findUserId(Mockito.anyString()))
                 .thenReturn(Mono.empty());
         // Row 2 collides on username, row 3 on email; the rest are new.
-        Mockito.when(keycloak.findUserId("B22DCCN001"))
+        Mockito.when(ops.findUserId("B22DCCN001"))
                 .thenReturn(Mono.just("existing-id"));
-        Mockito.when(keycloak.findUserId("taken@ptit.edu.vn"))
+        Mockito.when(ops.findUserId("taken@ptit.edu.vn"))
                 .thenReturn(Mono.just("other-id"));
-        Mockito.when(keycloak.createUser(Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
+        Mockito.when(ops.createUser(Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
                 .thenReturn(Mono.just("new-id"));
-        Mockito.when(keycloak.setTemporaryPassword(Mockito.anyString(), Mockito.anyString()))
+        Mockito.when(ops.setTemporaryPassword(Mockito.anyString(), Mockito.anyString()))
                 .thenReturn(Mono.just(Boolean.TRUE));
-        Mockito.when(keycloak.assignRealmRoles(Mockito.anyString(), Mockito.any()))
+        Mockito.when(ops.assignRealmRoles(Mockito.anyString(), Mockito.any()))
                 .thenReturn(Mono.empty());
         String csv = String.join("\n",
                 "username,fullName,email,role",
@@ -76,12 +86,46 @@ class UserImportServiceTest {
                 })
                 .verifyComplete();
 
-        // One lookup per realm role for the whole import, not per row.
-        Mockito.verify(keycloak, Mockito.times(1)).findRealmRole("ROLE_STUDENT");
-        Mockito.verify(keycloak, Mockito.times(1)).findRealmRole("ROLE_LECTURER");
+        // Lazy roles: only ROLE_LECTURER is resolved (once) because the two
+        // student rows skip as duplicates before any role lookup, while the
+        // lecturer row is the single new user needing one.
+        Mockito.verify(ops, Mockito.never()).findRealmRole("ROLE_STUDENT");
+        Mockito.verify(ops, Mockito.times(1)).findRealmRole("ROLE_LECTURER");
         // The duplicate-username row short-circuits before creation.
-        Mockito.verify(keycloak, Mockito.never()).createUser(
+        Mockito.verify(ops, Mockito.never()).createUser(
                 Mockito.eq("B22DCCN001"), Mockito.anyString(), Mockito.anyString());
+        // Exactly one bulk session per import.
+        Mockito.verify(keycloak, Mockito.times(1)).bulk();
+    }
+
+    @Test
+    void studentOnlyBatch_neverResolvesLecturerRole() {
+        stubSession();
+        Mockito.when(ops.findRealmRole("ROLE_STUDENT"))
+                .thenReturn(Mono.just(Map.of("id", "s", "name", "ROLE_STUDENT")));
+        Mockito.when(ops.findUserId(Mockito.anyString())).thenReturn(Mono.empty());
+        Mockito.when(ops.createUser(Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(Mono.just("new-id"));
+        Mockito.when(ops.setTemporaryPassword(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(Mono.just(Boolean.TRUE));
+        Mockito.when(ops.assignRealmRoles(Mockito.anyString(), Mockito.any()))
+                .thenReturn(Mono.empty());
+        String csv = String.join("\n",
+                "username,fullName,email,role",
+                "B22DCCN010,Student Ten,a@ptit.edu.vn,",
+                "B22DCCN011,Student Eleven,b@ptit.edu.vn,STUDENT");
+
+        StepVerifier.create(service.importUsers(filePart(csv)))
+                .assertNext(summary -> {
+                    assertThat(summary.created()).isEqualTo(Map.of("STUDENT", 2, "LECTURER", 0));
+                    assertThat(summary.failed()).isEmpty();
+                })
+                .verifyComplete();
+
+        // The unused lecturer role is never touched: its absence cannot abort
+        // a student-only import.
+        Mockito.verify(ops, Mockito.never()).findRealmRole("ROLE_LECTURER");
+        Mockito.verify(ops, Mockito.times(1)).findRealmRole("ROLE_STUDENT");
     }
 
     @Test

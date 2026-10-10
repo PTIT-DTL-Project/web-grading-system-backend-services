@@ -97,4 +97,33 @@ public interface KeycloakAdminClient {
      * Assigns realm roles ({@code id} + {@code name} maps) to a user.
      */
     Mono<Void> assignRealmRoles(String userId, List<Map<String, String>> roles);
+
+    /**
+     * A short-lived session over the same five calls above, sharing ONE admin
+     * token fetched once and memoized for the session's lifetime. Per-call
+     * tokens stay the default (low-volume flows, no shared state); bulk flows
+     * must use a session instead — N users × per-call grants is thousands of
+     * token requests otherwise.
+     *
+     * <p>The session object itself is short-lived by construction (one per
+     * import request): never store it in a field, so concurrent imports can
+     * never share or race on a token.
+     *
+     * <p>Review: 2026-10-09, bulk user import plan (Pullfrog: token-per-call
+     * amplification).
+     */
+    interface BulkOperations {
+
+        Mono<String> findUserId(String username);
+
+        Mono<String> createUser(String username, String email, String firstName);
+
+        Mono<Boolean> setTemporaryPassword(String userId, String newPassword);
+
+        Mono<Map<String, String>> findRealmRole(String roleName);
+
+        Mono<Void> assignRealmRoles(String userId, List<Map<String, String>> roles);
+    }
+
+    BulkOperations bulk();
 }

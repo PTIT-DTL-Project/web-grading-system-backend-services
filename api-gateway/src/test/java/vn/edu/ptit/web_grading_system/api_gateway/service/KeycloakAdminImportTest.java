@@ -13,15 +13,17 @@ import vn.edu.ptit.web_grading_system.api_gateway.config.KeycloakAdminProperties
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Covers the four Keycloak calls the bulk import adds, through the same stubbed
+ * Covers the Keycloak calls the bulk import adds, through the same stubbed
  * {@code ExchangeFunction} harness as {@link KeycloakAdminWebClientTest}: user
  * creation (201 + Location id, 409 typed error), temporary password shape,
- * role lookup parsing, and role-mapping assignment.
+ * role lookup parsing, role-mapping assignment, and the bulk session's single
+ * token grant across many operations.
  *
  * <p>Review: 2026-10-09, bulk user import plan.
  */
@@ -139,5 +141,31 @@ class KeycloakAdminImportTest {
         assertThat(lastRequest.url().toString())
                 .isEqualTo(USERS_URL + "/user-id/role-mappings/realm");
         assertThat(lastBody).contains("ROLE_STUDENT");
+    }
+
+    @Test
+    void bulkSession_fetchesOneTokenForManyOperations() {
+        AtomicInteger tokenCalls = new AtomicInteger();
+        KeycloakAdminWebClient client = client(call -> {
+            if (call.url().toString().contains("/protocol/openid-connect/token")) {
+                tokenCalls.incrementAndGet();
+                return respond(HttpStatus.OK, ADMIN_TOKEN_RESPONSE);
+            }
+            String url = call.url().toString();
+            if (url.equals(ROLES_URL + "/ROLE_STUDENT")) {
+                return respond(HttpStatus.OK, "{\"id\":\"role-id\",\"name\":\"ROLE_STUDENT\"}");
+            }
+            return respond(HttpStatus.OK, "[]");
+        });
+
+        KeycloakAdminClient.BulkOperations ops = client.bulk();
+        StepVerifier.create(ops.findRealmRole("ROLE_STUDENT")
+                        .then(ops.findUserId("B22DCCN001"))
+                        .then(ops.findUserId("B22DCCN002")))
+                .verifyComplete();
+
+        // Three admin calls, one token grant: the session memoizes the token
+        // instead of re-authenticating per operation.
+        assertThat(tokenCalls.get()).isEqualTo(1);
     }
 }

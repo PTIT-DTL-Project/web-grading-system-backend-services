@@ -83,6 +83,10 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
 
     @Override
     public Mono<String> findUserId(String username) {
+        return adminAccessToken().flatMap(token -> findUserIdWith(token, username));
+    }
+
+    private Mono<String> findUserIdWith(String token, String username) {
         // The admin search keeps username and email in two different query parameters,
         // while the realm's loginWithEmailAllowed only affects the TOKEN endpoint. A
         // caller who identified themselves by email (the header modal sends
@@ -98,13 +102,13 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
         // current_password_invalid as a wrong password, never someone else's account.
         boolean byEmail = username.contains("@");
         String query = byEmail ? "?email={value}" : "?username={value}";
-        return adminAccessToken().flatMap(token -> webClient.get()
+        return webClient.get()
                 .uri(usersUri + query, username)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .exchangeToMono(response -> response.bodyToMono(String.class)
                         .defaultIfEmpty("")
                         .flatMap(body -> userLookupVerdict(response.statusCode(), body,
-                                username, byEmail))));
+                                username, byEmail)));
     }
 
     @Override
@@ -129,13 +133,17 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
      */
     @Override
     public Mono<String> createUser(String username, String email, String firstName) {
+        return adminAccessToken().flatMap(token -> createUserWith(token, username, email, firstName));
+    }
+
+    private Mono<String> createUserWith(String token, String username, String email, String firstName) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("username", username);
         body.put("email", email);
         body.put("firstName", firstName);
         body.put("enabled", Boolean.TRUE);
         body.put("requiredActions", List.of("UPDATE_PASSWORD"));
-        return adminAccessToken().flatMap(token -> webClient.post()
+        return webClient.post()
                 .uri(usersUri)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -158,24 +166,32 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
                                 "user creation carried no user id"));
                     }
                     return Mono.just(id);
-                }));
+                });
     }
 
     @Override
     public Mono<Boolean> setTemporaryPassword(String userId, String newPassword) {
-        return adminAccessToken().flatMap(token -> webClient.put()
+        return adminAccessToken().flatMap(token -> setTemporaryPasswordWith(token, userId, newPassword));
+    }
+
+    private Mono<Boolean> setTemporaryPasswordWith(String token, String userId, String newPassword) {
+        return webClient.put()
                 .uri(usersUri + "/" + userId + "/reset-password")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .bodyValue(temporaryCredential(newPassword))
                 .exchangeToMono(response -> response.bodyToMono(String.class)
                         .defaultIfEmpty("")
-                        .flatMap(body -> resetVerdict(response.statusCode(), body))));
+                        .flatMap(body -> resetVerdict(response.statusCode(), body)));
     }
 
     @Override
     public Mono<Map<String, String>> findRealmRole(String roleName) {
-        return adminAccessToken().flatMap(token -> webClient.get()
+        return adminAccessToken().flatMap(token -> findRealmRoleWith(token, roleName));
+    }
+
+    private Mono<Map<String, String>> findRealmRoleWith(String token, String roleName) {
+        return webClient.get()
                 .uri(rolesUri + "/" + roleName)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .exchangeToMono(response -> response.bodyToMono(String.class)
@@ -196,12 +212,16 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
                                         "role lookup body carried no id/name"));
                             }
                             return Mono.just(Map.of("id", id, "name", name));
-                        })));
+                        }));
     }
 
     @Override
     public Mono<Void> assignRealmRoles(String userId, List<Map<String, String>> roles) {
-        return adminAccessToken().flatMap(token -> webClient.post()
+        return adminAccessToken().flatMap(token -> assignRealmRolesWith(token, userId, roles));
+    }
+
+    private Mono<Void> assignRealmRolesWith(String token, String userId, List<Map<String, String>> roles) {
+        return webClient.post()
                 .uri(usersUri + "/" + userId + "/role-mappings/realm")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -214,7 +234,45 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
                                 "role assignment answered " + response.statusCode().value()));
                     }
                     return Mono.empty();
-                }));
+                });
+    }
+
+    /**
+     * Bulk-operation session sharing one admin token, memoized for the session's
+     * lifetime. The session object is short-lived by construction (one per import
+     * request) and never stored in a field, so concurrent imports cannot share
+     * or race on a token. A token-fetch failure fails every operation with the
+     * same error — the import aborts before any row runs.
+     */
+    @Override
+    public BulkOperations bulk() {
+        Mono<String> token = adminAccessToken().cache();
+        return new BulkOperations() {
+            @Override
+            public Mono<String> findUserId(String username) {
+                return token.flatMap(t -> findUserIdWith(t, username));
+            }
+
+            @Override
+            public Mono<String> createUser(String username, String email, String firstName) {
+                return token.flatMap(t -> createUserWith(t, username, email, firstName));
+            }
+
+            @Override
+            public Mono<Boolean> setTemporaryPassword(String userId, String newPassword) {
+                return token.flatMap(t -> setTemporaryPasswordWith(t, userId, newPassword));
+            }
+
+            @Override
+            public Mono<Map<String, String>> findRealmRole(String roleName) {
+                return token.flatMap(t -> findRealmRoleWith(t, roleName));
+            }
+
+            @Override
+            public Mono<Void> assignRealmRoles(String userId, List<Map<String, String>> roles) {
+                return token.flatMap(t -> assignRealmRolesWith(t, userId, roles));
+            }
+        };
     }
 
     /**
