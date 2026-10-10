@@ -2,6 +2,9 @@ package vn.edu.ptit.web_grading_system.api_gateway.service;
 
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * The three Keycloak calls the change-password flow needs, behind an interface so
  * {@link PasswordChangeService} can be unit-tested without a network.
@@ -61,4 +64,66 @@ public interface KeycloakAdminClient {
      *         {@code weak_password}
      */
     Mono<Boolean> resetPassword(String userId, String newPassword);
+
+    /**
+     * Creates a user with an explicit {@code UPDATE_PASSWORD} required action so the
+     * first login forces a password change (bulk account import).
+     *
+     * @return the new user id parsed from the {@code 201 Location} header
+     * @throws CreateUserException on any non-201 answer, carrying the status so
+     *         the caller can tell duplicates/races ({@code 409}) and invalid
+     *         input ({@code 400}) apart from provider failures
+     */
+    Mono<String> createUser(String username, String email, String firstName);
+
+    /**
+     * Same wire call as {@link #resetPassword}, but {@code temporary: true} — Keycloak
+     * additionally stamps the {@code UPDATE_PASSWORD} required action itself, so the
+     * credential doubles as the forced-change trigger for freshly imported accounts.
+     *
+     * @return {@code TRUE} = applied (204); {@code FALSE} = rejected (400)
+     */
+    Mono<Boolean> setTemporaryPassword(String userId, String newPassword);
+
+    /**
+     * Fetches a realm role representation ({@code id} + {@code name}) for
+     * role-mapping assignment.
+     *
+     * @return map with {@code id} and {@code name}; error when absent or refused
+     */
+    Mono<Map<String, String>> findRealmRole(String roleName);
+
+    /**
+     * Assigns realm roles ({@code id} + {@code name} maps) to a user.
+     */
+    Mono<Void> assignRealmRoles(String userId, List<Map<String, String>> roles);
+
+    /**
+     * A short-lived session over the same five calls above, sharing ONE admin
+     * token fetched once and memoized for the session's lifetime. Per-call
+     * tokens stay the default (low-volume flows, no shared state); bulk flows
+     * must use a session instead — N users × per-call grants is thousands of
+     * token requests otherwise.
+     *
+     * <p>The session object itself is short-lived by construction (one per
+     * import request): never store it in a field, so concurrent imports can
+     * never share or race on a token.
+     *
+     * <p>Review: 2026-10-09, bulk user import plan (Pullfrog: token-per-call
+     * amplification).
+     */
+    interface BulkOperations {
+
+        Mono<String> findUserId(String username);
+
+        Mono<String> createUser(String username, String email, String firstName);
+
+        Mono<Boolean> setTemporaryPassword(String userId, String newPassword);
+
+        Mono<Map<String, String>> findRealmRole(String roleName);
+
+        Mono<Void> assignRealmRoles(String userId, List<Map<String, String>> roles);
+    }
+
+    BulkOperations bulk();
 }
