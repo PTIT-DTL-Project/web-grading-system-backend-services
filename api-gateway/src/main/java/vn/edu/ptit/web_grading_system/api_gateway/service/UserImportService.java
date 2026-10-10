@@ -11,6 +11,7 @@ import reactor.core.publisher.Mono;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -191,7 +192,16 @@ public class UserImportService {
 
     private Mono<RowResult> createAndProvision(KeycloakAdminClient.BulkOperations admin, int line,
             String username, String fullName, String email, String role, Map<String, String> roleRep) {
-        return admin.createUser(username, email, fullName)
+        // The realm's user profile requires non-blank firstName AND lastName;
+        // a blank fullName falls back to the username for both (always
+        // non-blank here) rather than rejecting the row — the name is
+        // cosmetic, the account is not.
+        // Review: 2026-10-10, missing-lastName login wall; Pullfrog: firstName
+        // needs the same fallback, the wall demands all required fields.
+        String[] names = splitName(fullName);
+        String firstName = StringUtils.hasText(names[0]) ? names[0] : username;
+        String lastName = StringUtils.hasText(names[1]) ? names[1] : username;
+        return admin.createUser(username, email, firstName, lastName)
                 .flatMap(userId -> admin.setTemporaryPassword(userId, username)
                         .flatMap(applied -> {
                             if (!applied) {
@@ -211,6 +221,28 @@ public class UserImportService {
                                 : error.status() == 400
                                         ? RowResult.failed(line, username, role, "invalid_input")
                                         : RowResult.failed(line, username, role, "provider_error")));
+    }
+
+    /**
+     * Splits a Vietnamese full name into {@code [firstName, lastName]}: the
+     * first token is the family name ({@code lastName}), the rest is the given
+     * name ({@code firstName}). A single token fills both (still non-blank);
+     * blank fills neither — the caller falls back to the username for both,
+     * which the realm profile requires non-blank.
+     *
+     * <p>Review: 2026-10-10, missing-lastName login wall.
+     */
+    static String[] splitName(String fullName) {
+        String[] tokens = fullName == null ? new String[0] : fullName.trim().split("\\s+");
+        if (tokens.length == 0 || (tokens.length == 1 && tokens[0].isEmpty())) {
+            return new String[] {"", ""};
+        }
+        if (tokens.length == 1) {
+            return new String[] {tokens[0], tokens[0]};
+        }
+        return new String[] {
+                String.join(" ", Arrays.copyOfRange(tokens, 1, tokens.length)),
+                tokens[0]};
     }
 
     /** Blank → STUDENT (secure default); optional ROLE_ prefix tolerated. */

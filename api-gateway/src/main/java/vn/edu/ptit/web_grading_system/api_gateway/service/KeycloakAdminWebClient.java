@@ -132,15 +132,21 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
      * <p>Review: 2026-10-09, bulk user import plan.
      */
     @Override
-    public Mono<String> createUser(String username, String email, String firstName) {
-        return adminAccessToken().flatMap(token -> createUserWith(token, username, email, firstName));
+    public Mono<String> createUser(String username, String email, String firstName, String lastName) {
+        return adminAccessToken().flatMap(token ->
+                createUserWith(token, username, email, firstName, lastName));
     }
 
-    private Mono<String> createUserWith(String token, String username, String email, String firstName) {
+    private Mono<String> createUserWith(String token, String username, String email,
+            String firstName, String lastName) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("username", username);
         body.put("email", email);
         body.put("firstName", firstName);
+        // lastName is required by the realm's user profile — the caller
+        // guarantees non-blank (username fallback), so this is always sent.
+        // Review: 2026-10-10, missing-lastName login wall.
+        body.put("lastName", lastName);
         body.put("enabled", Boolean.TRUE);
         body.put("requiredActions", List.of("UPDATE_PASSWORD"));
         return webClient.post()
@@ -254,8 +260,9 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
             }
 
             @Override
-            public Mono<String> createUser(String username, String email, String firstName) {
-                return token.flatMap(t -> createUserWith(t, username, email, firstName));
+            public Mono<String> createUser(String username, String email, String firstName,
+                    String lastName) {
+                return token.flatMap(t -> createUserWith(t, username, email, firstName, lastName));
             }
 
             @Override
