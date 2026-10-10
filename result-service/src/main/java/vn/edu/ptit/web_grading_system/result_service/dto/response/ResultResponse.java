@@ -21,6 +21,8 @@ public class ResultResponse {
     private UUID studentId;
     private UUID planId;
     private Integer planWeight;
+    /** FULL = whole-assignment run, PLAN = single-plan run. */
+    private String scope;
     private BigDecimal score;
     private BigDecimal maxScore;
     private String status;

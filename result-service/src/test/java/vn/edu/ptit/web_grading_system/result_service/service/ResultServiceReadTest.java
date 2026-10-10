@@ -2,6 +2,7 @@ package vn.edu.ptit.web_grading_system.result_service.service;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import vn.edu.ptit.web_grading_system.result_service.client.CourseServicePlansClient;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.AssignmentResultGroupResponse;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.ResultResponse;
 import vn.edu.ptit.web_grading_system.result_service.entity.Result;
@@ -22,7 +23,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ResultServiceReadTest {
 
     private ResultService service(ResultRepository results, StepResultRepository steps) {
-        return new ResultService(results, steps);
+        CourseServicePlansClient plans = Mockito.mock(CourseServicePlansClient.class);
+        Mockito.when(plans.plans(Mockito.any())).thenReturn(List.of());
+        return new ResultService(results, steps, plans);
     }
 
     @Test
@@ -81,13 +84,14 @@ class ResultServiceReadTest {
 
     // --- getByAssignment (course-service's lecturer grading view) -------------
 
-    /** One latest result row of an assignment; caller assigns the id so steps can key off it. */
+    /** One latest PLAN-scope result row of an assignment; caller assigns the id so steps can key off it. */
     private static Result planRow(UUID resultId, UUID studentId, int planWeight, String score) {
         Result result = Result.builder()
                 .submissionId(UUID.randomUUID())
                 .assignmentId(ASSIGNMENT)
                 .studentId(studentId)
                 .planId(UUID.randomUUID())
+                .scope(vn.edu.ptit.web_grading_system.result_service.entity.ResultScope.PLAN)
                 .planWeight(planWeight)
                 .score(new BigDecimal(score))
                 .maxScore(new BigDecimal("10.00"))
@@ -106,7 +110,7 @@ class ResultServiceReadTest {
     void getByAssignment_groupsEachStudentAndAppliesTheSharedWeightedFormula() {
         ResultRepository results = Mockito.mock(ResultRepository.class);
         StepResultRepository steps = Mockito.mock(StepResultRepository.class);
-        Mockito.when(results.findByAssignmentIdAndLatestTrue(ASSIGNMENT)).thenReturn(List.of(
+        Mockito.when(results.findByAssignmentId(ASSIGNMENT)).thenReturn(List.of(
                 planRow(UUID.randomUUID(), STUDENT_A, 1, "8.00"),
                 planRow(UUID.randomUUID(), STUDENT_A, 3, "6.00"),
                 planRow(UUID.randomUUID(), STUDENT_B, 1, "10.00")));
@@ -134,7 +138,7 @@ class ResultServiceReadTest {
     void getByAssignment_filteredToOneStudentReturnsOnlyThatStudentsRows() {
         ResultRepository results = Mockito.mock(ResultRepository.class);
         StepResultRepository steps = Mockito.mock(StepResultRepository.class);
-        Mockito.when(results.findByAssignmentIdAndLatestTrue(ASSIGNMENT)).thenReturn(List.of(
+        Mockito.when(results.findByAssignmentId(ASSIGNMENT)).thenReturn(List.of(
                 planRow(UUID.randomUUID(), STUDENT_A, 1, "8.00"),
                 planRow(UUID.randomUUID(), STUDENT_B, 1, "10.00")));
 
@@ -146,18 +150,21 @@ class ResultServiceReadTest {
     }
 
     @Test
-    void getByAssignment_withoutStepsLoadsNoStepRows() {
+    void getByAssignment_withoutStepsStillLoadsThemForScoringOnly() {
         ResultRepository results = Mockito.mock(ResultRepository.class);
         StepResultRepository steps = Mockito.mock(StepResultRepository.class);
-        Mockito.when(results.findByAssignmentIdAndLatestTrue(ASSIGNMENT))
+        Mockito.when(results.findByAssignmentId(ASSIGNMENT))
                 .thenReturn(List.of(planRow(UUID.randomUUID(), STUDENT_A, 1, "8.00")));
 
         List<AssignmentResultGroupResponse> groups =
                 service(results, steps).getByAssignment(ASSIGNMENT, null, false);
 
-        // The class-wide list stays on one query; N students × M plans would otherwise be
-        // N×M round trips. Null, not empty, so the caller can tell "not loaded" from "none".
-        Mockito.verify(steps, Mockito.never()).findByResultIdIn(Mockito.any());
+        // Max-per-plan scoring needs step rows (FULL-run decomposition), so the
+        // class-wide read is rows + ONE batched steps query; the display payload
+        // still carries no steps. Null, not empty, so the caller can tell
+        // "not loaded" from "none".
+        Mockito.verify(steps, Mockito.times(1)).findByResultIdIn(Mockito.any());
+        Mockito.verify(steps, Mockito.never()).findByResultId(Mockito.any());
         assertNull(groups.get(0).getResults().get(0).getSteps());
     }
 
@@ -167,7 +174,7 @@ class ResultServiceReadTest {
         Result row = planRow(resultId, STUDENT_A, 1, "8.00");
         ResultRepository results = Mockito.mock(ResultRepository.class);
         StepResultRepository steps = Mockito.mock(StepResultRepository.class);
-        Mockito.when(results.findByAssignmentIdAndLatestTrue(ASSIGNMENT)).thenReturn(List.of(row));
+        Mockito.when(results.findByAssignmentId(ASSIGNMENT)).thenReturn(List.of(row));
         StepResult step = StepResult.builder()
                 .resultId(resultId)
                 .stepOrder(0)
@@ -190,7 +197,7 @@ class ResultServiceReadTest {
     void getByAssignment_ungradedAssignmentReturnsEmptyWithoutAnyQuery() {
         ResultRepository results = Mockito.mock(ResultRepository.class);
         StepResultRepository steps = Mockito.mock(StepResultRepository.class);
-        Mockito.when(results.findByAssignmentIdAndLatestTrue(ASSIGNMENT)).thenReturn(List.of());
+        Mockito.when(results.findByAssignmentId(ASSIGNMENT)).thenReturn(List.of());
 
         assertTrue(service(results, steps).getByAssignment(ASSIGNMENT, null, true).isEmpty());
 

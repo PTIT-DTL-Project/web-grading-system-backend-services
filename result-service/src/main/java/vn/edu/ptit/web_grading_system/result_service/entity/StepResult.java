@@ -44,6 +44,10 @@ public class StepResult extends BaseEntity {
 
     @Column(nullable = false)
     @Builder.Default
+    private Boolean skipped = false;
+
+    @Column(nullable = false)
+    @Builder.Default
     private Integer weight = 1;
 
     @Column(nullable = false, precision = 5, scale = 2)

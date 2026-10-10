@@ -486,7 +486,7 @@ public class GradingOrchestrator
                         passed ? null : result.getErrorMessage());
                 outcomes.add(new ScoreCalculator.StepScore(
                         passed, false, nz(step.getWeight(), 1)));
-                items.add(stepItem(plan, step, result, passed, result.getErrorMessage()));
+                items.add(stepItem(plan, step, result, passed, false, result.getErrorMessage()));
                 if ((result.getStatus() == StepResultStatus.FAILED
                         || result.getStatus() == StepResultStatus.ERROR)
                         && Boolean.TRUE.equals(step.getRequired()))
@@ -528,7 +528,7 @@ public class GradingOrchestrator
                 Constant.Message.SKIPPED_REQUIRED_FAILED);
         persist(job, plan, step, StepResultStatus.SKIPPED, Constant.Message.SKIPPED_REQUIRED_FAILED);
         outcomes.add(new ScoreCalculator.StepScore(false, true, nz(step.getWeight(), 1)));
-        items.add(stepItem(plan, step, null, false, Constant.Message.SKIPPED_REQUIRED_FAILED));
+        items.add(stepItem(plan, step, null, false, true, Constant.Message.SKIPPED_REQUIRED_FAILED));
     }
 
     private GradingStepResult runStep(GradingJob job, InternalPlanDto plan, InternalStepDto step,
@@ -786,7 +786,7 @@ public class GradingOrchestrator
     }
 
     private ResultServiceClient.StepResultItem stepItem(InternalPlanDto plan, InternalStepDto step,
-            GradingStepResult result, boolean passed, String errorMessage)
+            GradingStepResult result, boolean passed, boolean skipped, String errorMessage)
     {
         return ResultServiceClient.StepResultItem.builder()
                 .planId(plan.getId())
@@ -795,6 +795,10 @@ public class GradingOrchestrator
                 .stepName(step.getName())
                 .stepType(step.getStepType())
                 .passed(passed)
+                // Review: 2026-10-10, max-per-plan scoring needs exact skip
+                // exclusion when decomposing FULL rows — a skip stored as a
+                // plain fail would drag the plan subtotal down.
+                .skipped(skipped)
                 .weight(nz(step.getWeight(), 1))
                 .score(passed ? new BigDecimal(nz(step.getWeight(), 1)).setScale(2) : BigDecimal.ZERO.setScale(2))
                 .actualValue(passed && result != null ? (result.getResponseBody() == null ? null

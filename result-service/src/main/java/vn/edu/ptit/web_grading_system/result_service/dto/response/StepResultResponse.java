@@ -20,6 +20,7 @@ public class StepResultResponse {
     private String stepName;
     private String stepType;
     private Boolean passed;
+    private Boolean skipped;
     private Integer weight;
     private BigDecimal score;
     private String actualValue;
