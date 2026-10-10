@@ -142,6 +142,39 @@ class UserImportServiceTest {
     }
 
     @Test
+    void uppercaseUsername_normalizedToLowercaseEverywhere() {
+        stubSession();
+        Mockito.when(ops.findRealmRole("ROLE_STUDENT"))
+                .thenReturn(Mono.just(Map.of("id", "s", "name", "ROLE_STUDENT")));
+        Mockito.when(ops.findUserId(Mockito.anyString())).thenReturn(Mono.empty());
+        Mockito.when(ops.createUser(Mockito.anyString(), Mockito.anyString(),
+                        Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(Mono.just("new-id"));
+        Mockito.when(ops.setTemporaryPassword(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(Mono.just(Boolean.TRUE));
+        Mockito.when(ops.assignRealmRoles(Mockito.anyString(), Mockito.any()))
+                .thenReturn(Mono.empty());
+        String csv = String.join("\n",
+                "username,fullName,email,role",
+                "B22DCCN099,Nguyen Van Bay,b22dccn099@ptit.edu.vn,");
+
+        StepVerifier.create(service.importUsers(filePart(csv)))
+                .assertNext(summary -> assertThat(summary.failed()).isEmpty())
+                .verifyComplete();
+
+        // Keycloak stores the user lowercased: lookup, creation and the
+        // initial password must all use the normalized form, or the password
+        // (verbatim) stops matching the stored username.
+        Mockito.verify(ops).findUserId("b22dccn099");
+        Mockito.verify(ops).createUser(Mockito.eq("b22dccn099"), Mockito.anyString(),
+                Mockito.anyString(), Mockito.anyString());
+        org.mockito.ArgumentCaptor<String> passwordCaptor =
+                org.mockito.ArgumentCaptor.forClass(String.class);
+        Mockito.verify(ops).setTemporaryPassword(Mockito.eq("new-id"), passwordCaptor.capture());
+        assertThat(passwordCaptor.getValue()).isEqualTo("b22dccn099");
+    }
+
+    @Test
     void blankRole_defaultsToStudent() {
         assertThat(UserImportService.normalizeRole("")).isEqualTo("STUDENT");
         assertThat(UserImportService.normalizeRole("  role_lecturer ")).isEqualTo("LECTURER");
@@ -189,10 +222,10 @@ class UserImportServiceTest {
                 org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<String> lastCaptor =
                 org.mockito.ArgumentCaptor.forClass(String.class);
-        Mockito.verify(ops).createUser(Mockito.eq("B22DCCN012"), Mockito.anyString(),
+        Mockito.verify(ops).createUser(Mockito.eq("b22dccn012"), Mockito.anyString(),
                 firstCaptor.capture(), lastCaptor.capture());
-        assertThat(firstCaptor.getValue()).isEqualTo("B22DCCN012");
-        assertThat(lastCaptor.getValue()).isEqualTo("B22DCCN012");
+        assertThat(firstCaptor.getValue()).isEqualTo("b22dccn012");
+        assertThat(lastCaptor.getValue()).isEqualTo("b22dccn012");
     }
 
     @Test
