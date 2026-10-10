@@ -29,4 +29,6 @@ public class SubmissionResponse {
     private String status;
     private Boolean latest;
     private OffsetDateTime createdAt;
+    /** Null = whole-assignment submission; set when the student picked one plan. */
+    private UUID planId;
 }

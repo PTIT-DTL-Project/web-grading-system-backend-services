@@ -196,11 +196,13 @@ class AssignmentGradingServiceTest {
     @Test
     void submissions_forwardsTheRowsUnchangedOnceTheOwnerCheckPasses() {
         ownerExistsOnMyClass();
+        UUID planId = UUID.randomUUID();
         SubmissionResponse row = SubmissionResponse.builder()
                 .id(UUID.randomUUID())
                 .assignmentId(ASSIGNMENT_ID)
                 .studentId(STUDENT)
                 .status("UPLOADED")
+                .planId(planId)
                 .build();
         when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID)).thenReturn(List.of(row));
 
@@ -208,5 +210,7 @@ class AssignmentGradingServiceTest {
 
         assertEquals(1, out.size());
         assertEquals(row.getId(), out.get(0).getId());
+        // Mirror contract: planId survives the pass-through (null = whole run).
+        assertEquals(planId, out.get(0).getPlanId());
     }
 }
