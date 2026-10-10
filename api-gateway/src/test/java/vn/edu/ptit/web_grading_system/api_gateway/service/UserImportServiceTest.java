@@ -62,7 +62,8 @@ class UserImportServiceTest {
                 .thenReturn(Mono.just("existing-id"));
         Mockito.when(ops.findUserId("taken@ptit.edu.vn"))
                 .thenReturn(Mono.just("other-id"));
-        Mockito.when(ops.createUser(Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
+        Mockito.when(ops.createUser(Mockito.anyString(), Mockito.anyString(),
+                        Mockito.anyString(), Mockito.anyString()))
                 .thenReturn(Mono.just("new-id"));
         Mockito.when(ops.setTemporaryPassword(Mockito.anyString(), Mockito.anyString()))
                 .thenReturn(Mono.just(Boolean.TRUE));
@@ -93,7 +94,18 @@ class UserImportServiceTest {
         Mockito.verify(ops, Mockito.times(1)).findRealmRole("ROLE_LECTURER");
         // The duplicate-username row short-circuits before creation.
         Mockito.verify(ops, Mockito.never()).createUser(
-                Mockito.eq("B22DCCN001"), Mockito.anyString(), Mockito.anyString());
+                Mockito.eq("B22DCCN001"), Mockito.anyString(), Mockito.anyString(),
+                Mockito.anyString());
+        // The created lecturer row splits the Vietnamese name: family name
+        // first token → lastName, rest → firstName.
+        org.mockito.ArgumentCaptor<String> firstCaptor =
+                org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<String> lastCaptor =
+                org.mockito.ArgumentCaptor.forClass(String.class);
+        Mockito.verify(ops).createUser(Mockito.eq("gv001"), Mockito.anyString(),
+                firstCaptor.capture(), lastCaptor.capture());
+        assertThat(firstCaptor.getValue()).isEqualTo("Vien");
+        assertThat(lastCaptor.getValue()).isEqualTo("Giang");
         // Exactly one bulk session per import.
         Mockito.verify(keycloak, Mockito.times(1)).bulk();
     }
@@ -104,7 +116,8 @@ class UserImportServiceTest {
         Mockito.when(ops.findRealmRole("ROLE_STUDENT"))
                 .thenReturn(Mono.just(Map.of("id", "s", "name", "ROLE_STUDENT")));
         Mockito.when(ops.findUserId(Mockito.anyString())).thenReturn(Mono.empty());
-        Mockito.when(ops.createUser(Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
+        Mockito.when(ops.createUser(Mockito.anyString(), Mockito.anyString(),
+                        Mockito.anyString(), Mockito.anyString()))
                 .thenReturn(Mono.just("new-id"));
         Mockito.when(ops.setTemporaryPassword(Mockito.anyString(), Mockito.anyString()))
                 .thenReturn(Mono.just(Boolean.TRUE));
@@ -133,6 +146,50 @@ class UserImportServiceTest {
         assertThat(UserImportService.normalizeRole("")).isEqualTo("STUDENT");
         assertThat(UserImportService.normalizeRole("  role_lecturer ")).isEqualTo("LECTURER");
         assertThat(UserImportService.normalizeRole("ADMIN")).isNull();
+    }
+
+    @Test
+    void splitName_vietnameseFamilyNameFirst() {
+        assertThat(UserImportService.splitName("Nguyen Van An"))
+                .isEqualTo(new String[] {"Van An", "Nguyen"});
+        assertThat(UserImportService.splitName("  Tran   Binh  "))
+                .isEqualTo(new String[] {"Binh", "Tran"});
+        assertThat(UserImportService.splitName("An"))
+                .isEqualTo(new String[] {"An", "An"});
+        assertThat(UserImportService.splitName("   "))
+                .isEqualTo(new String[] {"", ""});
+        assertThat(UserImportService.splitName(null))
+                .isEqualTo(new String[] {"", ""});
+    }
+
+    @Test
+    void blankFullName_fallsBackToUsernameForLastName() {
+        stubSession();
+        Mockito.when(ops.findRealmRole("ROLE_STUDENT"))
+                .thenReturn(Mono.just(Map.of("id", "s", "name", "ROLE_STUDENT")));
+        Mockito.when(ops.findUserId(Mockito.anyString())).thenReturn(Mono.empty());
+        Mockito.when(ops.createUser(Mockito.anyString(), Mockito.anyString(),
+                        Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(Mono.just("new-id"));
+        Mockito.when(ops.setTemporaryPassword(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(Mono.just(Boolean.TRUE));
+        Mockito.when(ops.assignRealmRoles(Mockito.anyString(), Mockito.any()))
+                .thenReturn(Mono.empty());
+        // The row is created (not rejected): lastName falls back to the
+        // username so the realm's required-lastName profile is satisfied.
+        String csv = String.join("\n",
+                "username,fullName,email,role",
+                "B22DCCN012,,c@ptit.edu.vn,");
+
+        StepVerifier.create(service.importUsers(filePart(csv)))
+                .assertNext(summary -> assertThat(summary.failed()).isEmpty())
+                .verifyComplete();
+
+        org.mockito.ArgumentCaptor<String> lastCaptor =
+                org.mockito.ArgumentCaptor.forClass(String.class);
+        Mockito.verify(ops).createUser(Mockito.eq("B22DCCN012"), Mockito.anyString(),
+                Mockito.anyString(), lastCaptor.capture());
+        assertThat(lastCaptor.getValue()).isEqualTo("B22DCCN012");
     }
 
     @Test

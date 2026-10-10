@@ -67,14 +67,18 @@ public interface KeycloakAdminClient {
 
     /**
      * Creates a user with an explicit {@code UPDATE_PASSWORD} required action so the
-     * first login forces a password change (bulk account import).
+     * first login forces a password change (bulk account import). {@code lastName}
+     * is sent because the realm's user profile requires it — without it every
+     * fresh account stalls on the update-profile wall after login.
+     *
+     * <p>Review: 2026-10-10, missing-lastName login wall.
      *
      * @return the new user id parsed from the {@code 201 Location} header
      * @throws CreateUserException on any non-201 answer, carrying the status so
      *         the caller can tell duplicates/races ({@code 409}) and invalid
      *         input ({@code 400}) apart from provider failures
      */
-    Mono<String> createUser(String username, String email, String firstName);
+    Mono<String> createUser(String username, String email, String firstName, String lastName);
 
     /**
      * Same wire call as {@link #resetPassword}, but {@code temporary: true} — Keycloak
@@ -116,7 +120,7 @@ public interface KeycloakAdminClient {
 
         Mono<String> findUserId(String username);
 
-        Mono<String> createUser(String username, String email, String firstName);
+        Mono<String> createUser(String username, String email, String firstName, String lastName);
 
         Mono<Boolean> setTemporaryPassword(String userId, String newPassword);
 

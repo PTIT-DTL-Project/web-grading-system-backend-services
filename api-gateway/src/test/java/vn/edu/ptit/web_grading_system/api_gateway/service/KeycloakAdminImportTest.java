@@ -75,7 +75,7 @@ class KeycloakAdminImportTest {
                         ? respond(HttpStatus.OK, ADMIN_TOKEN_RESPONSE)
                         : created(USERS_URL + "/new-user-id"));
 
-        StepVerifier.create(client.createUser("B22DCCN001", "a@ptit.edu.vn", "Nguyen Van A"))
+        StepVerifier.create(client.createUser("B22DCCN001", "a@ptit.edu.vn", "Van An", "Nguyen"))
                 .expectNext("new-user-id")
                 .verifyComplete();
 
@@ -83,6 +83,8 @@ class KeycloakAdminImportTest {
         assertThat(lastRequest.url().toString()).isEqualTo(USERS_URL);
         assertThat(lastBody)
                 .contains("\"username\":\"B22DCCN001\"")
+                .contains("\"firstName\":\"Van An\"")
+                .contains("\"lastName\":\"Nguyen\"")
                 .contains("\"UPDATE_PASSWORD\"");
     }
 
@@ -93,7 +95,7 @@ class KeycloakAdminImportTest {
                         ? respond(HttpStatus.OK, ADMIN_TOKEN_RESPONSE)
                         : respond(HttpStatus.CONFLICT, "{\"error\":\"User exists\"}"));
 
-        StepVerifier.create(client.createUser("taken", "t@ptit.edu.vn", "Taken User"))
+        StepVerifier.create(client.createUser("taken", "t@ptit.edu.vn", "User", "Taken"))
                 .verifyErrorMatches(error -> error instanceof CreateUserException
                         && ((CreateUserException) error).status() == 409);
     }
