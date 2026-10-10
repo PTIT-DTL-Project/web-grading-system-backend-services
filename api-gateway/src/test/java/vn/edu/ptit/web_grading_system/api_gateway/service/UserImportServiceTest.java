@@ -163,7 +163,7 @@ class UserImportServiceTest {
     }
 
     @Test
-    void blankFullName_fallsBackToUsernameForLastName() {
+    void blankFullName_fallsBackToUsernameForBothNames() {
         stubSession();
         Mockito.when(ops.findRealmRole("ROLE_STUDENT"))
                 .thenReturn(Mono.just(Map.of("id", "s", "name", "ROLE_STUDENT")));
@@ -175,8 +175,8 @@ class UserImportServiceTest {
                 .thenReturn(Mono.just(Boolean.TRUE));
         Mockito.when(ops.assignRealmRoles(Mockito.anyString(), Mockito.any()))
                 .thenReturn(Mono.empty());
-        // The row is created (not rejected): lastName falls back to the
-        // username so the realm's required-lastName profile is satisfied.
+        // The row is created (not rejected): both names fall back to the
+        // username so the realm's required-first/lastName profile is satisfied.
         String csv = String.join("\n",
                 "username,fullName,email,role",
                 "B22DCCN012,,c@ptit.edu.vn,");
@@ -185,10 +185,13 @@ class UserImportServiceTest {
                 .assertNext(summary -> assertThat(summary.failed()).isEmpty())
                 .verifyComplete();
 
+        org.mockito.ArgumentCaptor<String> firstCaptor =
+                org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<String> lastCaptor =
                 org.mockito.ArgumentCaptor.forClass(String.class);
         Mockito.verify(ops).createUser(Mockito.eq("B22DCCN012"), Mockito.anyString(),
-                Mockito.anyString(), lastCaptor.capture());
+                firstCaptor.capture(), lastCaptor.capture());
+        assertThat(firstCaptor.getValue()).isEqualTo("B22DCCN012");
         assertThat(lastCaptor.getValue()).isEqualTo("B22DCCN012");
     }
 

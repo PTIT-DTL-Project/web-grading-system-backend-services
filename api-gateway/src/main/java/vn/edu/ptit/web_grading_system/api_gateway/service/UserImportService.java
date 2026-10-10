@@ -192,13 +192,16 @@ public class UserImportService {
 
     private Mono<RowResult> createAndProvision(KeycloakAdminClient.BulkOperations admin, int line,
             String username, String fullName, String email, String role, Map<String, String> roleRep) {
-        // The realm's user profile requires a non-blank lastName; a blank
-        // fullName falls back to the username (always non-blank here) rather
-        // than rejecting the row — the name is cosmetic, the account is not.
-        // Review: 2026-10-10, missing-lastName login wall.
+        // The realm's user profile requires non-blank firstName AND lastName;
+        // a blank fullName falls back to the username for both (always
+        // non-blank here) rather than rejecting the row — the name is
+        // cosmetic, the account is not.
+        // Review: 2026-10-10, missing-lastName login wall; Pullfrog: firstName
+        // needs the same fallback, the wall demands all required fields.
         String[] names = splitName(fullName);
+        String firstName = StringUtils.hasText(names[0]) ? names[0] : username;
         String lastName = StringUtils.hasText(names[1]) ? names[1] : username;
-        return admin.createUser(username, email, names[0], lastName)
+        return admin.createUser(username, email, firstName, lastName)
                 .flatMap(userId -> admin.setTemporaryPassword(userId, username)
                         .flatMap(applied -> {
                             if (!applied) {
@@ -224,8 +227,8 @@ public class UserImportService {
      * Splits a Vietnamese full name into {@code [firstName, lastName]}: the
      * first token is the family name ({@code lastName}), the rest is the given
      * name ({@code firstName}). A single token fills both (still non-blank);
-     * blank fills neither — the caller falls back to the username for
-     * {@code lastName}, which the realm profile requires.
+     * blank fills neither — the caller falls back to the username for both,
+     * which the realm profile requires non-blank.
      *
      * <p>Review: 2026-10-10, missing-lastName login wall.
      */
