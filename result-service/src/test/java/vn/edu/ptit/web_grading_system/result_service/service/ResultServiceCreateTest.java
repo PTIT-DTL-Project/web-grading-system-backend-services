@@ -5,6 +5,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import vn.edu.ptit.web_grading_system.result_service.dto.request.CreateResultRequest;
 import vn.edu.ptit.web_grading_system.result_service.entity.Result;
+import vn.edu.ptit.web_grading_system.result_service.entity.ResultScope;
 import vn.edu.ptit.web_grading_system.result_service.entity.ResultStatus;
 import vn.edu.ptit.web_grading_system.result_service.entity.StepResult;
 import vn.edu.ptit.web_grading_system.result_service.repository.ResultRepository;
@@ -28,12 +29,14 @@ class ResultServiceCreateTest {
     private Fixture fixture() {
         ResultRepository results = Mockito.mock(ResultRepository.class);
         StepResultRepository steps = Mockito.mock(StepResultRepository.class);
+        vn.edu.ptit.web_grading_system.result_service.client.CourseServicePlansClient plans =
+                Mockito.mock(vn.edu.ptit.web_grading_system.result_service.client.CourseServicePlansClient.class);
         Mockito.when(results.save(Mockito.any())).thenAnswer(inv -> {
             Result r = inv.getArgument(0);
             r.setId(UUID.randomUUID());
             return r;
         });
-        return new Fixture(new ResultService(results, steps), results, steps);
+        return new Fixture(new ResultService(results, steps, plans), results, steps);
     }
 
     private CreateResultRequest request(UUID planId) {
@@ -80,10 +83,62 @@ class ResultServiceCreateTest {
         assertFalse(id == null);
         Mockito.verify(f.steps(), Mockito.times(1)).save(Mockito.any(StepResult.class));
 
-        // null planId queries the IS NULL variant
-        f.service().createResult(request(null));
-        Mockito.verify(f.results()).findByStudentIdAndAssignmentIdAndPlanIdIsNullAndLatestTrue(
+        // A null planId is a FULL run: stamps FULL scope and demotes every
+        // latest row of the assignment, not just the null-plan scope.
+        UUID fullId = f.service().createResult(request(null));
+        Mockito.verify(f.results()).findByStudentIdAndAssignmentIdAndLatestTrue(
                 Mockito.any(), Mockito.any());
+        saved = ArgumentCaptor.forClass(Result.class);
+        Mockito.verify(f.results(), Mockito.times(2)).save(saved.capture());
+        assertEquals(ResultScope.FULL, saved.getValue().getScope());
+        assertFalse(fullId == null);
+    }
+
+    @Test
+    void createResult_planRun_scopesPlanAndDemotesSamePlanOnly() {
+        Fixture f = fixture();
+        UUID planA = UUID.randomUUID();
+        UUID id = f.service().createResult(request(planA));
+
+        ArgumentCaptor<Result> saved = ArgumentCaptor.forClass(Result.class);
+        Mockito.verify(f.results()).save(saved.capture());
+        assertEquals(ResultScope.PLAN, saved.getValue().getScope());
+        // Same-plan demotion only — the assignment-wide lookup is never used,
+        // so a sibling plan's latest row survives.
+        Mockito.verify(f.results(), Mockito.never()).findByStudentIdAndAssignmentIdAndLatestTrue(
+                Mockito.any(), Mockito.any());
+        assertFalse(id == null);
+    }
+
+    @Test
+    void createResult_fullRun_demotesMixedScopes() {
+        Fixture f = fixture();
+        Result perPlan = Result.builder().latest(true).build();
+        Result overall = Result.builder().latest(true).build();
+        Mockito.when(f.results().findByStudentIdAndAssignmentIdAndLatestTrue(
+                        Mockito.any(), Mockito.any()))
+                .thenReturn(List.of(perPlan, overall));
+
+        f.service().createResult(request(null));
+
+        // The 2026-10-10 regression: a stale per-plan 0 survived next to the
+        // new overall 10 and the average halved the score. Both go false.
+        assertFalse(perPlan.getLatest());
+        assertFalse(overall.getLatest());
+        Mockito.verify(f.results()).saveAll(Mockito.eq(List.of(perPlan, overall)));
+    }
+
+    @Test
+    void createResult_persistsSkippedFlag() {
+        Fixture f = fixture();
+        CreateResultRequest req = request(UUID.randomUUID());
+        req.getStepResults().get(0).setSkipped(true);
+
+        f.service().createResult(req);
+
+        ArgumentCaptor<StepResult> savedStep = ArgumentCaptor.forClass(StepResult.class);
+        Mockito.verify(f.steps()).save(savedStep.capture());
+        assertTrue(savedStep.getValue().getSkipped());
     }
 
     @Test

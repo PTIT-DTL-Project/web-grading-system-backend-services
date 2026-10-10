@@ -31,6 +31,10 @@ public class Result extends BaseEntity {
     @Column(name = "plan_id")
     private UUID planId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 8)
+    private ResultScope scope;
+
     @Column(name = "plan_weight")
     private Integer planWeight;
 

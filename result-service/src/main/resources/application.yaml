@@ -50,6 +50,11 @@ logging:
   pattern:
     level: "%5p [${spring.application.name:},%X{trace_id:-},%X{span_id:-}]"
 
+# Service-to-service endpoints (Feign) — env-overridable for local runs
+feign:
+  course-service:
+    url: ${COURSE_SERVICE_URI:http://grading-course-service:8081}
+
 # Pyroscope continuous profiling
 pyroscope:
   enabled: true
