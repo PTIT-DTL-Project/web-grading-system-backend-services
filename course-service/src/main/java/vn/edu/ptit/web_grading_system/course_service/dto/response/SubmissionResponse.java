@@ -14,7 +14,7 @@ import java.util.UUID;
  * straight through to the FE by course-service's lecturer grading view.
  *
  * <p>Mirrors {@code submission_service SubmissionResponse} field-for-field so the Feign
- * payload and the public response share one record.
+ * payload and the public response share one record, plus roster enrichment below.
  */
 @Data
 @Builder
@@ -31,4 +31,11 @@ public class SubmissionResponse {
     private OffsetDateTime createdAt;
     /** Null = whole-assignment submission; set when the student picked one plan. */
     private UUID planId;
+    /**
+     * Roster code/name enriched by course-service (submission-service only knows
+     * the Keycloak user id). Null when the student left the roster — the row is
+     * still returned, like the results view does.
+     */
+    private String studentCode;
+    private String studentName;
 }

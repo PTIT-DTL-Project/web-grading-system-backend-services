@@ -196,7 +196,10 @@ class AssignmentGradingServiceTest {
     @Test
     void submissions_forwardsTheRowsUnchangedOnceTheOwnerCheckPasses() {
         ownerExistsOnMyClass();
+        when(classStudentRepository.findAllByClassId(CLASS_ID))
+                .thenReturn(List.of(rostered("SV0001", "Nguyen Van A")));
         UUID planId = UUID.randomUUID();
+        UUID stranger = UUID.randomUUID();
         SubmissionResponse row = SubmissionResponse.builder()
                 .id(UUID.randomUUID())
                 .assignmentId(ASSIGNMENT_ID)
@@ -204,13 +207,25 @@ class AssignmentGradingServiceTest {
                 .status("UPLOADED")
                 .planId(planId)
                 .build();
-        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID)).thenReturn(List.of(row));
+        SubmissionResponse departed = SubmissionResponse.builder()
+                .id(UUID.randomUUID())
+                .assignmentId(ASSIGNMENT_ID)
+                .studentId(stranger)
+                .status("UPLOADED")
+                .build();
+        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID))
+                .thenReturn(List.of(row, departed));
 
         List<SubmissionResponse> out = service().submissions(ASSIGNMENT_ID, OWNER);
 
-        assertEquals(1, out.size());
+        assertEquals(2, out.size());
         assertEquals(row.getId(), out.get(0).getId());
         // Mirror contract: planId survives the pass-through (null = whole run).
         assertEquals(planId, out.get(0).getPlanId());
+        // Roster enrichment: code/name for members, nulls (row kept) for departed.
+        assertEquals("SV0001", out.get(0).getStudentCode());
+        assertEquals("Nguyen Van A", out.get(0).getStudentName());
+        assertNull(out.get(1).getStudentCode());
+        assertNull(out.get(1).getStudentName());
     }
 }
