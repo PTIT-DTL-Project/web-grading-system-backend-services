@@ -109,7 +109,20 @@ public class AssignmentGradingService {
 
     /** Submissions of one assignment — the list that used to sit behind a bare role check. */
     public List<SubmissionResponse> submissions(UUID assignmentId, UUID ownerId) {
-        requireOwnedAssignment(assignmentId, ownerId);
-        return submissionInternalClient.listByAssignment(assignmentId);
+        Assignment assignment = requireOwnedAssignment(assignmentId, ownerId);
+        // Roster read first, Feign second: same no-connection-across-HTTP rule as above.
+        Map<UUID, ClassStudent> roster = rosterByUserId(assignment.getClassId());
+        List<SubmissionResponse> rows = submissionInternalClient.listByAssignment(assignmentId);
+        // A submission whose student left the roster keeps null code/name — hiding
+        // the row would make the view look complete when it isn't (same rule as results).
+        for (SubmissionResponse row : rows) {
+            ClassStudent student = row.getStudentId() == null
+                    ? null : roster.get(row.getStudentId());
+            if (student != null) {
+                row.setStudentCode(student.getStudentCode());
+                row.setStudentName(student.getStudentName());
+            }
+        }
+        return rows;
     }
 }
