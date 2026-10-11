@@ -194,7 +194,7 @@ class AssignmentGradingServiceTest {
     }
 
     @Test
-    void submissions_forwardsTheRowsUnchangedOnceTheOwnerCheckPasses() {
+    void submissions_enrichesRosterCodeAndNameAndKeepsDepartedRows() {
         ownerExistsOnMyClass();
         when(classStudentRepository.findAllByClassId(CLASS_ID))
                 .thenReturn(List.of(rostered("SV0001", "Nguyen Van A")));
