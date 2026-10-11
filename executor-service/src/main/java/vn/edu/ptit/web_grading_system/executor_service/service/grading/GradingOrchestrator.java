@@ -54,8 +54,8 @@ import vn.edu.ptit.web_grading_system.executor_service.service.docker.DockerComp
 import vn.edu.ptit.web_grading_system.executor_service.service.docker.DockerImageGateway;
 import vn.edu.ptit.web_grading_system.executor_service.service.infra.ArtifactService;
 import vn.edu.ptit.web_grading_system.executor_service.service.infra.PortAllocator;
-import vn.edu.ptit.web_grading_system.executor_service.service.scoring.ScoreCalculator;
-import vn.edu.ptit.web_grading_system.executor_service.service.scoring.VariableContext;
+import vn.edu.ptit.web_grading_system.executor_service.service.scoring.EvidenceRedactor;
+import vn.edu.ptit.web_grading_system.executor_service.service.scoring.ScoreCalculator;import vn.edu.ptit.web_grading_system.executor_service.service.scoring.VariableContext;
 
 /**
  * Runs one grading job end to end: fetch config, download artifact, boot the
@@ -801,13 +801,87 @@ public class GradingOrchestrator
                 .skipped(skipped)
                 .weight(nz(step.getWeight(), 1))
                 .score(passed ? new BigDecimal(nz(step.getWeight(), 1)).setScale(2) : BigDecimal.ZERO.setScale(2))
-                .actualValue(passed && result != null ? (result.getResponseBody() == null ? null
-                        : result.getResponseBody().length() <= 20000
-                        ? result.getResponseBody() : result.getResponseBody().substring(0, 20000)) : null)
+                .actualValue(truncateForStudent(result == null ? null : result.getResponseBody()))
                 .expectedValue(step.getExpectedResult())
-                .errorMessage(errorMessage)
+                .errorMessage(errorMessage != null ? errorMessage
+                        : joinFailedVerdicts(result == null ? null : result.getAssertionResult()))
                 .durationMs(result != null ? result.getDurationMs() : null)
                 .build();
+    }
+
+    /**
+     * Response body for student evidence on every verdict (failed steps need it
+     * most). Overlong bodies are cut with an N/M marker so a cut body never
+     * reads as the full body. Secrets masked by {@code EvidenceRedactor}.
+     *
+     * <p>Review: 2026-10-10, phase A1 verbose logs.
+     */
+    private static String truncateForStudent(String body)
+    {
+        if (body == null)
+        {
+            return null;
+        }
+        String cut = body.length() <= 20000 ? body
+                : body.substring(0, 20000) + "...(truncated 20000/" + body.length() + ")";
+        return EvidenceRedactor.redact(cut);
+    }
+
+    /**
+     * Turns stored per-assertion verdicts into one readable line, e.g.
+     * {@code "status: expected 201, got 404; contains: expected ok, got err"}.
+     * Blank/unparseable input returns null so the summary's generic
+     * {@code "assertion failed"} fallback keeps working and one weird blob can
+     * never break a whole report.
+     *
+     * <p>Review: 2026-10-10, phase A1 verbose logs.
+     */
+    private String joinFailedVerdicts(String assertionJson)
+    {
+        if (assertionJson == null || assertionJson.isBlank())
+        {
+            return null;
+        }
+        try
+        {
+            JsonNode details = objectMapper.readTree(assertionJson);
+            if (!details.isArray())
+            {
+                return null;
+            }
+            List<String> failed = new ArrayList<>();
+            for (JsonNode d : details)
+            {
+                if (d.path("passed").asBoolean(false))
+                {
+                    continue;
+                }
+                String kind = d.path("kind").asString();
+                String expected = d.path("expected").asString();
+                String actual = d.path("actual").asString();
+                String message = d.path("message").asString();
+                if (!kind.isEmpty() && (!expected.isEmpty() || !actual.isEmpty()))
+                {
+                    failed.add(kind + ": expected " + expected + ", got " + actual);
+                }
+                else if (!message.isEmpty())
+                {
+                    failed.add(message);
+                }
+            }
+            if (failed.isEmpty())
+            {
+                return null;
+            }
+            String joined = failed.size() <= 5 ? String.join("; ", failed)
+                    : String.join("; ", failed.subList(0, 5))
+                            + "; …(" + (failed.size() - 5) + " more)";
+            return EvidenceRedactor.redact(joined);
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
     }
 
     private String buildSummary(List<ScoreCalculator.StepScore> outcomes,

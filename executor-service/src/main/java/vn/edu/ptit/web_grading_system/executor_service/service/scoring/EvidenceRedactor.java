@@ -1,0 +1,105 @@
+package vn.edu.ptit.web_grading_system.executor_service.service.scoring;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.regex.Pattern;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+
+/**
+ * Central evidence redactor for everything grading evidence sends toward
+ * students (and later the chatbot): response/request bodies, verdict text,
+ * extracted vars. One function, applied at every output path, fail-closed.
+ *
+ * <p>Rules: JSON-aware recursive key masking when parseable (byte-identical
+ * passthrough when clean); regex sweep for token shapes on any text; any
+ * internal failure returns {@code "***"} — loud, never leaking, never silent.
+ *
+ * <p>Review: 2026-10-10, phase A4 sanitize.
+ */
+public final class EvidenceRedactor {
+
+    private EvidenceRedactor() {
+    }
+
+    // Exact key match (lowercased, camelCase flattened by lowercasing):
+    // substring matching over-masks legit fields ("tokens"). Free-text shapes
+    // (Bearer, key=value, JDBC) are covered by the sweep below instead.
+    private static final java.util.Set<String> SECRET_KEYS = java.util.Set.of(
+            "password", "passwd", "pwd", "authorization", "secret", "token",
+            "api_key", "apikey", "api-key", "access_token", "accesstoken",
+            "access-token", "client_secret", "clientsecret",
+            "auth_token", "authtoken", "auth-token", "refresh_token", "refreshtoken",
+            "id_token", "idtoken", "private_key", "privatekey");
+
+    private static final Pattern BEARER_BASIC =
+            Pattern.compile("\\b(Bearer|Basic)\\s+[A-Za-z0-9\\-._~+/=]+");
+    private static final Pattern KEY_VALUE =
+            Pattern.compile("(?i)(password|passwd|secret|token)\\s*[:=]\\s*\\S+");
+    // User kept, password masked: matches up to the LAST @ before a slash, so
+    // passwords containing @ are still fully covered (best-effort; a password
+    // containing / is out of reach and documented in the phase doc).
+    private static final Pattern JDBC_CREDENTIALS =
+            Pattern.compile("(://[^:/\\s]+:)[^/\\s]*(@)");
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    public static String redact(String input) {
+        if (input == null) {
+            return null;
+        }
+        try {
+            return redactJsonAware(input);
+        } catch (Throwable t) {
+            return "***";
+        }
+    }
+
+    private static String redactJsonAware(String input) {
+        JsonNode tree;
+        try {
+            tree = MAPPER.readTree(input);
+        } catch (Exception e) {
+            return sweep(input);
+        }
+        boolean[] dirty = new boolean[1];
+        maskNode(tree, dirty);
+        String out = dirty[0] ? MAPPER.writeValueAsString(tree) : input;
+        return sweep(out);
+    }
+
+    private static void maskNode(JsonNode node, boolean[] dirty) {
+        if (node instanceof ObjectNode obj) {
+            // Jackson 3: snapshot first — mutating via set() while iterating
+            // the live properties() view throws.
+            var entries = new ArrayList<>(obj.properties());
+            for (var entry : entries) {
+                String lower = entry.getKey().toLowerCase(Locale.ROOT);
+                if (SECRET_KEYS.contains(lower)) {
+                    obj.set(entry.getKey(), MAPPER.getNodeFactory().textNode("***"));
+                    dirty[0] = true;
+                } else {
+                    maskNode(entry.getValue(), dirty);
+                }
+            }
+        } else if (node instanceof ArrayNode arr) {
+            for (int i = 0; i < arr.size(); i++) {
+                JsonNode child = arr.get(i);
+                if (child.isObject() || child.isArray()) {
+                    maskNode(child, dirty);
+                }
+            }
+        }
+    }
+
+    private static String sweep(String text) {
+        String out = BEARER_BASIC.matcher(text).replaceAll("$1 ***");
+        out = KEY_VALUE.matcher(out).replaceAll("$1=***");
+        out = JDBC_CREDENTIALS.matcher(out).replaceAll("$1***$2");
+        return out;
+    }
+}
