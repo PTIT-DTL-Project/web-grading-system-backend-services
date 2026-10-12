@@ -1,7 +1,6 @@
 package vn.edu.ptit.web_grading_system.executor_service.service.scoring;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -16,10 +15,14 @@ import tools.jackson.databind.node.ObjectNode;
  * extracted vars. One function, applied at every output path, fail-closed.
  *
  * <p>Rules: JSON-aware recursive key masking when parseable (byte-identical
- * passthrough when clean); regex sweep for token shapes on any text; any
- * internal failure returns {@code "***"} — loud, never leaking, never silent.
+ * passthrough when clean); descent continues into string values that are
+ * themselves JSON (escaped verdict bodies), because the regex sweep cannot see
+ * through escaping; regex sweep for token shapes on any text; any internal
+ * failure returns {@code "***"} — loud, never leaking, never silent.
+ * No depth cap: nesting follows the finite input, and pathological depth
+ * fail-closes via the catch-all.
  *
- * <p>Review: 2026-10-10, phase A4 sanitize.
+ * <p>Review: 2026-10-10, phase A4 sanitize; Pullfrog nested-string descent.
  */
 public final class EvidenceRedactor {
 
@@ -89,7 +92,13 @@ public final class EvidenceRedactor {
                     obj.set(entry.getKey(), MAPPER.getNodeFactory().textNode("***"));
                     dirty[0] = true;
                 } else {
-                    maskNode(entry.getValue(), dirty);
+                    String masked = maskNestedString(entry.getValue());
+                    if (masked != null) {
+                        obj.set(entry.getKey(), MAPPER.getNodeFactory().textNode(masked));
+                        dirty[0] = true;
+                    } else {
+                        maskNode(entry.getValue(), dirty);
+                    }
                 }
             }
         } else if (node instanceof ArrayNode arr) {
@@ -97,8 +106,50 @@ public final class EvidenceRedactor {
                 JsonNode child = arr.get(i);
                 if (child.isObject() || child.isArray()) {
                     maskNode(child, dirty);
+                } else {
+                    String masked = maskNestedString(child);
+                    if (masked != null) {
+                        arr.set(i, MAPPER.getNodeFactory().textNode(masked));
+                        dirty[0] = true;
+                    }
                 }
             }
+        }
+    }
+
+    /**
+     * Redacts a string value that is itself JSON (e.g. an escaped verdict body
+     * inside an assertion array — the regex sweep cannot see through escaping).
+     * Returns the redacted JSON string when masking changed anything, else null
+     * (caller keeps the original bytes verbatim).
+     */
+    private static String maskNestedString(JsonNode node) {
+        if (node == null || !node.isTextual()) {
+            return null;
+        }
+        String value = node.asString();
+        String trimmed = value.trim();
+        if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) {
+            return null;
+        }
+        JsonNode inner;
+        try {
+            inner = MAPPER.readTree(value);
+        } catch (Exception e) {
+            return null;
+        }
+        if (!inner.isObject() && !inner.isArray()) {
+            return null;
+        }
+        boolean[] dirty = new boolean[1];
+        maskNode(inner, dirty);
+        if (!dirty[0]) {
+            return null;
+        }
+        try {
+            return MAPPER.writeValueAsString(inner);
+        } catch (Exception e) {
+            return null;
         }
     }
 

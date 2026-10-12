@@ -78,4 +78,42 @@ class EvidenceRedactorTest {
         assertTrue(out.contains("Bearer ***"));
         assertFalse(out.contains("abc123"));
     }
+
+    @Test
+    void nestedJsonStringDescends() {
+        // Pullfrog probe: escaped JSON inside a verdict array — the sweep
+        // cannot see through escaping, so the walk must descend.
+        String out = EvidenceRedactor.redact(
+                "[{\"kind\":\"contains\",\"actual\":\"{\\\"access_token\\\":"
+                        + "\\\"SUPERSECRET2\\\",\\\"client_secret\\\":\\\"CSECRET\\\"}\","
+                        + "\"passed\":false}]");
+
+        assertTrue(out.contains("\\\"access_token\\\":\\\"***\\\""));
+        assertTrue(out.contains("\\\"client_secret\\\":\\\"***\\\""));
+        assertFalse(out.contains("SUPERSECRET2"));
+        assertFalse(out.contains("CSECRET"));
+    }
+
+    @Test
+    void deepNestingMasksWithoutDepthCap() throws Exception {
+        tools.jackson.databind.ObjectMapper om = new tools.jackson.databind.ObjectMapper();
+        String level = om.writeValueAsString(java.util.Map.of("token", "deep"));
+        for (int i = 0; i < 4; i++) {
+            level = om.writeValueAsString(java.util.Map.of("n", level));
+        }
+
+        String out = EvidenceRedactor.redact(level);
+
+        assertFalse(out.contains("deep"));
+        // Escaping compounds per ancestor level, so assert the mask marker
+        // rather than an exact escaped shape.
+        assertTrue(out.contains("***"));
+    }
+
+    @Test
+    void cleanNestedJsonStringByteIdentical() {
+        String clean = "{\"outer\":\"{\\\"id\\\":42}\"}";
+
+        assertEquals(clean, EvidenceRedactor.redact(clean));
+    }
 }
