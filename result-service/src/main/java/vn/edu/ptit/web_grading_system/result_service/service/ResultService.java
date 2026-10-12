@@ -300,6 +300,11 @@ public class ResultService {
                 .expectedValue(step.getExpectedValue())
                 .errorMessage(step.getErrorMessage())
                 .durationMs(step.getDurationMs())
+                .assertionDetails(step.getAssertionDetails())
+                .extractedVars(step.getExtractedVars())
+                .requestUrl(step.getRequestUrl())
+                .requestBody(step.getRequestBody())
+                .responseStatus(step.getResponseStatus())
                 .build();
     }
 
@@ -379,6 +384,15 @@ public class ResultService {
                         .expectedValue(item.getExpectedValue())
                         .errorMessage(item.getErrorMessage())
                         .durationMs(item.getDurationMs())
+                        // Review: 2026-10-11, phase A2 — the 5 evidence fields
+                        // arrive already redacted: the executor's stepItem is
+                        // the trust boundary (separate Maven projects, so the
+                        // redactor class itself cannot be shared — see A4 doc).
+                        .assertionDetails(item.getAssertionDetails())
+                        .extractedVars(item.getExtractedVars())
+                        .requestUrl(item.getRequestUrl())
+                        .requestBody(item.getRequestBody())
+                        .responseStatus(item.getResponseStatus())
                         .build());
             }
         }

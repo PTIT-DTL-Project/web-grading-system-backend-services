@@ -474,6 +474,28 @@ class GradingOrchestratorTest {
     }
 
     @Test
+    void stepItem_carriesEvidenceFields() throws Exception {
+        GradingStepResult result = GradingStepResult.builder()
+                .responseBody("{}")
+                .assertionResult("[{\"kind\":\"status\",\"passed\":true}]")
+                .extractedVariables("{\"bookId\":\"42\"}")
+                .requestUrl("http://localhost:8080/api/books")
+                .requestBody("{\"title\":\"t\"}")
+                .actualStatusCode(201)
+                .durationMs(12)
+                .build();
+
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), result, true, false, null);
+
+        assertEquals("[{\"kind\":\"status\",\"passed\":true}]", item.getAssertionDetails());
+        assertEquals("{\"bookId\":\"42\"}", item.getExtractedVars());
+        assertEquals("http://localhost:8080/api/books", item.getRequestUrl());
+        assertEquals("{\"title\":\"t\"}", item.getRequestBody());
+        assertEquals(201, item.getResponseStatus());
+    }
+
+    @Test
     void stepItem_masksJsonKeysInsideVerdictActual() throws Exception {
         // Pullfrog probe verbatim: JSON keys must mask even though the joined
         // line itself is not JSON (regex-only sweep misses them).
@@ -487,6 +509,39 @@ class GradingOrchestratorTest {
         assertTrue(item.getErrorMessage().contains("\"client_secret\":\"***\""));
         assertFalse(item.getErrorMessage().contains("SUPERSECRET2"));
         assertFalse(item.getErrorMessage().contains("CSECRET"));
+    }
+
+    @Test
+    void stepItem_masksSecretsInRequestUrl() throws Exception {
+        GradingStepResult result = GradingStepResult.builder()
+                .responseBody("{}")
+                .requestUrl("http://localhost:8080/api/books?token=abc123&x=1")
+                .durationMs(12)
+                .build();
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), result, true, false, null);
+
+        assertTrue(item.getRequestUrl().contains("token=***"));
+        assertTrue(item.getRequestUrl().contains("x=1"));
+        assertFalse(item.getRequestUrl().contains("abc123"));
+    }
+
+    @Test
+    void stepItem_capsLongAssertionDetails() throws Exception {
+        // A contains-verdict embedding a large body would otherwise bloat the
+        // TEXT row and API payload unbounded (Pullfrog).
+        String bigDetails = "[{\"kind\":\"contains\",\"passed\":false,\"actual\":\""
+                + "z".repeat(25000) + "\"}]";
+        GradingStepResult result = GradingStepResult.builder()
+                .responseBody("{}")
+                .assertionResult(bigDetails)
+                .durationMs(12)
+                .build();
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), result, false, false, null);
+
+        assertTrue(item.getAssertionDetails().contains("...(truncated 20000/"));
+        assertTrue(item.getAssertionDetails().length() < 21000);
     }
 
     @Test

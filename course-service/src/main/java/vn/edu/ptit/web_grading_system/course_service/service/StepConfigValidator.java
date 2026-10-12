@@ -43,8 +43,10 @@ public final class StepConfigValidator {
             case DB_QUERY -> validateDbQuery(config);
             case DB_SCHEMA_CHECK -> validateSchemaCheck(config);
             case DB_MIGRATION -> validateMigration(config);
-            case EXTRACT -> validateExtract(config);
-            case DELAY -> validateDelay(config);
+            case EXTRACT -> throw new IllegalArgumentException(
+                    "standalone EXTRACT steps are not runnable; use the HTTP step's extract[] instead");
+            case DELAY -> throw new IllegalArgumentException(
+                    "standalone DELAY steps are not supported");
         }
         try {
             return MAPPER.writeValueAsString(config);
@@ -207,27 +209,6 @@ public final class StepConfigValidator {
         }
     }
 
-    private static void validateExtract(JsonNode c) {
-        JsonNode variables = c.get("variables");
-        if (variables == null || !variables.isArray() || variables.isEmpty()) {
-            throw new IllegalArgumentException("EXTRACT: 'variables' must be a non-empty array");
-        }
-        for (JsonNode v : variables) {
-            requireText(v, "name", "EXTRACT.variables");
-            boolean hasValue = v.hasNonNull("value");
-            boolean hasFrom = v.hasNonNull("from") && StringUtils.hasText(v.get("from").asString());
-            boolean hasExpr = v.hasNonNull("expression") && StringUtils.hasText(v.get("expression").asString());
-            if (!hasValue && !(hasFrom && hasExpr)) {
-                throw new IllegalArgumentException(
-                        "EXTRACT.variables['" + v.get("name").asString() + "']: needs 'value' or ('from' + 'expression')");
-            }
-        }
-    }
-
-    private static void validateDelay(JsonNode c) {
-        JsonNode d = c.get("duration_ms");
-        if (d == null || !d.canConvertToInt() || d.asInt() <= 0) {
-            throw new IllegalArgumentException("DELAY: duration_ms must be a positive integer");
-        }
-    }
+    // Review: 2026-10-11, phase A3 — validateExtract/validateDelay removed:
+    // standalone EXTRACT/DELAY steps have no executor and are rejected above.
 }

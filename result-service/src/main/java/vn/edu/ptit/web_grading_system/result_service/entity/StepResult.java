@@ -65,4 +65,20 @@ public class StepResult extends BaseEntity {
 
     @Column(name = "duration_ms")
     private Integer durationMs;
+
+    // Review: 2026-10-11, phase A2 verbose evidence (V7; NULL = not captured).
+    @Column(name = "assertion_details", columnDefinition = "text")
+    private String assertionDetails;
+
+    @Column(name = "extracted_vars", columnDefinition = "text")
+    private String extractedVars;
+
+    @Column(name = "request_url", columnDefinition = "text")
+    private String requestUrl;
+
+    @Column(name = "request_body", columnDefinition = "text")
+    private String requestBody;
+
+    @Column(name = "response_status")
+    private Integer responseStatus;
 }

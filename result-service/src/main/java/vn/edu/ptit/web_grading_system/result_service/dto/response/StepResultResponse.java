@@ -27,4 +27,10 @@ public class StepResultResponse {
     private String expectedValue;
     private String errorMessage;
     private Integer durationMs;
+    // Review: 2026-10-11, phase A2 verbose evidence (NULL = not captured).
+    private String assertionDetails;
+    private String extractedVars;
+    private String requestUrl;
+    private String requestBody;
+    private Integer responseStatus;
 }

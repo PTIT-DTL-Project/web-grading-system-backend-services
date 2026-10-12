@@ -142,6 +142,29 @@ class ResultServiceCreateTest {
     }
 
     @Test
+    void createResult_persistsEvidenceFields() {
+        Fixture f = fixture();
+        CreateResultRequest req = request(UUID.randomUUID());
+        CreateResultRequest.StepResultItem item = req.getStepResults().get(0);
+        item.setAssertionDetails("[{\"kind\":\"status\",\"passed\":true}]");
+        item.setExtractedVars("{\"bookId\":\"42\"}");
+        item.setRequestUrl("http://localhost:8080/api/books");
+        item.setRequestBody("{\"title\":\"t\"}");
+        item.setResponseStatus(201);
+
+        f.service().createResult(req);
+
+        ArgumentCaptor<StepResult> savedStep = ArgumentCaptor.forClass(StepResult.class);
+        Mockito.verify(f.steps()).save(savedStep.capture());
+        assertEquals("[{\"kind\":\"status\",\"passed\":true}]",
+                savedStep.getValue().getAssertionDetails());
+        assertEquals("{\"bookId\":\"42\"}", savedStep.getValue().getExtractedVars());
+        assertEquals("http://localhost:8080/api/books", savedStep.getValue().getRequestUrl());
+        assertEquals("{\"title\":\"t\"}", savedStep.getValue().getRequestBody());
+        assertEquals(201, savedStep.getValue().getResponseStatus());
+    }
+
+    @Test
     void createResult_missingIds_rejected() {
         Fixture f = fixture();
         CreateResultRequest bad = request(UUID.randomUUID());

@@ -61,8 +61,8 @@ class HttpLogServiceTest {
         java.util.Arrays.fill(chars, 'a');
         byte[] body = new String(chars).getBytes(java.nio.charset.StandardCharsets.UTF_8);
         String result = service.truncate(body);
-        assertEquals(20_000 + "...(truncated)".length(), result.length());
-        assertTrue(result.endsWith("...(truncated)"));
+        assertEquals("...(truncated 20000/30000)", result.substring(20_000));
+        assertEquals(20_000 + "...(truncated 20000/30000)".length(), result.length());
     }
 
     @Test

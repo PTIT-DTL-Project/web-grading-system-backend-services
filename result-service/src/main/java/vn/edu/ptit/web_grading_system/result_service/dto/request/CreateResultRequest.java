@@ -53,5 +53,12 @@ public class CreateResultRequest {
         private String expectedValue;
         private String errorMessage;
         private Integer durationMs;
+        // Review: 2026-10-11, phase A2 verbose evidence (all nullable: absent
+        // on historical rows and non-HTTP steps).
+        private String assertionDetails;
+        private String extractedVars;
+        private String requestUrl;
+        private String requestBody;
+        private Integer responseStatus;
     }
 }

@@ -173,8 +173,20 @@ public class HttpStepExecutor implements StepExecutor
         }
     }
 
-    private GradingStepResult buildResult(StepContext ctx, StepResultStatus status,
-                                          Integer actualStatus, String url, Map<String, String> reqHeaders, String reqBody,
+    /**
+     * http_log bodies share the ...(truncated N/M) marker contract (phase A3).
+     * Note: operator-side log rows are NOT redacted (unlike student evidence).
+     */
+    private static String cutForLog(String body)
+    {
+        if (body == null || body.length() <= 20000)
+        {
+            return body;
+        }
+        return body.substring(0, 20000) + "...(truncated 20000/" + body.length() + ")";
+    }
+
+    private GradingStepResult buildResult(StepContext ctx, StepResultStatus status,                                          Integer actualStatus, String url, Map<String, String> reqHeaders, String reqBody,
                                           Integer respStatus, Map<String, String> respHeaders, String respBody,
                                           String assertionJson, String extractedJson, String err,
                                           long startMs, OffsetDateTime startedAt)
@@ -188,10 +200,13 @@ public class HttpStepExecutor implements StepExecutor
                     .url(url)
                     .port((Integer) ctx.getVariableContext().get(Constant.VariableContext.APP_PORT))
                     .requestHeaders(reqHeaders == null ? null : gson.toJson(reqHeaders))
-                    .requestBody(reqBody != null && reqBody.length() > 20000 ? reqBody.substring(0, 20000) : reqBody)
+                    // Review: 2026-10-11, phase A3 — same ...(truncated N/M)
+                    // marker contract as stepItem/result-service: a cut body
+                    // must never read as the full body.
+                    .requestBody(cutForLog(reqBody))
                     .statusCode(respStatus != null ? respStatus : actualStatus)
                     .responseHeaders(respHeaders == null ? null : gson.toJson(respHeaders))
-                    .responseBody(respBody != null && respBody.length() > 20000 ? respBody.substring(0, 20000) : respBody)
+                    .responseBody(cutForLog(respBody))
                     .durationMs((int) (System.currentTimeMillis() - startMs))
                     .build();
             httpLogService.save(httpLog);
