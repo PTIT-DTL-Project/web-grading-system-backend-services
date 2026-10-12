@@ -55,7 +55,8 @@ import vn.edu.ptit.web_grading_system.executor_service.service.docker.DockerImag
 import vn.edu.ptit.web_grading_system.executor_service.service.infra.ArtifactService;
 import vn.edu.ptit.web_grading_system.executor_service.service.infra.PortAllocator;
 import vn.edu.ptit.web_grading_system.executor_service.service.scoring.EvidenceRedactor;
-import vn.edu.ptit.web_grading_system.executor_service.service.scoring.ScoreCalculator;import vn.edu.ptit.web_grading_system.executor_service.service.scoring.VariableContext;
+import vn.edu.ptit.web_grading_system.executor_service.service.scoring.ScoreCalculator;
+import vn.edu.ptit.web_grading_system.executor_service.service.scoring.VariableContext;
 
 /**
  * Runs one grading job end to end: fetch config, download artifact, boot the
@@ -811,10 +812,12 @@ public class GradingOrchestrator
 
     /**
      * Response body for student evidence on every verdict (failed steps need it
-     * most). Overlong bodies are cut with an N/M marker so a cut body never
-     * reads as the full body. Secrets masked by {@code EvidenceRedactor}.
+     * most). Redaction runs on the INTACT body first — cutting first would
+     * break JSON and silently disable key masking past 20000 chars — then the
+     * redacted result is capped with an N/M marker (denominated in redacted
+     * length) so a cut body never reads as the full body.
      *
-     * <p>Review: 2026-10-10, phase A1 verbose logs.
+     * <p>Review: 2026-10-10, phase A1 verbose logs; Pullfrog redact-before-cut.
      */
     private static String truncateForStudent(String body)
     {
@@ -822,9 +825,9 @@ public class GradingOrchestrator
         {
             return null;
         }
-        String cut = body.length() <= 20000 ? body
-                : body.substring(0, 20000) + "...(truncated 20000/" + body.length() + ")";
-        return EvidenceRedactor.redact(cut);
+        String safe = EvidenceRedactor.redact(body);
+        return safe.length() <= 20000 ? safe
+                : safe.substring(0, 20000) + "...(truncated 20000/" + safe.length() + ")";
     }
 
     /**
@@ -857,8 +860,12 @@ public class GradingOrchestrator
                     continue;
                 }
                 String kind = d.path("kind").asString();
-                String expected = d.path("expected").asString();
-                String actual = d.path("actual").asString();
+                // A failed contains verdict embeds the entire response body as
+                // actual — cap each side at 500 chars so one verdict cannot
+                // swallow errorMessage/summaryLog (deliberately tighter than the
+                // 20000 body cap; Pullfrog unbounded-errorMessage).
+                String expected = capVerdictText(d.path("expected").asString());
+                String actual = capVerdictText(d.path("actual").asString());
                 String message = d.path("message").asString();
                 if (!kind.isEmpty() && (!expected.isEmpty() || !actual.isEmpty()))
                 {
@@ -882,6 +889,19 @@ public class GradingOrchestrator
         {
             return null;
         }
+    }
+
+    /**
+     * Bounds one verdict side inside the joined error line. Redaction of the
+     * assembled line happens once at the end (see {@code maskSecrets} call).
+     */
+    private static String capVerdictText(String text)
+    {
+        if (text != null && text.length() > 500)
+        {
+            return text.substring(0, 500) + "...(truncated 500/" + text.length() + ")";
+        }
+        return text;
     }
 
     private String buildSummary(List<ScoreCalculator.StepScore> outcomes,

@@ -443,6 +443,36 @@ class GradingOrchestratorTest {
         assertEquals("skipped: required failed", item.getErrorMessage());
     }
 
+    @Test
+    void stepItem_redactsBeforeTruncatingLongBody() throws Exception {
+        // Pullfrog regression: truncating first breaks JSON so key masking is
+        // skipped. Redact runs on the intact body, cut applies after.
+        String secret = "SUPERSECRET2";
+        String body = "{\"access_token\":\"" + secret + "\",\"data\":\""
+                + "y".repeat(20950) + "\"}";
+
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), aResult(body, null), false, false, null);
+
+        assertFalse(item.getActualValue().contains(secret));
+        assertTrue(item.getActualValue().contains("\"access_token\":\"***\""));
+        assertTrue(item.getActualValue().contains("...(truncated 20000/"));
+    }
+
+    @Test
+    void stepItem_capsLongVerdictActual() throws Exception {
+        String big = "z".repeat(2000);
+        String verdicts = "[{\"kind\":\"contains\",\"expected\":\"ok\",\"actual\":\""
+                + big + "\",\"passed\":false}]";
+
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), aResult("{}", verdicts), false, false, null);
+
+        assertTrue(item.getErrorMessage().startsWith("contains: expected ok, got zzzz"));
+        assertTrue(item.getErrorMessage().contains("...(truncated 500/2000)"));
+        assertTrue(item.getErrorMessage().length() < 1000);
+    }
+
     // ─── autoInjectExtracts tests ───
 
     private GradingOrchestrator rawOrchestrator() {
