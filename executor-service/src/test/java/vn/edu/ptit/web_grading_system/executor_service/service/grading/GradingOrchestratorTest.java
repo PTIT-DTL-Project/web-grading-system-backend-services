@@ -343,6 +343,168 @@ class GradingOrchestratorTest {
         Mockito.verify(f.resultClient(), Mockito.times(1)).create(Mockito.any());
     }
 
+    // ─── A1 verbose evidence (phase-a1-verdict-join.md) ───
+
+    private ResultServiceClient.StepResultItem invokeStepItem(InternalPlanDto plan,
+            InternalStepDto step, GradingStepResult result, boolean passed, boolean skipped,
+            String err) throws Exception {
+        Method method = GradingOrchestrator.class.getDeclaredMethod(
+                "stepItem", InternalPlanDto.class, InternalStepDto.class,
+                GradingStepResult.class, boolean.class, boolean.class, String.class);
+        method.setAccessible(true);
+        return (ResultServiceClient.StepResultItem) method.invoke(
+                rawOrchestrator(), plan, step, result, passed, skipped, err);
+    }
+
+    private InternalPlanDto aPlan() {
+        return InternalPlanDto.builder().id(UUID.randomUUID()).name("p").build();
+    }
+
+    private InternalStepDto aStep() {
+        return InternalStepDto.builder().id(UUID.randomUUID()).stepOrder(1).name("s")
+                .stepType("HTTP_REQUEST").weight(1).build();
+    }
+
+    private GradingStepResult aResult(String body, String verdicts) {
+        return GradingStepResult.builder().responseBody(body).assertionResult(verdicts)
+                .durationMs(12).build();
+    }
+
+    @Test
+    void stepItem_failedJoinsVerdictsIntoErrorMessage() throws Exception {
+        String verdicts = "[{\"kind\":\"status\",\"expected\":201,\"actual\":404,\"passed\":false},"
+                + "{\"kind\":\"contains\",\"expected\":\"ok\",\"actual\":\"err\",\"passed\":false}]";
+
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), aResult("{}", verdicts), false, false, null);
+
+        assertEquals("status: expected 201, got 404; contains: expected ok, got err",
+                item.getErrorMessage());
+    }
+
+    @Test
+    void stepItem_forwardsBodyOnFailureWithMarkerWhenLong() throws Exception {
+        String body = "x".repeat(20001);
+
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), aResult(body, null), false, false, null);
+
+        assertTrue(item.getActualValue().startsWith("x".repeat(20000)));
+        assertTrue(item.getActualValue().endsWith("...(truncated 20000/20001)"));
+    }
+
+    @Test
+    void stepItem_passedBodyUnchanged() throws Exception {
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), aResult("{\"ok\":true}", "[]"), true, false, null);
+
+        assertEquals("{\"ok\":true}", item.getActualValue());
+        assertNull(item.getErrorMessage());
+    }
+
+    @Test
+    void stepItem_malformedVerdictsYieldsNullWithoutThrowing() throws Exception {
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), aResult("{}", "not-json{"), false, false, null);
+
+        assertNull(item.getErrorMessage());
+    }
+
+    @Test
+    void stepItem_masksSecrets() throws Exception {
+        ResultServiceClient.StepResultItem item = invokeStepItem(aPlan(), aStep(),
+                aResult("{\"password\":\"x\",\"nested\":{\"authorization\":\"Bearer abc\"}}", null),
+                false, false, null);
+
+        // Whole-value mask wins over shape mask inside JSON string values.
+        assertTrue(item.getActualValue().contains("\"password\":\"***\""));
+        assertTrue(item.getActualValue().contains("\"authorization\":\"***\""));
+        assertFalse(item.getActualValue().contains("\"password\":\"x\""));
+        assertFalse(item.getActualValue().contains("Bearer abc"));
+    }
+
+    @Test
+    void stepItem_masksBearerInFreeText() throws Exception {
+        String verdicts = "[{\"kind\":\"contains\","
+                + "\"message\":\"upstream said Bearer abc123\",\"passed\":false}]";
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), aResult("{}", verdicts), false, false, null);
+
+        assertTrue(item.getErrorMessage().contains("Bearer ***"));
+        assertFalse(item.getErrorMessage().contains("abc123"));
+    }
+
+    @Test
+    void stepItem_explicitErrorPassesThroughVerbatim() throws Exception {
+        ResultServiceClient.StepResultItem item = invokeStepItem(aPlan(), aStep(),
+                aResult("{}", "[{\"kind\":\"status\",\"passed\":false}]"), false, true,
+                "skipped: required failed");
+
+        assertEquals("skipped: required failed", item.getErrorMessage());
+    }
+
+    @Test
+    void stepItem_redactsBeforeTruncatingLongBody() throws Exception {
+        // Pullfrog regression: truncating first breaks JSON so key masking is
+        // skipped. Redact runs on the intact body, cut applies after.
+        String secret = "SUPERSECRET2";
+        String body = "{\"access_token\":\"" + secret + "\",\"data\":\""
+                + "y".repeat(20950) + "\"}";
+
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), aResult(body, null), false, false, null);
+
+        assertFalse(item.getActualValue().contains(secret));
+        assertTrue(item.getActualValue().contains("\"access_token\":\"***\""));
+        assertTrue(item.getActualValue().contains("...(truncated 20000/"));
+    }
+
+    @Test
+    void stepItem_capsLongVerdictActual() throws Exception {
+        String big = "z".repeat(2000);
+        String verdicts = "[{\"kind\":\"contains\",\"expected\":\"ok\",\"actual\":\""
+                + big + "\",\"passed\":false}]";
+
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), aResult("{}", verdicts), false, false, null);
+
+        assertTrue(item.getErrorMessage().startsWith("contains: expected ok, got zzzz"));
+        assertTrue(item.getErrorMessage().contains("...(truncated 500/2000)"));
+        assertTrue(item.getErrorMessage().length() < 1000);
+    }
+
+    @Test
+    void stepItem_masksJsonKeysInsideVerdictActual() throws Exception {
+        // Pullfrog probe verbatim: JSON keys must mask even though the joined
+        // line itself is not JSON (regex-only sweep misses them).
+        String verdicts = "[{\"kind\":\"contains\",\"expected\":\"ok\","
+                + "\"actual\":\"{\\\"access_token\\\":\\\"SUPERSECRET2\\\","
+                + "\\\"client_secret\\\":\\\"CSECRET\\\"}\",\"passed\":false}]";
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), aResult("{}", verdicts), false, false, null);
+
+        assertTrue(item.getErrorMessage().contains("\"access_token\":\"***\""));
+        assertTrue(item.getErrorMessage().contains("\"client_secret\":\"***\""));
+        assertFalse(item.getErrorMessage().contains("SUPERSECRET2"));
+        assertFalse(item.getErrorMessage().contains("CSECRET"));
+    }
+
+    @Test
+    void stepItem_redactsThenCapsLongVerdictActual() throws Exception {
+        // Actual carried as a JSON string (the shape checkContains produces):
+        // redact masks keys first, cap applies to the redacted text.
+        String big = "{\"access_token\":\"" + "x".repeat(50) + "\",\"data\":\""
+                + "y".repeat(2000) + "\"}";
+        String stringActual = "[{\"kind\":\"contains\",\"expected\":\"ok\",\"actual\":\""
+                + big.replace("\"", "\\\"") + "\",\"passed\":false}]";
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), aResult("{}", stringActual), false, false, null);
+
+        assertFalse(item.getErrorMessage().contains("xxxxxxxxxxxxxxxxxx"));
+        assertTrue(item.getErrorMessage().contains("\"access_token\":\"***\""));
+        assertTrue(item.getErrorMessage().contains("...(truncated 500/"));
+    }
+
     // ─── autoInjectExtracts tests ───
 
     private GradingOrchestrator rawOrchestrator() {

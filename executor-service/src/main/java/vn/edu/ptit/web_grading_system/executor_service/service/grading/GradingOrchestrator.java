@@ -54,6 +54,7 @@ import vn.edu.ptit.web_grading_system.executor_service.service.docker.DockerComp
 import vn.edu.ptit.web_grading_system.executor_service.service.docker.DockerImageGateway;
 import vn.edu.ptit.web_grading_system.executor_service.service.infra.ArtifactService;
 import vn.edu.ptit.web_grading_system.executor_service.service.infra.PortAllocator;
+import vn.edu.ptit.web_grading_system.executor_service.service.scoring.EvidenceRedactor;
 import vn.edu.ptit.web_grading_system.executor_service.service.scoring.ScoreCalculator;
 import vn.edu.ptit.web_grading_system.executor_service.service.scoring.VariableContext;
 
@@ -801,13 +802,112 @@ public class GradingOrchestrator
                 .skipped(skipped)
                 .weight(nz(step.getWeight(), 1))
                 .score(passed ? new BigDecimal(nz(step.getWeight(), 1)).setScale(2) : BigDecimal.ZERO.setScale(2))
-                .actualValue(passed && result != null ? (result.getResponseBody() == null ? null
-                        : result.getResponseBody().length() <= 20000
-                        ? result.getResponseBody() : result.getResponseBody().substring(0, 20000)) : null)
+                .actualValue(truncateForStudent(result == null ? null : result.getResponseBody()))
                 .expectedValue(step.getExpectedResult())
-                .errorMessage(errorMessage)
+                .errorMessage(errorMessage != null ? errorMessage
+                        : joinFailedVerdicts(result == null ? null : result.getAssertionResult()))
                 .durationMs(result != null ? result.getDurationMs() : null)
                 .build();
+    }
+
+    /**
+     * Response body for student evidence on every verdict (failed steps need it
+     * most). Redaction runs on the INTACT body first — cutting first would
+     * break JSON and silently disable key masking past 20000 chars — then the
+     * redacted result is capped with an N/M marker (denominated in redacted
+     * length) so a cut body never reads as the full body.
+     *
+     * <p>Review: 2026-10-10, phase A1 verbose logs; Pullfrog redact-before-cut.
+     */
+    private static String truncateForStudent(String body)
+    {
+        if (body == null)
+        {
+            return null;
+        }
+        String safe = EvidenceRedactor.redact(body);
+        return safe.length() <= 20000 ? safe
+                : safe.substring(0, 20000) + "...(truncated 20000/" + safe.length() + ")";
+    }
+
+    /**
+     * Turns stored per-assertion verdicts into one readable line, e.g.
+     * {@code "status: expected 201, got 404; contains: expected ok, got err"}.
+     * Blank/unparseable input returns null so the summary's generic
+     * {@code "assertion failed"} fallback keeps working and one weird blob can
+     * never break a whole report.
+     *
+     * <p>Review: 2026-10-10, phase A1 verbose logs.
+     */
+    private String joinFailedVerdicts(String assertionJson)
+    {
+        if (assertionJson == null || assertionJson.isBlank())
+        {
+            return null;
+        }
+        try
+        {
+            JsonNode details = objectMapper.readTree(assertionJson);
+            if (!details.isArray())
+            {
+                return null;
+            }
+            List<String> failed = new ArrayList<>();
+            for (JsonNode d : details)
+            {
+                if (d.path("passed").asBoolean(false))
+                {
+                    continue;
+                }
+                String kind = d.path("kind").asString();
+                // A failed contains verdict embeds the entire response body as
+                // actual — redact each side while intact (a joined line is not
+                // JSON, so end-of-line redaction alone misses JSON keys), then
+                // cap at 500 chars so one verdict cannot swallow
+                // errorMessage/summaryLog (deliberately tighter than the
+                // 20000 body cap; Pullfrog unbounded-errorMessage + JSON-key leak).
+                String expected = capVerdictText(
+                        EvidenceRedactor.redact(d.path("expected").asString()));
+                String actual = capVerdictText(
+                        EvidenceRedactor.redact(d.path("actual").asString()));
+                String message = capVerdictText(
+                        EvidenceRedactor.redact(d.path("message").asString()));
+                if (!kind.isEmpty() && (!expected.isEmpty() || !actual.isEmpty()))
+                {
+                    failed.add(kind + ": expected " + expected + ", got " + actual);
+                }
+                else if (!message.isEmpty())
+                {
+                    failed.add(message);
+                }
+            }
+            if (failed.isEmpty())
+            {
+                return null;
+            }
+            String joined = failed.size() <= 5 ? String.join("; ", failed)
+                    : String.join("; ", failed.subList(0, 5))
+                            + "; …(" + (failed.size() - 5) + " more)";
+            return EvidenceRedactor.redact(joined);
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
+    }
+
+    /**
+     * Bounds one (already redacted) verdict side inside the joined error line.
+     * Redaction of each side happens before capping (see above); the final
+     * assembled-line redact stays as an idempotent safety net.
+     */
+    private static String capVerdictText(String text)
+    {
+        if (text != null && text.length() > 500)
+        {
+            return text.substring(0, 500) + "...(truncated 500/" + text.length() + ")";
+        }
+        return text;
     }
 
     private String buildSummary(List<ScoreCalculator.StepScore> outcomes,
