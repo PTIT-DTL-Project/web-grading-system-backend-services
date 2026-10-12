@@ -49,8 +49,12 @@ public final class EvidenceRedactor {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public static String redact(String input) {
-        if (input == null) {
-            return null;
+        // Absent stays absent and blank stays blank: only real content is
+        // worth parsing, and the fail-closed catch below must never turn
+        // an empty field into a mask (Pullfrog verdict-side redaction calls
+        // this on every extracted side, present or not).
+        if (input == null || input.isBlank()) {
+            return input;
         }
         try {
             return redactJsonAware(input);

@@ -473,6 +473,38 @@ class GradingOrchestratorTest {
         assertTrue(item.getErrorMessage().length() < 1000);
     }
 
+    @Test
+    void stepItem_masksJsonKeysInsideVerdictActual() throws Exception {
+        // Pullfrog probe verbatim: JSON keys must mask even though the joined
+        // line itself is not JSON (regex-only sweep misses them).
+        String verdicts = "[{\"kind\":\"contains\",\"expected\":\"ok\","
+                + "\"actual\":\"{\\\"access_token\\\":\\\"SUPERSECRET2\\\","
+                + "\\\"client_secret\\\":\\\"CSECRET\\\"}\",\"passed\":false}]";
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), aResult("{}", verdicts), false, false, null);
+
+        assertTrue(item.getErrorMessage().contains("\"access_token\":\"***\""));
+        assertTrue(item.getErrorMessage().contains("\"client_secret\":\"***\""));
+        assertFalse(item.getErrorMessage().contains("SUPERSECRET2"));
+        assertFalse(item.getErrorMessage().contains("CSECRET"));
+    }
+
+    @Test
+    void stepItem_redactsThenCapsLongVerdictActual() throws Exception {
+        // Actual carried as a JSON string (the shape checkContains produces):
+        // redact masks keys first, cap applies to the redacted text.
+        String big = "{\"access_token\":\"" + "x".repeat(50) + "\",\"data\":\""
+                + "y".repeat(2000) + "\"}";
+        String stringActual = "[{\"kind\":\"contains\",\"expected\":\"ok\",\"actual\":\""
+                + big.replace("\"", "\\\"") + "\",\"passed\":false}]";
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), aResult("{}", stringActual), false, false, null);
+
+        assertFalse(item.getErrorMessage().contains("xxxxxxxxxxxxxxxxxx"));
+        assertTrue(item.getErrorMessage().contains("\"access_token\":\"***\""));
+        assertTrue(item.getErrorMessage().contains("...(truncated 500/"));
+    }
+
     // ─── autoInjectExtracts tests ───
 
     private GradingOrchestrator rawOrchestrator() {

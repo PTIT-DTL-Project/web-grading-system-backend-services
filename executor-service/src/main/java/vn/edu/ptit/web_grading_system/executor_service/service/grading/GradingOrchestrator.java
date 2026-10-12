@@ -861,12 +861,17 @@ public class GradingOrchestrator
                 }
                 String kind = d.path("kind").asString();
                 // A failed contains verdict embeds the entire response body as
-                // actual — cap each side at 500 chars so one verdict cannot
-                // swallow errorMessage/summaryLog (deliberately tighter than the
-                // 20000 body cap; Pullfrog unbounded-errorMessage).
-                String expected = capVerdictText(d.path("expected").asString());
-                String actual = capVerdictText(d.path("actual").asString());
-                String message = d.path("message").asString();
+                // actual — redact each side while intact (a joined line is not
+                // JSON, so end-of-line redaction alone misses JSON keys), then
+                // cap at 500 chars so one verdict cannot swallow
+                // errorMessage/summaryLog (deliberately tighter than the
+                // 20000 body cap; Pullfrog unbounded-errorMessage + JSON-key leak).
+                String expected = capVerdictText(
+                        EvidenceRedactor.redact(d.path("expected").asString()));
+                String actual = capVerdictText(
+                        EvidenceRedactor.redact(d.path("actual").asString()));
+                String message = capVerdictText(
+                        EvidenceRedactor.redact(d.path("message").asString()));
                 if (!kind.isEmpty() && (!expected.isEmpty() || !actual.isEmpty()))
                 {
                     failed.add(kind + ": expected " + expected + ", got " + actual);
@@ -892,8 +897,9 @@ public class GradingOrchestrator
     }
 
     /**
-     * Bounds one verdict side inside the joined error line. Redaction of the
-     * assembled line happens once at the end (see {@code maskSecrets} call).
+     * Bounds one (already redacted) verdict side inside the joined error line.
+     * Redaction of each side happens before capping (see above); the final
+     * assembled-line redact stays as an idempotent safety net.
      */
     private static String capVerdictText(String text)
     {
