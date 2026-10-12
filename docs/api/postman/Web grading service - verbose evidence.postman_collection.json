@@ -1,0 +1,3798 @@
+{
+  "info": {
+    "name": "Web grading service - verbose evidence",
+    "_postman_id": "wgs-verbose-evidence-v1",
+    "description": "Hardest-case requests + live evidence responses for the grading-logs program (phases A1-A4, max-policy, scope). Host vars point direct-to-service (no auth on /internal/**; X-Gateway-Secret+X-User-Id elsewhere) or at the gateway (Bearer JWT). Fill collection variables once, run top-down. Captured 2026-10-12 against course/submission/result booted on docker PG16 with forged identity — zero production contact. Requests marked NO_SAVED need live data/JWT/storage; their defs are complete, bodies never fabricated.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "gateway",
+      "value": "http://localhost:8080",
+      "description": "api-gateway; stg: https://web-dev1-api.vucongtuanduong.dpdns.org"
+    },
+    {
+      "key": "course-service",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "result-service",
+      "value": "http://localhost:8084"
+    },
+    {
+      "key": "submission-service",
+      "value": "http://localhost:8082"
+    },
+    {
+      "key": "token",
+      "value": "PASTE_JWT_HERE",
+      "description": "Lecturer or student JWT for gateway calls"
+    },
+    {
+      "key": "gateway-secret",
+      "value": "",
+      "description": "X-Gateway-Secret for direct-to-service calls"
+    },
+    {
+      "key": "userId",
+      "value": "33333333-0000-4000-8000-0000000000a3",
+      "description": "Forged X-User-Id for local captures"
+    },
+    {
+      "key": "studentId",
+      "value": "33333333-0000-4000-8000-0000000000a3"
+    },
+    {
+      "key": "assignmentId",
+      "value": "22222222-0000-4000-8000-0000000000a2"
+    },
+    {
+      "key": "planId",
+      "value": "44444444-0000-4000-8000-0000000000a4"
+    },
+    {
+      "key": "stepId",
+      "value": "55555555-0000-4000-8000-0000000000a5"
+    },
+    {
+      "key": "submissionId",
+      "value": "11111111-0000-4000-8000-0000000000a1"
+    },
+    {
+      "key": "classId",
+      "value": "FILL_CLASS_UUID"
+    },
+    {
+      "key": "imageUrl",
+      "value": "ghcr.io/org/app:v1.0"
+    }
+  ],
+  "item": [
+    {
+      "name": "Admin user import (gateway)",
+      "item": [
+        {
+          "name": "bulk import users (ADMIN only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "samples/users-import-hard.csv"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/admin/users/import",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "import"
+              ]
+            },
+            "description": "ADMIN role required (403 otherwise). Set form-data file src to samples/users-import-hard.csv (uppercase username, blank fullName, blank role=STUDENT, lecturer row, duplicate username, unknown role, short row). Initial password = lowercased username, forced change first login. NO saved response: never executed against live (would mint real users) — run on staging with a temp file, delete probe users via Keycloak admin API, paste the real 200 + a 4xx case here."
+          }
+        }
+      ],
+      "description": "Bulk import CSV. Sample hardest-case file: samples/users-import-hard.csv (set form-data file src to it). Initial password = lowercased username."
+    },
+    {
+      "name": "Classes & scores",
+      "item": [
+        {
+          "name": "create class",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"PTIT Java 01\",\n  \"semester\": \"20261\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/classes",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "classes"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 201 (create-class.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"PTIT Java 01\",\n  \"semester\": \"20261\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/classes",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "classes"
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":201,\"message\":\"Class created\",\"data\":{\"id\":\"8b84256a-0353-493d-8078-34abfe12150f\",\"ownerId\":\"aaaaaaaa-0000-4000-8000-000000000001\",\"name\":\"PTIT Java 02\",\"semester\":\"20261\",\"status\":\"ACTIVE\",\"createdAt\":null}}"
+            }
+          ]
+        },
+        {
+          "name": "get class detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/classes/{{classId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "classes",
+                "{{classId}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (get-class.json)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  }
+                ],
+                "url": {
+                  "raw": "{{gateway}}/api/v1/classes/{{classId}}",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "classes",
+                    "{{classId}}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Success\",\"data\":{\"id\":\"a677d263-f661-488b-9530-02e95e6efab2\",\"ownerId\":\"aaaaaaaa-0000-4000-8000-000000000001\",\"name\":\"PTIT Java 01\",\"semester\":\"20261\",\"status\":\"ACTIVE\",\"createdAt\":\"2026-10-12T10:23:38.584046Z\"}}"
+            }
+          ]
+        },
+        {
+          "name": "import roster CSV",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "roster.csv"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/classes/{{classId}}/students/import",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "classes",
+                "{{classId}}",
+                "students",
+                "import"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (import-roster.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": "roster.csv"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/classes/{{classId}}/students/import",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "classes",
+                    "{{classId}}",
+                    "students",
+                    "import"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Students imported\",\"data\":{\"imported\":1,\"skipped\":0}}"
+            }
+          ]
+        },
+        {
+          "name": "config score components",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"type\": \"ATTENDANCE\",\n    \"weight\": 0.1\n  },\n  {\n    \"type\": \"EXERCISE\",\n    \"weight\": 0.3\n  },\n  {\n    \"type\": \"FINAL_EXAM\",\n    \"weight\": 0.6\n  }\n]",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/classes/{{classId}}/score-components",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "classes",
+                "{{classId}}",
+                "score-components"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (config-components.json)",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "[\n  {\n    \"type\": \"ATTENDANCE\",\n    \"weight\": 0.1\n  },\n  {\n    \"type\": \"EXERCISE\",\n    \"weight\": 0.3\n  },\n  {\n    \"type\": \"FINAL_EXAM\",\n    \"weight\": 0.6\n  }\n]",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/classes/{{classId}}/score-components",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "classes",
+                    "{{classId}}",
+                    "score-components"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Score components updated\",\"data\":[{\"type\":\"ATTENDANCE\",\"weight\":0.1},{\"type\":\"EXERCISE\",\"weight\":0.3},{\"type\":\"FINAL_EXAM\",\"weight\":0.6}]}"
+            }
+          ]
+        },
+        {
+          "name": "enter manual scores",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"componentType\": \"ATTENDANCE\",\n    \"score\": 10\n  },\n  {\n    \"componentType\": \"FINAL_EXAM\",\n    \"score\": 10\n  }\n]",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/classes/{{classId}}/students/SV0001/scores",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "classes",
+                "{{classId}}",
+                "students",
+                "SV0001",
+                "scores"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (enter-scores.json)",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "[\n  {\n    \"componentType\": \"ATTENDANCE\",\n    \"score\": 10\n  },\n  {\n    \"componentType\": \"FINAL_EXAM\",\n    \"score\": 10\n  }\n]",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/classes/{{classId}}/students/SV0001/scores",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "classes",
+                    "{{classId}}",
+                    "students",
+                    "SV0001",
+                    "scores"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Student scores updated\"}"
+            }
+          ]
+        },
+        {
+          "name": "class transcript (exercise null = no linked identity)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/classes/{{classId}}/transcript",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "classes",
+                "{{classId}}",
+                "transcript"
+              ]
+            },
+            "description": "EXERCISE null here because the roster CSV row has no Keycloak user mapping locally (identity links by email on live). Entries/weights/codes are live-shaped."
+          },
+          "response": [
+            {
+              "name": "live 200 (transcript.json)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  }
+                ],
+                "url": {
+                  "raw": "{{gateway}}/api/v1/classes/{{classId}}/transcript",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "classes",
+                    "{{classId}}",
+                    "transcript"
+                  ]
+                },
+                "description": "EXERCISE null here because the roster CSV row has no Keycloak user mapping locally (identity links by email on live). Entries/weights/codes are live-shaped."
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Success\",\"data\":[{\"studentCode\":\"SV0001\",\"studentName\":\"Nguyen Van A\",\"entries\":[{\"type\":\"ATTENDANCE\",\"weight\":0.1000,\"score\":10.00},{\"type\":\"EXERCISE\",\"weight\":0.3000,\"score\":null},{\"type\":\"FINAL_EXAM\",\"weight\":0.6000,\"score\":10.00}],\"total\":null,\"letterGrade\":null,\"gpa\":null}]}"
+            }
+          ]
+        },
+        {
+          "name": "my scores — unknown student → 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/student/classes/{{classId}}/my-scores",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "student",
+                "classes",
+                "{{classId}}",
+                "my-scores"
+              ]
+            },
+            "description": "Same forged student has no roster mapping → 404. Real error shape for unenrolled callers."
+          },
+          "response": [
+            {
+              "name": "live 404 (my-scores-student.json)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  }
+                ],
+                "url": {
+                  "raw": "{{gateway}}/api/v1/student/classes/{{classId}}/my-scores",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "student",
+                    "classes",
+                    "{{classId}}",
+                    "my-scores"
+                  ]
+                },
+                "description": "Same forged student has no roster mapping → 404. Real error shape for unenrolled callers."
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":404,\"message\":\"Class not found: a677d263-f661-488b-9530-02e95e6efab2\"}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Course assignments",
+      "item": [
+        {
+          "name": "create assignment (full docker fields)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"classId\": \"{{classId}}\",\n  \"title\": \"Book REST API\",\n  \"description\": \"CRUD books with Postgres\",\n  \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n  \"dockerComposeTemplate\": \"version: \\\"3\\\"\\nservices:\\n  app:\\n    image: \\\"{{imageUrl}}\\\"\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 256,\n  \"maxCpu\": 0.5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 201 (create-assignment.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"classId\": \"{{classId}}\",\n  \"title\": \"Book REST API\",\n  \"description\": \"CRUD books with Postgres\",\n  \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n  \"dockerComposeTemplate\": \"version: \\\"3\\\"\\nservices:\\n  app:\\n    image: \\\"{{imageUrl}}\\\"\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 256,\n  \"maxCpu\": 0.5\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments"
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":201,\"message\":\"Assignment created\",\"data\":{\"id\":\"29f1e78a-7ae1-4538-9d11-12354ac8ec86\",\"ownerId\":\"aaaaaaaa-0000-4000-8000-000000000001\",\"classId\":\"a677d263-f661-488b-9530-02e95e6efab2\",\"title\":\"Library API\",\"description\":\"Books CRUD\",\"gradingStrategy\":\"STUDENT_DOCKER_COMPOSE\",\"dockerComposeTemplate\":null,\"dockerComposePort\":8080,\"startupTimeoutMs\":60000,\"executionTimeoutMs\":300000,\"maxMemoryMb\":256,\"maxCpu\":0.5,\"published\":false,\"createdAt\":null,\"updatedAt\":null}}"
+            }
+          ]
+        },
+        {
+          "name": "update assignment (rename + strategy)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Book REST API v2\",\n  \"description\": \"Adds author search\",\n  \"gradingStrategy\": \"LECTURER_DOCKER_COMPOSE\",\n  \"dockerComposeTemplate\": \"version: \\\"3\\\"\\nservices:\\n  app:\\n    image: \\\"{{imageUrl}}\\\"\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 512,\n  \"maxCpu\": 1.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (update-assignment.json)",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Book REST API v2\",\n  \"description\": \"Adds author search\",\n  \"gradingStrategy\": \"LECTURER_DOCKER_COMPOSE\",\n  \"dockerComposeTemplate\": \"version: \\\"3\\\"\\nservices:\\n  app:\\n    image: \\\"{{imageUrl}}\\\"\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 512,\n  \"maxCpu\": 1.0\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Assignment updated\",\"data\":{\"id\":\"8f2e2414-0869-4d10-aee1-81b99094a459\",\"ownerId\":\"aaaaaaaa-0000-4000-8000-000000000001\",\"classId\":\"a677d263-f661-488b-9530-02e95e6efab2\",\"title\":\"Book REST API v2\",\"description\":\"CRUD books\",\"gradingStrategy\":\"LECTURER_DOCKER_COMPOSE\",\"dockerComposeTemplate\":\"version: \\\"3\\\"\\nservices:\\n  app:\\n    image: ghcr.io/org/app:v1.0\",\"dockerComposePort\":8080,\"startupTimeoutMs\":60000,\"executionTimeoutMs\":300000,\"maxMemoryMb\":512,\"maxCpu\":1.0,\"published\":false,\"createdAt\":\"2026-10-12T10:23:38.874343Z\",\"updatedAt\":\"2026-10-12T10:23:38.874404Z\"}}"
+            }
+          ]
+        },
+        {
+          "name": "update assignment — duplicate title → 400",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Second Assignment\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 400 (update-assignment-duptitle-400.json)",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Second Assignment\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":400,\"message\":\"Assignment 'Second Assignment' already exists in this class\"}"
+            }
+          ]
+        },
+        {
+          "name": "publish assignment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/publish",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "publish"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (publish-assignment.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  }
+                ],
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/publish",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "publish"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Assignment published\",\"data\":{\"id\":\"8f2e2414-0869-4d10-aee1-81b99094a459\",\"ownerId\":\"aaaaaaaa-0000-4000-8000-000000000001\",\"classId\":\"a677d263-f661-488b-9530-02e95e6efab2\",\"title\":\"Book REST API v2\",\"description\":\"CRUD books\",\"gradingStrategy\":\"LECTURER_DOCKER_COMPOSE\",\"dockerComposeTemplate\":\"version: \\\"3\\\"\\nservices:\\n  app:\\n    image: ghcr.io/org/app:v1.0\",\"dockerComposePort\":8080,\"startupTimeoutMs\":60000,\"executionTimeoutMs\":300000,\"maxMemoryMb\":512,\"maxCpu\":1.0,\"published\":true,\"createdAt\":\"2026-10-12T10:23:38.874343Z\",\"updatedAt\":\"2026-10-12T10:24:04.071826Z\"}}"
+            }
+          ]
+        },
+        {
+          "name": "get assignment detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (get-assignment.json)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  }
+                ],
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Success\",\"data\":{\"id\":\"8f2e2414-0869-4d10-aee1-81b99094a459\",\"ownerId\":\"aaaaaaaa-0000-4000-8000-000000000001\",\"classId\":\"a677d263-f661-488b-9530-02e95e6efab2\",\"title\":\"Book REST API v2\",\"description\":\"CRUD books\",\"gradingStrategy\":\"LECTURER_DOCKER_COMPOSE\",\"dockerComposeTemplate\":\"version: \\\"3\\\"\\nservices:\\n  app:\\n    image: ghcr.io/org/app:v1.0\",\"dockerComposePort\":8080,\"startupTimeoutMs\":60000,\"executionTimeoutMs\":300000,\"maxMemoryMb\":512,\"maxCpu\":1.0,\"published\":false,\"createdAt\":\"2026-10-12T10:23:38.874343Z\",\"updatedAt\":\"2026-10-12T10:24:04.071826Z\"}}"
+            }
+          ]
+        },
+        {
+          "name": "delete assignment",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (delete-assignment-2.json)",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  }
+                ],
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Assignment deleted\"}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Test plans & steps — hardest cases",
+      "item": [
+        {
+          "name": "create plan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Câu 1 — CRUD sách\",\n  \"description\": \"Tạo/đọc/sửa/xóa\",\n  \"sequenceOrder\": 1,\n  \"weight\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 201 (create-plan-2.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Câu 1 — CRUD sách\",\n  \"description\": \"Tạo/đọc/sửa/xóa\",\n  \"sequenceOrder\": 1,\n  \"weight\": 2\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans"
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":201,\"message\":\"Plan created\",\"data\":{\"id\":\"2790926b-a1a7-41c3-8d96-d813335376b7\",\"name\":\"Câu 2\",\"description\":null,\"sequenceOrder\":2,\"weight\":1,\"steps\":[]}}"
+            }
+          ]
+        },
+        {
+          "name": "create plan — duplicate sequenceOrder → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Câu trùng thứ tự\",\n  \"sequenceOrder\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 400 (dup-sequenceOrder-400.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Câu trùng thứ tự\",\n  \"sequenceOrder\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":400,\"message\":\"A plan with sequence_order 1 already exists in this assignment\"}"
+            }
+          ]
+        },
+        {
+          "name": "update plan (rename + weight)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Câu 1 — CRUD sách (sửa)\",\n  \"weight\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (update-plan.json)",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Câu 1 — CRUD sách (sửa)\",\n  \"weight\": 3\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Plan updated\",\"data\":{\"id\":\"4f914d7a-d976-4e8b-b017-bb51c008856b\",\"name\":\"Câu 1 — CRUD sách (sửa)\",\"description\":\"CRUD\",\"sequenceOrder\":1,\"weight\":3,\"steps\":[{\"id\":\"68e0f92b-ee55-405f-9b04-1c6fd73d8f84\",\"stepOrder\":1,\"name\":\"Tạo sách\",\"description\":\"POST all assertions\",\"type\":\"HTTP_REQUEST\",\"config\":{\"body\":{\"title\":\"Clean Code\",\"author\":\"Martin\"},\"path\":\"/api/books\",\"method\":\"POST\",\"extract\":[{\"from\":\"response_body\",\"name\":\"bookId\",\"expression\":\"$.id\"},{\"from\":\"response_body\",\"name\":\"staticEnv\",\"expression\":\"$.env\"}],\"headers\":{\"X-Tenant\":\"ptit\"},\"assertions\":[{\"kind\":\"status\",\"equals\":\"201\"},{\"kind\":\"contains\",\"text\":\"Clean Code\"},{\"kind\":\"json_path\",\"path\":\"$.id\"},{\"json\":{\"id\":42,\"title\":\"Clean Code\"},\"kind\":\"body_equals\"},{\"json\":{\"id\":0,\"title\":\"\"},\"kind\":\"body_structure\"},{\"kind\":\"field_equals\",\"path\":\"$.title\",\"equals\":\"Clean Code\"}],\"query_params\":{\"page\":\"1\"},\"expected_status\":201},\"expectedResult\":null,\"weight\":2,\"timeoutMs\":30000,\"required\":true},{\"id\":\"d838fb71-9dba-4d99-9902-4c582dd3bd58\",\"stepOrder\":2,\"name\":\"Đọc sách vừa tạo\",\"description\":null,\"type\":\"HTTP_REQUEST\",\"config\":{\"path\":\"/api/books/${bookId}\",\"method\":\"GET\",\"assertions\":[{\"kind\":\"status\",\"equals\":\"200\"},{\"kind\":\"field_equals\",\"path\":\"$.id\",\"equals\":\"${bookId}\"}],\"expected_status\":200},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"172c9c6d-89f1-42a2-81a3-15310a7420a6\",\"stepOrder\":3,\"name\":\"Verify DB row\",\"description\":null,\"type\":\"DB_QUERY\",\"config\":{\"query\":\"SELECT id, title FROM books WHERE id = ${bookId}\",\"expected\":{\"columns\":[\"id\",\"title\"],\"row_count\":1},\"connection\":{\"db_port\":5432,\"db_type\":\"postgres\",\"database\":\"bookdb\",\"password\":\"CHANGEME\",\"username\":\"app\",\"db_service\":\"postgres-service\"}},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"4dec1ffe-bad1-46ad-9871-a4cdfc92831a\",\"stepOrder\":4,\"name\":\"Verify schema\",\"description\":null,\"type\":\"DB_SCHEMA_CHECK\",\"config\":{\"checks\":[{\"kind\":\"TABLE_EXISTS\",\"table_name\":\"books\"},{\"kind\":\"COLUMN_EXISTS\",\"data_type\":\"varchar\",\"table_name\":\"books\",\"column_name\":\"title\"},{\"kind\":\"INDEX_EXISTS\",\"index_name\":\"idx_books_title\",\"table_name\":\"books\"},{\"kind\":\"PRIMARY_KEY\",\"column\":\"id\",\"table_name\":\"books\"}],\"connection\":{\"db_type\":\"postgres\",\"database\":\"bookdb\",\"password\":\"CHANGEME\",\"username\":\"app\"}},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"eb6c07f2-816b-4b00-a138-cad15e005912\",\"stepOrder\":5,\"name\":\"Migrate genre\",\"description\":null,\"type\":\"DB_MIGRATION\",\"config\":{\"connection\":{\"db_type\":\"postgres\",\"database\":\"bookdb\",\"password\":\"CHANGEME\",\"username\":\"app\"},\"statements\":[\"ALTER TABLE books ADD COLUMN IF NOT EXISTS genre VARCHAR(64)\",\"UPDATE books SET genre = 'tech' WHERE genre IS NULL\"]},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"bc464876-d0a3-477e-8737-5b58f303ea0e\",\"stepOrder\":6,\"name\":\"Health check\",\"description\":null,\"type\":\"HTTP_REQUEST\",\"config\":{\"path\":\"/health\",\"method\":\"GET\",\"expected_status\":200},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":false}]}}"
+            }
+          ]
+        },
+        {
+          "name": "create step — HTTP all 6 assertions + extracts (hardest)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stepOrder\": 1,\n  \"name\": \"Tạo sách\",\n  \"stepType\": \"HTTP_REQUEST\",\n  \"config\": {\n    \"method\": \"POST\",\n    \"path\": \"/api/books\",\n    \"headers\": {\n      \"X-Tenant\": \"ptit\"\n    },\n    \"query_params\": {\n      \"page\": \"1\"\n    },\n    \"body\": {\n      \"title\": \"Clean Code\",\n      \"author\": \"Martin\"\n    },\n    \"expected_status\": 201,\n    \"assertions\": [\n      {\n        \"kind\": \"status\",\n        \"equals\": \"201\"\n      },\n      {\n        \"kind\": \"contains\",\n        \"text\": \"Clean Code\"\n      },\n      {\n        \"kind\": \"json_path\",\n        \"path\": \"$.id\"\n      },\n      {\n        \"kind\": \"body_equals\",\n        \"json\": {\n          \"id\": 42,\n          \"title\": \"Clean Code\"\n        }\n      },\n      {\n        \"kind\": \"body_structure\",\n        \"json\": {\n          \"id\": 0,\n          \"title\": \"\"\n        }\n      },\n      {\n        \"kind\": \"field_equals\",\n        \"path\": \"$.title\",\n        \"equals\": \"Clean Code\"\n      }\n    ],\n    \"extract\": [\n      {\n        \"name\": \"bookId\",\n        \"from\": \"response_body\",\n        \"expression\": \"$.id\"\n      },\n      {\n        \"name\": \"staticEnv\",\n        \"from\": \"response_body\",\n        \"expression\": \"$.env\"\n      }\n    ]\n  },\n  \"weight\": 2,\n  \"timeoutMs\": 30000,\n  \"required\": true,\n  \"description\": \"Covers every assertion kind (lowercase-only) + both extract forms\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 201 (create-step-all-assertions.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stepOrder\": 1,\n  \"name\": \"Tạo sách\",\n  \"stepType\": \"HTTP_REQUEST\",\n  \"config\": {\n    \"method\": \"POST\",\n    \"path\": \"/api/books\",\n    \"headers\": {\n      \"X-Tenant\": \"ptit\"\n    },\n    \"query_params\": {\n      \"page\": \"1\"\n    },\n    \"body\": {\n      \"title\": \"Clean Code\",\n      \"author\": \"Martin\"\n    },\n    \"expected_status\": 201,\n    \"assertions\": [\n      {\n        \"kind\": \"status\",\n        \"equals\": \"201\"\n      },\n      {\n        \"kind\": \"contains\",\n        \"text\": \"Clean Code\"\n      },\n      {\n        \"kind\": \"json_path\",\n        \"path\": \"$.id\"\n      },\n      {\n        \"kind\": \"body_equals\",\n        \"json\": {\n          \"id\": 42,\n          \"title\": \"Clean Code\"\n        }\n      },\n      {\n        \"kind\": \"body_structure\",\n        \"json\": {\n          \"id\": 0,\n          \"title\": \"\"\n        }\n      },\n      {\n        \"kind\": \"field_equals\",\n        \"path\": \"$.title\",\n        \"equals\": \"Clean Code\"\n      }\n    ],\n    \"extract\": [\n      {\n        \"name\": \"bookId\",\n        \"from\": \"response_body\",\n        \"expression\": \"$.id\"\n      },\n      {\n        \"name\": \"staticEnv\",\n        \"from\": \"response_body\",\n        \"expression\": \"$.env\"\n      }\n    ]\n  },\n  \"weight\": 2,\n  \"timeoutMs\": 30000,\n  \"required\": true,\n  \"description\": \"Covers every assertion kind (lowercase-only) + both extract forms\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps"
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":201,\"message\":\"Step created\",\"data\":{\"id\":\"68e0f92b-ee55-405f-9b04-1c6fd73d8f84\",\"stepOrder\":1,\"name\":\"Tạo sách\",\"description\":\"POST all assertions\",\"type\":\"HTTP_REQUEST\",\"config\":{\"method\":\"POST\",\"path\":\"/api/books\",\"headers\":{\"X-Tenant\":\"ptit\"},\"query_params\":{\"page\":\"1\"},\"body\":{\"title\":\"Clean Code\",\"author\":\"Martin\"},\"expected_status\":201,\"assertions\":[{\"kind\":\"status\",\"equals\":\"201\"},{\"kind\":\"contains\",\"text\":\"Clean Code\"},{\"kind\":\"json_path\",\"path\":\"$.id\"},{\"kind\":\"body_equals\",\"json\":{\"id\":42,\"title\":\"Clean Code\"}},{\"kind\":\"body_structure\",\"json\":{\"id\":0,\"title\":\"\"}},{\"kind\":\"field_equals\",\"path\":\"$.title\",\"equals\":\"Clean Code\"}],\"extract\":[{\"name\":\"bookId\",\"from\":\"response_body\",\"expression\":\"$.id\"},{\"name\":\"staticEnv\",\"from\":\"response_body\",\"expression\":\"$.env\"}]},\"expectedResult\":null,\"weight\":2,\"timeoutMs\":30000,\"required\":true}}"
+            }
+          ]
+        },
+        {
+          "name": "create step — chained ${var} use",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stepOrder\": 2,\n  \"name\": \"Đọc sách vừa tạo\",\n  \"stepType\": \"HTTP_REQUEST\",\n  \"config\": {\n    \"method\": \"GET\",\n    \"path\": \"/api/books/${bookId}\",\n    \"expected_status\": 200,\n    \"assertions\": [\n      {\n        \"kind\": \"status\",\n        \"equals\": \"200\"\n      },\n      {\n        \"kind\": \"field_equals\",\n        \"path\": \"$.id\",\n        \"equals\": \"${bookId}\"\n      }\n    ]\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true,\n  \"description\": \"Uses ${bookId} extracted by step 1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 201 (create-step-chained.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stepOrder\": 2,\n  \"name\": \"Đọc sách vừa tạo\",\n  \"stepType\": \"HTTP_REQUEST\",\n  \"config\": {\n    \"method\": \"GET\",\n    \"path\": \"/api/books/${bookId}\",\n    \"expected_status\": 200,\n    \"assertions\": [\n      {\n        \"kind\": \"status\",\n        \"equals\": \"200\"\n      },\n      {\n        \"kind\": \"field_equals\",\n        \"path\": \"$.id\",\n        \"equals\": \"${bookId}\"\n      }\n    ]\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true,\n  \"description\": \"Uses ${bookId} extracted by step 1\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps"
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":201,\"message\":\"Step created\",\"data\":{\"id\":\"d838fb71-9dba-4d99-9902-4c582dd3bd58\",\"stepOrder\":2,\"name\":\"Đọc sách vừa tạo\",\"description\":null,\"type\":\"HTTP_REQUEST\",\"config\":{\"method\":\"GET\",\"path\":\"/api/books/${bookId}\",\"expected_status\":200,\"assertions\":[{\"kind\":\"status\",\"equals\":\"200\"},{\"kind\":\"field_equals\",\"path\":\"$.id\",\"equals\":\"${bookId}\"}]},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true}}"
+            }
+          ]
+        },
+        {
+          "name": "create step — DB_QUERY + expected rows/columns",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stepOrder\": 3,\n  \"name\": \"Verify DB row\",\n  \"stepType\": \"DB_QUERY\",\n  \"config\": {\n    \"connection\": {\n      \"db_type\": \"postgres\",\n      \"db_service\": \"postgres-service\",\n      \"db_port\": 5432,\n      \"database\": \"bookdb\",\n      \"username\": \"app\",\n      \"password\": \"CHANGEME\"\n    },\n    \"query\": \"SELECT id, title FROM books WHERE id = ${bookId}\",\n    \"expected\": {\n      \"row_count\": 1,\n      \"columns\": [\n        \"id\",\n        \"title\"\n      ]\n    }\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 201 (create-step-dbquery.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stepOrder\": 3,\n  \"name\": \"Verify DB row\",\n  \"stepType\": \"DB_QUERY\",\n  \"config\": {\n    \"connection\": {\n      \"db_type\": \"postgres\",\n      \"db_service\": \"postgres-service\",\n      \"db_port\": 5432,\n      \"database\": \"bookdb\",\n      \"username\": \"app\",\n      \"password\": \"CHANGEME\"\n    },\n    \"query\": \"SELECT id, title FROM books WHERE id = ${bookId}\",\n    \"expected\": {\n      \"row_count\": 1,\n      \"columns\": [\n        \"id\",\n        \"title\"\n      ]\n    }\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps"
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":201,\"message\":\"Step created\",\"data\":{\"id\":\"172c9c6d-89f1-42a2-81a3-15310a7420a6\",\"stepOrder\":3,\"name\":\"Verify DB row\",\"description\":null,\"type\":\"DB_QUERY\",\"config\":{\"connection\":{\"db_type\":\"postgres\",\"db_service\":\"postgres-service\",\"db_port\":5432,\"database\":\"bookdb\",\"username\":\"app\",\"password\":\"CHANGEME\"},\"query\":\"SELECT id, title FROM books WHERE id = ${bookId}\",\"expected\":{\"row_count\":1,\"columns\":[\"id\",\"title\"]}},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true}}"
+            }
+          ]
+        },
+        {
+          "name": "create step — DB_SCHEMA_CHECK all 4 kinds",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stepOrder\": 4,\n  \"name\": \"Verify schema\",\n  \"stepType\": \"DB_SCHEMA_CHECK\",\n  \"config\": {\n    \"connection\": {\n      \"db_type\": \"postgres\",\n      \"database\": \"bookdb\",\n      \"username\": \"app\",\n      \"password\": \"CHANGEME\"\n    },\n    \"checks\": [\n      {\n        \"kind\": \"TABLE_EXISTS\",\n        \"table_name\": \"books\"\n      },\n      {\n        \"kind\": \"COLUMN_EXISTS\",\n        \"table_name\": \"books\",\n        \"column_name\": \"title\",\n        \"data_type\": \"varchar\"\n      },\n      {\n        \"kind\": \"INDEX_EXISTS\",\n        \"table_name\": \"books\",\n        \"index_name\": \"idx_books_title\"\n      },\n      {\n        \"kind\": \"PRIMARY_KEY\",\n        \"table_name\": \"books\",\n        \"column\": \"id\"\n      }\n    ]\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 201 (create-step-schema.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stepOrder\": 4,\n  \"name\": \"Verify schema\",\n  \"stepType\": \"DB_SCHEMA_CHECK\",\n  \"config\": {\n    \"connection\": {\n      \"db_type\": \"postgres\",\n      \"database\": \"bookdb\",\n      \"username\": \"app\",\n      \"password\": \"CHANGEME\"\n    },\n    \"checks\": [\n      {\n        \"kind\": \"TABLE_EXISTS\",\n        \"table_name\": \"books\"\n      },\n      {\n        \"kind\": \"COLUMN_EXISTS\",\n        \"table_name\": \"books\",\n        \"column_name\": \"title\",\n        \"data_type\": \"varchar\"\n      },\n      {\n        \"kind\": \"INDEX_EXISTS\",\n        \"table_name\": \"books\",\n        \"index_name\": \"idx_books_title\"\n      },\n      {\n        \"kind\": \"PRIMARY_KEY\",\n        \"table_name\": \"books\",\n        \"column\": \"id\"\n      }\n    ]\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps"
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":201,\"message\":\"Step created\",\"data\":{\"id\":\"4dec1ffe-bad1-46ad-9871-a4cdfc92831a\",\"stepOrder\":4,\"name\":\"Verify schema\",\"description\":null,\"type\":\"DB_SCHEMA_CHECK\",\"config\":{\"connection\":{\"db_type\":\"postgres\",\"database\":\"bookdb\",\"username\":\"app\",\"password\":\"CHANGEME\"},\"checks\":[{\"kind\":\"TABLE_EXISTS\",\"table_name\":\"books\"},{\"kind\":\"COLUMN_EXISTS\",\"table_name\":\"books\",\"column_name\":\"title\",\"data_type\":\"varchar\"},{\"kind\":\"INDEX_EXISTS\",\"table_name\":\"books\",\"index_name\":\"idx_books_title\"},{\"kind\":\"PRIMARY_KEY\",\"table_name\":\"books\",\"column\":\"id\"}]},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true}}"
+            }
+          ]
+        },
+        {
+          "name": "create step — DB_MIGRATION multi-statement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stepOrder\": 5,\n  \"name\": \"Migrate genre column\",\n  \"stepType\": \"DB_MIGRATION\",\n  \"config\": {\n    \"connection\": {\n      \"db_type\": \"postgres\",\n      \"database\": \"bookdb\",\n      \"username\": \"app\",\n      \"password\": \"CHANGEME\"\n    },\n    \"statements\": [\n      \"ALTER TABLE books ADD COLUMN IF NOT EXISTS genre VARCHAR(64)\",\n      \"UPDATE books SET genre = 'tech' WHERE genre IS NULL\"\n    ]\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 201 (create-step-migration.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stepOrder\": 5,\n  \"name\": \"Migrate genre column\",\n  \"stepType\": \"DB_MIGRATION\",\n  \"config\": {\n    \"connection\": {\n      \"db_type\": \"postgres\",\n      \"database\": \"bookdb\",\n      \"username\": \"app\",\n      \"password\": \"CHANGEME\"\n    },\n    \"statements\": [\n      \"ALTER TABLE books ADD COLUMN IF NOT EXISTS genre VARCHAR(64)\",\n      \"UPDATE books SET genre = 'tech' WHERE genre IS NULL\"\n    ]\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps"
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":201,\"message\":\"Step created\",\"data\":{\"id\":\"eb6c07f2-816b-4b00-a138-cad15e005912\",\"stepOrder\":5,\"name\":\"Migrate genre\",\"description\":null,\"type\":\"DB_MIGRATION\",\"config\":{\"connection\":{\"db_type\":\"postgres\",\"database\":\"bookdb\",\"username\":\"app\",\"password\":\"CHANGEME\"},\"statements\":[\"ALTER TABLE books ADD COLUMN IF NOT EXISTS genre VARCHAR(64)\",\"UPDATE books SET genre = 'tech' WHERE genre IS NULL\"]},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true}}"
+            }
+          ]
+        },
+        {
+          "name": "create step — not required (skip-safe tail)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stepOrder\": 6,\n  \"name\": \"Optional health check\",\n  \"stepType\": \"HTTP_REQUEST\",\n  \"config\": {\n    \"method\": \"GET\",\n    \"path\": \"/health\",\n    \"expected_status\": 200\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": false,\n  \"description\": \"required:false steps never cascade-skip followers\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 201 (create-step-notrequired.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stepOrder\": 6,\n  \"name\": \"Optional health check\",\n  \"stepType\": \"HTTP_REQUEST\",\n  \"config\": {\n    \"method\": \"GET\",\n    \"path\": \"/health\",\n    \"expected_status\": 200\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": false,\n  \"description\": \"required:false steps never cascade-skip followers\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps"
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":201,\"message\":\"Step created\",\"data\":{\"id\":\"bc464876-d0a3-477e-8737-5b58f303ea0e\",\"stepOrder\":6,\"name\":\"Health check\",\"description\":null,\"type\":\"HTTP_REQUEST\",\"config\":{\"method\":\"GET\",\"path\":\"/health\",\"expected_status\":200},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":false}}"
+            }
+          ]
+        },
+        {
+          "name": "create step — UPPERCASE kind → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stepOrder\": 7,\n  \"name\": \"Bad kind\",\n  \"stepType\": \"HTTP_REQUEST\",\n  \"config\": {\n    \"method\": \"GET\",\n    \"path\": \"/x\",\n    \"assertions\": [\n      {\n        \"kind\": \"STATUS\",\n        \"equals\": \"200\"\n      }\n    ]\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 400 (bad-uppercase-kind-400.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stepOrder\": 7,\n  \"name\": \"Bad kind\",\n  \"stepType\": \"HTTP_REQUEST\",\n  \"config\": {\n    \"method\": \"GET\",\n    \"path\": \"/x\",\n    \"assertions\": [\n      {\n        \"kind\": \"STATUS\",\n        \"equals\": \"200\"\n      }\n    ]\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":400,\"message\":\"HTTP_REQUEST.assertions: unknown kind 'STATUS'\"}"
+            }
+          ]
+        },
+        {
+          "name": "create step — path missing leading slash → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stepOrder\": 7,\n  \"name\": \"Bad path\",\n  \"stepType\": \"HTTP_REQUEST\",\n  \"config\": {\n    \"method\": \"GET\",\n    \"path\": \"api/x\"\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 400 (bad-path-400.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stepOrder\": 7,\n  \"name\": \"Bad path\",\n  \"stepType\": \"HTTP_REQUEST\",\n  \"config\": {\n    \"method\": \"GET\",\n    \"path\": \"api/x\"\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":400,\"message\":\"HTTP_REQUEST: path must start with '/'\"}"
+            }
+          ]
+        },
+        {
+          "name": "create step — EXTRACT standalone → 400 (A3)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stepOrder\": 7,\n  \"name\": \"Standalone extract\",\n  \"stepType\": \"EXTRACT\",\n  \"config\": {\n    \"variables\": [\n      {\n        \"name\": \"a\",\n        \"value\": \"1\"\n      }\n    ]\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 400 (bad-extract-400.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stepOrder\": 7,\n  \"name\": \"Standalone extract\",\n  \"stepType\": \"EXTRACT\",\n  \"config\": {\n    \"variables\": [\n      {\n        \"name\": \"a\",\n        \"value\": \"1\"\n      }\n    ]\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":400,\"message\":\"standalone EXTRACT steps are not runnable; use the HTTP step's extract[] instead\"}"
+            }
+          ]
+        },
+        {
+          "name": "create step — DELAY standalone → 400 (A3)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stepOrder\": 7,\n  \"name\": \"Wait\",\n  \"stepType\": \"DELAY\",\n  \"config\": {\n    \"duration_ms\": 5000\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 400 (bad-delay-400.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stepOrder\": 7,\n  \"name\": \"Wait\",\n  \"stepType\": \"DELAY\",\n  \"config\": {\n    \"duration_ms\": 5000\n  },\n  \"weight\": 1,\n  \"timeoutMs\": 30000,\n  \"required\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":400,\"message\":\"standalone DELAY steps are not supported\"}"
+            }
+          ]
+        },
+        {
+          "name": "update step — description",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Đọc sách vừa tạo\",\n  \"description\": \"Sửa mô tả bước đọc\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps/{{stepId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps",
+                "{{stepId}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (update-step-description.json)",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Đọc sách vừa tạo\",\n  \"description\": \"Sửa mô tả bước đọc\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps/{{stepId}}",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps",
+                    "{{stepId}}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Step updated\",\"data\":{\"id\":\"d838fb71-9dba-4d99-9902-4c582dd3bd58\",\"stepOrder\":2,\"name\":\"Đọc sách vừa tạo\",\"description\":\"Sửa mô tả bước đọc\",\"type\":\"HTTP_REQUEST\",\"config\":{\"path\":\"/api/books/${bookId}\",\"method\":\"GET\",\"assertions\":[{\"kind\":\"status\",\"equals\":\"200\"},{\"kind\":\"field_equals\",\"path\":\"$.id\",\"equals\":\"${bookId}\"}],\"expected_status\":200},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true}}"
+            }
+          ]
+        },
+        {
+          "name": "update step — blank name → 400",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Sửa mô tả bước đọc\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps/{{stepId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps",
+                "{{stepId}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 400 (update-step.json)",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Sửa mô tả bước đọc\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps/{{stepId}}",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps",
+                    "{{stepId}}"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":400,\"message\":\"Validation failed\",\"error\":\"name: must not be blank\"}"
+            }
+          ]
+        },
+        {
+          "name": "update step — change type without config → 400",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Temp step\",\n  \"stepType\": \"DB_QUERY\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps/{{stepId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps",
+                "{{stepId}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 400 (update-step-typechange-noconfig-400.json)",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Temp step\",\n  \"stepType\": \"DB_QUERY\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps/{{stepId}}",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps",
+                    "{{stepId}}"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":400,\"message\":\"config is required when changing stepType to DB_QUERY\"}"
+            }
+          ]
+        },
+        {
+          "name": "list steps of plan",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (list-steps.json)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  }
+                ],
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Success\",\"data\":[{\"id\":\"68e0f92b-ee55-405f-9b04-1c6fd73d8f84\",\"stepOrder\":1,\"name\":\"Tạo sách\",\"description\":\"POST all assertions\",\"type\":\"HTTP_REQUEST\",\"config\":{\"body\":{\"title\":\"Clean Code\",\"author\":\"Martin\"},\"path\":\"/api/books\",\"method\":\"POST\",\"extract\":[{\"from\":\"response_body\",\"name\":\"bookId\",\"expression\":\"$.id\"},{\"from\":\"response_body\",\"name\":\"staticEnv\",\"expression\":\"$.env\"}],\"headers\":{\"X-Tenant\":\"ptit\"},\"assertions\":[{\"kind\":\"status\",\"equals\":\"201\"},{\"kind\":\"contains\",\"text\":\"Clean Code\"},{\"kind\":\"json_path\",\"path\":\"$.id\"},{\"json\":{\"id\":42,\"title\":\"Clean Code\"},\"kind\":\"body_equals\"},{\"json\":{\"id\":0,\"title\":\"\"},\"kind\":\"body_structure\"},{\"kind\":\"field_equals\",\"path\":\"$.title\",\"equals\":\"Clean Code\"}],\"query_params\":{\"page\":\"1\"},\"expected_status\":201},\"expectedResult\":null,\"weight\":2,\"timeoutMs\":30000,\"required\":true},{\"id\":\"d838fb71-9dba-4d99-9902-4c582dd3bd58\",\"stepOrder\":2,\"name\":\"Đọc sách vừa tạo\",\"description\":\"Sửa mô tả bước đọc\",\"type\":\"HTTP_REQUEST\",\"config\":{\"path\":\"/api/books/${bookId}\",\"method\":\"GET\",\"assertions\":[{\"kind\":\"status\",\"equals\":\"200\"},{\"kind\":\"field_equals\",\"path\":\"$.id\",\"equals\":\"${bookId}\"}],\"expected_status\":200},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"172c9c6d-89f1-42a2-81a3-15310a7420a6\",\"stepOrder\":3,\"name\":\"Verify DB row\",\"description\":null,\"type\":\"DB_QUERY\",\"config\":{\"query\":\"SELECT id, title FROM books WHERE id = ${bookId}\",\"expected\":{\"columns\":[\"id\",\"title\"],\"row_count\":1},\"connection\":{\"db_port\":5432,\"db_type\":\"postgres\",\"database\":\"bookdb\",\"password\":\"CHANGEME\",\"username\":\"app\",\"db_service\":\"postgres-service\"}},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"4dec1ffe-bad1-46ad-9871-a4cdfc92831a\",\"stepOrder\":4,\"name\":\"Verify schema\",\"description\":null,\"type\":\"DB_SCHEMA_CHECK\",\"config\":{\"checks\":[{\"kind\":\"TABLE_EXISTS\",\"table_name\":\"books\"},{\"kind\":\"COLUMN_EXISTS\",\"data_type\":\"varchar\",\"table_name\":\"books\",\"column_name\":\"title\"},{\"kind\":\"INDEX_EXISTS\",\"index_name\":\"idx_books_title\",\"table_name\":\"books\"},{\"kind\":\"PRIMARY_KEY\",\"column\":\"id\",\"table_name\":\"books\"}],\"connection\":{\"db_type\":\"postgres\",\"database\":\"bookdb\",\"password\":\"CHANGEME\",\"username\":\"app\"}},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"eb6c07f2-816b-4b00-a138-cad15e005912\",\"stepOrder\":5,\"name\":\"Migrate genre\",\"description\":null,\"type\":\"DB_MIGRATION\",\"config\":{\"connection\":{\"db_type\":\"postgres\",\"database\":\"bookdb\",\"password\":\"CHANGEME\",\"username\":\"app\"},\"statements\":[\"ALTER TABLE books ADD COLUMN IF NOT EXISTS genre VARCHAR(64)\",\"UPDATE books SET genre = 'tech' WHERE genre IS NULL\"]},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"bc464876-d0a3-477e-8737-5b58f303ea0e\",\"stepOrder\":6,\"name\":\"Health check\",\"description\":null,\"type\":\"HTTP_REQUEST\",\"config\":{\"path\":\"/health\",\"method\":\"GET\",\"expected_status\":200},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":false}]}"
+            }
+          ]
+        },
+        {
+          "name": "list plans",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (list-plans.json)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  }
+                ],
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Success\",\"data\":[{\"id\":\"4f914d7a-d976-4e8b-b017-bb51c008856b\",\"name\":\"Câu 1 — CRUD sách (sửa)\",\"description\":\"CRUD\",\"sequenceOrder\":1,\"weight\":3,\"steps\":[{\"id\":\"68e0f92b-ee55-405f-9b04-1c6fd73d8f84\",\"stepOrder\":1,\"name\":\"Tạo sách\",\"description\":\"POST all assertions\",\"type\":\"HTTP_REQUEST\",\"config\":{\"body\":{\"title\":\"Clean Code\",\"author\":\"Martin\"},\"path\":\"/api/books\",\"method\":\"POST\",\"extract\":[{\"from\":\"response_body\",\"name\":\"bookId\",\"expression\":\"$.id\"},{\"from\":\"response_body\",\"name\":\"staticEnv\",\"expression\":\"$.env\"}],\"headers\":{\"X-Tenant\":\"ptit\"},\"assertions\":[{\"kind\":\"status\",\"equals\":\"201\"},{\"kind\":\"contains\",\"text\":\"Clean Code\"},{\"kind\":\"json_path\",\"path\":\"$.id\"},{\"json\":{\"id\":42,\"title\":\"Clean Code\"},\"kind\":\"body_equals\"},{\"json\":{\"id\":0,\"title\":\"\"},\"kind\":\"body_structure\"},{\"kind\":\"field_equals\",\"path\":\"$.title\",\"equals\":\"Clean Code\"}],\"query_params\":{\"page\":\"1\"},\"expected_status\":201},\"expectedResult\":null,\"weight\":2,\"timeoutMs\":30000,\"required\":true},{\"id\":\"d838fb71-9dba-4d99-9902-4c582dd3bd58\",\"stepOrder\":2,\"name\":\"Đọc sách vừa tạo\",\"description\":\"Sửa mô tả bước đọc\",\"type\":\"HTTP_REQUEST\",\"config\":{\"path\":\"/api/books/${bookId}\",\"method\":\"GET\",\"assertions\":[{\"kind\":\"status\",\"equals\":\"200\"},{\"kind\":\"field_equals\",\"path\":\"$.id\",\"equals\":\"${bookId}\"}],\"expected_status\":200},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"172c9c6d-89f1-42a2-81a3-15310a7420a6\",\"stepOrder\":3,\"name\":\"Verify DB row\",\"description\":null,\"type\":\"DB_QUERY\",\"config\":{\"query\":\"SELECT id, title FROM books WHERE id = ${bookId}\",\"expected\":{\"columns\":[\"id\",\"title\"],\"row_count\":1},\"connection\":{\"db_port\":5432,\"db_type\":\"postgres\",\"database\":\"bookdb\",\"password\":\"CHANGEME\",\"username\":\"app\",\"db_service\":\"postgres-service\"}},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"4dec1ffe-bad1-46ad-9871-a4cdfc92831a\",\"stepOrder\":4,\"name\":\"Verify schema\",\"description\":null,\"type\":\"DB_SCHEMA_CHECK\",\"config\":{\"checks\":[{\"kind\":\"TABLE_EXISTS\",\"table_name\":\"books\"},{\"kind\":\"COLUMN_EXISTS\",\"data_type\":\"varchar\",\"table_name\":\"books\",\"column_name\":\"title\"},{\"kind\":\"INDEX_EXISTS\",\"index_name\":\"idx_books_title\",\"table_name\":\"books\"},{\"kind\":\"PRIMARY_KEY\",\"column\":\"id\",\"table_name\":\"books\"}],\"connection\":{\"db_type\":\"postgres\",\"database\":\"bookdb\",\"password\":\"CHANGEME\",\"username\":\"app\"}},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"eb6c07f2-816b-4b00-a138-cad15e005912\",\"stepOrder\":5,\"name\":\"Migrate genre\",\"description\":null,\"type\":\"DB_MIGRATION\",\"config\":{\"connection\":{\"db_type\":\"postgres\",\"database\":\"bookdb\",\"password\":\"CHANGEME\",\"username\":\"app\"},\"statements\":[\"ALTER TABLE books ADD COLUMN IF NOT EXISTS genre VARCHAR(64)\",\"UPDATE books SET genre = 'tech' WHERE genre IS NULL\"]},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"bc464876-d0a3-477e-8737-5b58f303ea0e\",\"stepOrder\":6,\"name\":\"Health check\",\"description\":null,\"type\":\"HTTP_REQUEST\",\"config\":{\"path\":\"/health\",\"method\":\"GET\",\"expected_status\":200},\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":false}]},{\"id\":\"2790926b-a1a7-41c3-8d96-d813335376b7\",\"name\":\"Câu 2\",\"description\":null,\"sequenceOrder\":2,\"weight\":1,\"steps\":[]}]}"
+            }
+          ]
+        },
+        {
+          "name": "delete step",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps/{{stepId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}",
+                "steps",
+                "{{stepId}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (delete-step.json)",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  }
+                ],
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}/steps/{{stepId}}",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}",
+                    "steps",
+                    "{{stepId}}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Step deleted\"}"
+            }
+          ]
+        },
+        {
+          "name": "delete plan",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "plans",
+                "{{planId}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (delete-plan.json)",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  }
+                ],
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/{{assignmentId}}/plans/{{planId}}",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "{{assignmentId}}",
+                    "plans",
+                    "{{planId}}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Plan deleted\"}"
+            }
+          ]
+        }
+      ],
+      "description": "Bodies mirror StepConfigValidator rules exactly (lowercase kinds, /-leading paths, ${var}, unique orders). 400-cases carry expected reasons."
+    },
+    {
+      "name": "Results incl. verbose evidence (result-service)",
+      "item": [
+        {
+          "name": "internal create — FULL evidence report (201 live)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"submissionId\": \"11111111-0000-4000-8000-0000000000a1\",\n  \"assignmentId\": \"22222222-0000-4000-8000-0000000000a2\",\n  \"studentId\": \"33333333-0000-4000-8000-0000000000a3\",\n  \"planId\": \"44444444-0000-4000-8000-0000000000a4\",\n  \"planWeight\": 2,\n  \"score\": 7.5,\n  \"maxScore\": 10.0,\n  \"status\": \"DONE\",\n  \"summaryLog\": \"Passed 3/4 steps (75%), Score: 7.50/10. Failed: Get book list — status: expected 200, got 404\",\n  \"stepResults\": [\n    {\n      \"planId\": \"44444444-0000-4000-8000-0000000000a4\",\n      \"stepId\": \"55555555-0000-4000-8000-0000000000a5\",\n      \"stepOrder\": 1,\n      \"stepName\": \"Create book\",\n      \"stepType\": \"HTTP_REQUEST\",\n      \"passed\": true,\n      \"skipped\": false,\n      \"weight\": 1,\n      \"score\": 1.0,\n      \"actualValue\": \"{\\\"id\\\":42,\\\"title\\\":\\\"Clean Code\\\"}\",\n      \"expectedValue\": null,\n      \"errorMessage\": null,\n      \"durationMs\": 87,\n      \"assertionDetails\": \"[{\\\"kind\\\":\\\"status\\\",\\\"expected\\\":201,\\\"actual\\\":201,\\\"passed\\\":true},{\\\"kind\\\":\\\"json_path\\\",\\\"expected\\\":\\\"$.id\\\",\\\"actual\\\":\\\"$.id\\\",\\\"passed\\\":true}]\",\n      \"extractedVars\": \"{\\\"bookId\\\":\\\"42\\\"}\",\n      \"requestUrl\": \"http://localhost:8080/api/books\",\n      \"requestBody\": \"{\\\"title\\\":\\\"Clean Code\\\"}\",\n      \"responseStatus\": 201\n    },\n    {\n      \"planId\": \"44444444-0000-4000-8000-0000000000a4\",\n      \"stepId\": \"55555555-0000-4000-8000-0000000000a5\",\n      \"stepOrder\": 2,\n      \"stepName\": \"Get book list\",\n      \"stepType\": \"HTTP_REQUEST\",\n      \"passed\": false,\n      \"skipped\": false,\n      \"weight\": 3,\n      \"score\": 0.0,\n      \"actualValue\": \"{\\\"books\\\":[]}\",\n      \"expectedValue\": null,\n      \"errorMessage\": \"status: expected 200, got 404\",\n      \"durationMs\": 45,\n      \"assertionDetails\": \"[{\\\"kind\\\":\\\"status\\\",\\\"expected\\\":200,\\\"actual\\\":404,\\\"passed\\\":false}]\",\n      \"extractedVars\": null,\n      \"requestUrl\": \"http://localhost:8080/api/books\",\n      \"requestBody\": null,\n      \"responseStatus\": 404\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{result-service}}/api/v1/internal/results",
+              "host": [
+                "{{result-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "internal",
+                "results"
+              ]
+            },
+            "description": "Executor → result-service. planId null = FULL run (supersedes per-plan latests); scope derived server-side; 4 string evidence fields redacted at executor trust boundary. Saved 201 is the live id map."
+          },
+          "response": [
+            {
+              "name": "live 201 (resp-create.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"submissionId\": \"11111111-0000-4000-8000-0000000000a1\",\n  \"assignmentId\": \"22222222-0000-4000-8000-0000000000a2\",\n  \"studentId\": \"33333333-0000-4000-8000-0000000000a3\",\n  \"planId\": \"44444444-0000-4000-8000-0000000000a4\",\n  \"planWeight\": 2,\n  \"score\": 7.5,\n  \"maxScore\": 10.0,\n  \"status\": \"DONE\",\n  \"summaryLog\": \"Passed 3/4 steps (75%), Score: 7.50/10. Failed: Get book list — status: expected 200, got 404\",\n  \"stepResults\": [\n    {\n      \"planId\": \"44444444-0000-4000-8000-0000000000a4\",\n      \"stepId\": \"55555555-0000-4000-8000-0000000000a5\",\n      \"stepOrder\": 1,\n      \"stepName\": \"Create book\",\n      \"stepType\": \"HTTP_REQUEST\",\n      \"passed\": true,\n      \"skipped\": false,\n      \"weight\": 1,\n      \"score\": 1.0,\n      \"actualValue\": \"{\\\"id\\\":42,\\\"title\\\":\\\"Clean Code\\\"}\",\n      \"expectedValue\": null,\n      \"errorMessage\": null,\n      \"durationMs\": 87,\n      \"assertionDetails\": \"[{\\\"kind\\\":\\\"status\\\",\\\"expected\\\":201,\\\"actual\\\":201,\\\"passed\\\":true},{\\\"kind\\\":\\\"json_path\\\",\\\"expected\\\":\\\"$.id\\\",\\\"actual\\\":\\\"$.id\\\",\\\"passed\\\":true}]\",\n      \"extractedVars\": \"{\\\"bookId\\\":\\\"42\\\"}\",\n      \"requestUrl\": \"http://localhost:8080/api/books\",\n      \"requestBody\": \"{\\\"title\\\":\\\"Clean Code\\\"}\",\n      \"responseStatus\": 201\n    },\n    {\n      \"planId\": \"44444444-0000-4000-8000-0000000000a4\",\n      \"stepId\": \"55555555-0000-4000-8000-0000000000a5\",\n      \"stepOrder\": 2,\n      \"stepName\": \"Get book list\",\n      \"stepType\": \"HTTP_REQUEST\",\n      \"passed\": false,\n      \"skipped\": false,\n      \"weight\": 3,\n      \"score\": 0.0,\n      \"actualValue\": \"{\\\"books\\\":[]}\",\n      \"expectedValue\": null,\n      \"errorMessage\": \"status: expected 200, got 404\",\n      \"durationMs\": 45,\n      \"assertionDetails\": \"[{\\\"kind\\\":\\\"status\\\",\\\"expected\\\":200,\\\"actual\\\":404,\\\"passed\\\":false}]\",\n      \"extractedVars\": null,\n      \"requestUrl\": \"http://localhost:8080/api/books\",\n      \"requestBody\": null,\n      \"responseStatus\": 404\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{result-service}}/api/v1/internal/results",
+                  "host": [
+                    "{{result-service}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "internal",
+                    "results"
+                  ]
+                },
+                "description": "Executor → result-service. planId null = FULL run (supersedes per-plan latests); scope derived server-side; 4 string evidence fields redacted at executor trust boundary. Saved 201 is the live id map."
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"id\":\"d25968e2-b286-4e37-bbe3-6138a80a6f97\"}"
+            }
+          ]
+        },
+        {
+          "name": "internal create — PLAN 10 then FULL mixed (201 live)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"submissionId\": \"cccccccc-0000-4000-8000-000000000033\",\n  \"assignmentId\": \"22222222-0000-4000-8000-0000000000a2\",\n  \"studentId\": \"33333333-0000-4000-8000-0000000000a3\",\n  \"planId\": null,\n  \"planWeight\": 1,\n  \"score\": 7.5,\n  \"maxScore\": 10.0,\n  \"status\": \"DONE\",\n  \"summaryLog\": \"Passed 3/4 (75%)\",\n  \"stepResults\": [\n    {\n      \"planId\": \"44444444-0000-4000-8000-0000000000a4\",\n      \"stepId\": \"55555555-0000-4000-8000-0000000000a5\",\n      \"stepOrder\": 1,\n      \"stepName\": \"Tạo sách\",\n      \"stepType\": \"HTTP_REQUEST\",\n      \"passed\": true,\n      \"skipped\": false,\n      \"weight\": 1,\n      \"score\": 1.0,\n      \"actualValue\": \"{\\\"id\\\":42}\",\n      \"errorMessage\": null,\n      \"durationMs\": 87,\n      \"assertionDetails\": \"[{\\\"kind\\\":\\\"status\\\",\\\"passed\\\":true}]\",\n      \"extractedVars\": \"{\\\"bookId\\\":\\\"42\\\"}\",\n      \"requestUrl\": \"http://localhost:8080/api/books\",\n      \"requestBody\": \"{\\\"title\\\":\\\"x\\\"}\",\n      \"responseStatus\": 201\n    },\n    {\n      \"planId\": \"44444444-0000-4000-8000-0000000000a4\",\n      \"stepId\": \"55555555-0000-4000-8000-0000000000a5\",\n      \"stepOrder\": 2,\n      \"stepName\": \"Đọc sách\",\n      \"stepType\": \"HTTP_REQUEST\",\n      \"passed\": false,\n      \"skipped\": false,\n      \"weight\": 1,\n      \"score\": 0.0,\n      \"actualValue\": \"{}\",\n      \"errorMessage\": \"status: expected 200, got 404\",\n      \"durationMs\": 45,\n      \"assertionDetails\": \"[{\\\"kind\\\":\\\"status\\\",\\\"expected\\\":200,\\\"actual\\\":404,\\\"passed\\\":false}]\",\n      \"extractedVars\": null,\n      \"requestUrl\": \"http://localhost:8080/api/books/42\",\n      \"requestBody\": null,\n      \"responseStatus\": 404\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{result-service}}/api/v1/internal/results",
+              "host": [
+                "{{result-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "internal",
+                "results"
+              ]
+            },
+            "description": "A second report for the same student+assignment (different submission). Known quirk, NOT a contract: re-reporting the SAME (student,assignment,plan) scope answers 409 (flush-ordering vs idx_results_latest) — separate bug note, not part of this collection's contract."
+          },
+          "response": [
+            {
+              "name": "live 201 (result-full-mixed.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"submissionId\": \"cccccccc-0000-4000-8000-000000000033\",\n  \"assignmentId\": \"22222222-0000-4000-8000-0000000000a2\",\n  \"studentId\": \"33333333-0000-4000-8000-0000000000a3\",\n  \"planId\": null,\n  \"planWeight\": 1,\n  \"score\": 7.5,\n  \"maxScore\": 10.0,\n  \"status\": \"DONE\",\n  \"summaryLog\": \"Passed 3/4 (75%)\",\n  \"stepResults\": [\n    {\n      \"planId\": \"44444444-0000-4000-8000-0000000000a4\",\n      \"stepId\": \"55555555-0000-4000-8000-0000000000a5\",\n      \"stepOrder\": 1,\n      \"stepName\": \"Tạo sách\",\n      \"stepType\": \"HTTP_REQUEST\",\n      \"passed\": true,\n      \"skipped\": false,\n      \"weight\": 1,\n      \"score\": 1.0,\n      \"actualValue\": \"{\\\"id\\\":42}\",\n      \"errorMessage\": null,\n      \"durationMs\": 87,\n      \"assertionDetails\": \"[{\\\"kind\\\":\\\"status\\\",\\\"passed\\\":true}]\",\n      \"extractedVars\": \"{\\\"bookId\\\":\\\"42\\\"}\",\n      \"requestUrl\": \"http://localhost:8080/api/books\",\n      \"requestBody\": \"{\\\"title\\\":\\\"x\\\"}\",\n      \"responseStatus\": 201\n    },\n    {\n      \"planId\": \"44444444-0000-4000-8000-0000000000a4\",\n      \"stepId\": \"55555555-0000-4000-8000-0000000000a5\",\n      \"stepOrder\": 2,\n      \"stepName\": \"Đọc sách\",\n      \"stepType\": \"HTTP_REQUEST\",\n      \"passed\": false,\n      \"skipped\": false,\n      \"weight\": 1,\n      \"score\": 0.0,\n      \"actualValue\": \"{}\",\n      \"errorMessage\": \"status: expected 200, got 404\",\n      \"durationMs\": 45,\n      \"assertionDetails\": \"[{\\\"kind\\\":\\\"status\\\",\\\"expected\\\":200,\\\"actual\\\":404,\\\"passed\\\":false}]\",\n      \"extractedVars\": null,\n      \"requestUrl\": \"http://localhost:8080/api/books/42\",\n      \"requestBody\": null,\n      \"responseStatus\": 404\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{result-service}}/api/v1/internal/results",
+                  "host": [
+                    "{{result-service}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "internal",
+                    "results"
+                  ]
+                },
+                "description": "A second report for the same student+assignment (different submission). Known quirk, NOT a contract: re-reporting the SAME (student,assignment,plan) scope answers 409 (flush-ordering vs idx_results_latest) — separate bug note, not part of this collection's contract."
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"id\":\"57301aa1-64ea-4940-8968-bada30c48870\"}"
+            }
+          ]
+        },
+        {
+          "name": "get results by submission (200 live, owner-scoped)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Gateway-Secret",
+                "value": "{{gateway-secret}}"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{result-service}}/api/v1/results/11111111-0000-4000-8000-0000000000a1",
+              "host": [
+                "{{result-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "results",
+                "11111111-0000-4000-8000-0000000000a1"
+              ]
+            },
+            "description": "X-User-Id must equal the rows' studentId or 403. Empty [] while grading (poll contract). Row shows scope/skipped/5 A2 evidence fields."
+          },
+          "response": [
+            {
+              "name": "live 200 (resp-get.json)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Gateway-Secret",
+                    "value": "{{gateway-secret}}"
+                  },
+                  {
+                    "key": "X-User-Id",
+                    "value": "{{userId}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{result-service}}/api/v1/results/11111111-0000-4000-8000-0000000000a1",
+                  "host": [
+                    "{{result-service}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "results",
+                    "11111111-0000-4000-8000-0000000000a1"
+                  ]
+                },
+                "description": "X-User-Id must equal the rows' studentId or 403. Empty [] while grading (poll contract). Row shows scope/skipped/5 A2 evidence fields."
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Results fetched\",\"data\":[{\"id\":\"d25968e2-b286-4e37-bbe3-6138a80a6f97\",\"submissionId\":\"11111111-0000-4000-8000-0000000000a1\",\"assignmentId\":\"22222222-0000-4000-8000-0000000000a2\",\"studentId\":\"33333333-0000-4000-8000-0000000000a3\",\"planId\":\"44444444-0000-4000-8000-0000000000a4\",\"planWeight\":2,\"scope\":\"PLAN\",\"score\":7.50,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 3/4 steps (75%), Score: 7.50/10. Failed: Get book list — status: expected 200, got 404\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-10-12T10:07:02.997005Z\",\"steps\":[{\"id\":\"269a56bc-9744-4a9b-93e5-7be53ec1c6f6\",\"planId\":\"44444444-0000-4000-8000-0000000000a4\",\"stepId\":\"55555555-0000-4000-8000-0000000000a5\",\"stepOrder\":1,\"stepName\":\"Create book\",\"stepType\":\"HTTP_REQUEST\",\"passed\":true,\"skipped\":false,\"weight\":1,\"score\":1.00,\"actualValue\":\"{\\\"id\\\":42,\\\"title\\\":\\\"Clean Code\\\"}\",\"expectedValue\":null,\"errorMessage\":null,\"durationMs\":87,\"assertionDetails\":\"[{\\\"kind\\\":\\\"status\\\",\\\"expected\\\":201,\\\"actual\\\":201,\\\"passed\\\":true},{\\\"kind\\\":\\\"json_path\\\",\\\"expected\\\":\\\"$.id\\\",\\\"actual\\\":\\\"$.id\\\",\\\"passed\\\":true}]\",\"extractedVars\":\"{\\\"bookId\\\":\\\"42\\\"}\",\"requestUrl\":\"http://localhost:8080/api/books\",\"requestBody\":\"{\\\"title\\\":\\\"Clean Code\\\"}\",\"responseStatus\":201},{\"id\":\"d78d4b20-0906-4396-bd83-3d8f6821b9f1\",\"planId\":\"44444444-0000-4000-8000-0000000000a4\",\"stepId\":\"55555555-0000-4000-8000-0000000000a5\",\"stepOrder\":2,\"stepName\":\"Get book list\",\"stepType\":\"HTTP_REQUEST\",\"passed\":false,\"skipped\":false,\"weight\":3,\"score\":0.00,\"actualValue\":\"{\\\"books\\\":[]}\",\"expectedValue\":null,\"errorMessage\":\"status: expected 200, got 404\",\"durationMs\":45,\"assertionDetails\":\"[{\\\"kind\\\":\\\"status\\\",\\\"expected\\\":200,\\\"actual\\\":404,\\\"passed\\\":false}]\",\"extractedVars\":null,\"requestUrl\":\"http://localhost:8080/api/books\",\"requestBody\":null,\"responseStatus\":404}]}]}"
+            }
+          ]
+        },
+        {
+          "name": "internal weighted — max-per-plan (200 live)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignmentIds\": [\n    \"22222222-0000-4000-8000-0000000000a2\"\n  ],\n  \"studentId\": \"33333333-0000-4000-8000-0000000000a3\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{result-service}}/api/v1/internal/results/weighted",
+              "host": [
+                "{{result-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "internal",
+                "results",
+                "weighted"
+              ]
+            },
+            "description": "Max per plan scope, weight-averaged. Seeded rows (PLAN 10 + FULL mixed) average 10.00 with live course weights."
+          },
+          "response": [
+            {
+              "name": "live 200 (weighted-max.json)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"assignmentIds\": [\n    \"22222222-0000-4000-8000-0000000000a2\"\n  ],\n  \"studentId\": \"33333333-0000-4000-8000-0000000000a3\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{result-service}}/api/v1/internal/results/weighted",
+                  "host": [
+                    "{{result-service}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "internal",
+                    "results",
+                    "weighted"
+                  ]
+                },
+                "description": "Max per plan scope, weight-averaged. Seeded rows (PLAN 10 + FULL mixed) average 10.00 with live course weights."
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"average\":10.00}"
+            }
+          ]
+        },
+        {
+          "name": "lecturer grading view — results, max-policy (200 live)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/22222222-0000-4000-8000-0000000000a2/results?includeSteps=false",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "22222222-0000-4000-8000-0000000000a2",
+                "results"
+              ],
+              "query": [
+                {
+                  "key": "includeSteps",
+                  "value": "false"
+                }
+              ]
+            },
+            "description": "Owner-scoped. exerciseScore computed by the same max formula; display rows stay latest-per-scope."
+          },
+          "response": [
+            {
+              "name": "live 200 (lecturer-results-max.json)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  }
+                ],
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/22222222-0000-4000-8000-0000000000a2/results?includeSteps=false",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "22222222-0000-4000-8000-0000000000a2",
+                    "results"
+                  ],
+                  "query": [
+                    {
+                      "key": "includeSteps",
+                      "value": "false"
+                    }
+                  ]
+                },
+                "description": "Owner-scoped. exerciseScore computed by the same max formula; display rows stay latest-per-scope."
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Success\",\"data\":[{\"studentUserId\":\"bbbbbbbb-0000-4000-8000-000000000002\",\"studentCode\":null,\"studentName\":null,\"exerciseScore\":10.00,\"results\":[{\"id\":\"57301aa1-64ea-4940-8968-bada30c48870\",\"submissionId\":\"cccccccc-0000-4000-8000-000000000033\",\"assignmentId\":\"8f2e2414-0869-4d10-aee1-81b99094a459\",\"studentId\":\"bbbbbbbb-0000-4000-8000-000000000002\",\"planId\":null,\"planWeight\":1,\"score\":7.50,\"maxScore\":10.00,\"status\":\"DONE\",\"summaryLog\":\"Passed 3/4 (75%)\",\"latest\":true,\"startedAt\":null,\"completedAt\":\"2026-10-12T10:26:06.952502Z\",\"steps\":null}]}]}"
+            }
+          ]
+        },
+        {
+          "name": "lecturer grading view — submissions (200 live)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/assignments/22222222-0000-4000-8000-0000000000a2/submissions",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "22222222-0000-4000-8000-0000000000a2",
+                "submissions"
+              ]
+            },
+            "description": "Rows carry planId + roster studentCode/studentName (nulls when departed)."
+          },
+          "response": [
+            {
+              "name": "live 200 (lecturer-submissions-empty.json)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  }
+                ],
+                "url": {
+                  "raw": "{{gateway}}/api/v1/assignments/22222222-0000-4000-8000-0000000000a2/submissions",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "assignments",
+                    "22222222-0000-4000-8000-0000000000a2",
+                    "submissions"
+                  ]
+                },
+                "description": "Rows carry planId + roster studentCode/studentName (nulls when departed)."
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Success\",\"data\":[]}"
+            }
+          ]
+        }
+      ],
+      "description": "Saved 201/200 bodies are LIVE local captures — full A2 evidence shape with scope/skipped."
+    },
+    {
+      "name": "Submissions",
+      "item": [
+        {
+          "name": "presigned upload URL (whole assignment)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/submissions/presigned-url?assignmentId=22222222-0000-4000-8000-0000000000a2&zipFileName=book-app.zip",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "presigned-url"
+              ],
+              "query": [
+                {
+                  "key": "assignmentId",
+                  "value": "22222222-0000-4000-8000-0000000000a2"
+                },
+                {
+                  "key": "zipFileName",
+                  "value": "book-app.zip"
+                }
+              ]
+            },
+            "description": "No saved response: needs live RustFS (bucket check) — local signing 500s without storage."
+          }
+        },
+        {
+          "name": "presigned upload URL (single plan)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/submissions/presigned-url?assignmentId=22222222-0000-4000-8000-0000000000a2&zipFileName=book-app.zip&planId=44444444-0000-4000-8000-0000000000a4",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "presigned-url"
+              ],
+              "query": [
+                {
+                  "key": "assignmentId",
+                  "value": "22222222-0000-4000-8000-0000000000a2"
+                },
+                {
+                  "key": "zipFileName",
+                  "value": "book-app.zip"
+                },
+                {
+                  "key": "planId",
+                  "value": "44444444-0000-4000-8000-0000000000a4"
+                }
+              ]
+            },
+            "description": "planId set = single-question run (PLAN scope); omitted = FULL run. Same storage caveat."
+          }
+        },
+        {
+          "name": "list my submissions (200 live)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Lecturer/student JWT via gateway"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/api/v1/submissions",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions"
+              ]
+            },
+            "description": "Rows carry planId. Empty locally (no uploads); shape is the contract."
+          },
+          "response": [
+            {
+              "name": "live 200 (history-student.json)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "description": "Lecturer/student JWT via gateway"
+                  }
+                ],
+                "url": {
+                  "raw": "{{gateway}}/api/v1/submissions",
+                  "host": [
+                    "{{gateway}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "submissions"
+                  ]
+                },
+                "description": "Rows carry planId. Empty locally (no uploads); shape is the contract."
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"status\":200,\"message\":\"Success\",\"data\":{\"meta\":{\"page\":0,\"pageSize\":20,\"pages\":0,\"total\":0},\"result\":[]}}"
+            }
+          ]
+        },
+        {
+          "name": "webhook upload-complete (RustFS)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"objectName\": \"submissions/x.zip\",\n  \"bucket\": \"submission-files\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gateway}}/api/v1/submissions/webhook/upload-complete",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "webhook",
+                "upload-complete"
+              ]
+            },
+            "description": "Shape mirrors the storage webhook; no saved response (needs a live object + consumer)."
+          }
+        },
+        {
+          "name": "internal list by assignment (course-service)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{submission-service}}/api/v1/internal/submissions/assignment/22222222-0000-4000-8000-0000000000a2",
+              "host": [
+                "{{submission-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "internal",
+                "submissions",
+                "assignment",
+                "22222222-0000-4000-8000-0000000000a2"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (internal-subs-by-assign.json)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{submission-service}}/api/v1/internal/submissions/assignment/22222222-0000-4000-8000-0000000000a2",
+                  "host": [
+                    "{{submission-service}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "internal",
+                    "submissions",
+                    "assignment",
+                    "22222222-0000-4000-8000-0000000000a2"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "[]"
+            }
+          ]
+        },
+        {
+          "name": "internal update status (executor)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DONE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{submission-service}}/api/v1/internal/submissions/11111111-0000-4000-8000-0000000000a1/status",
+              "host": [
+                "{{submission-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "internal",
+                "submissions",
+                "11111111-0000-4000-8000-0000000000a1",
+                "status"
+              ]
+            },
+            "description": "Executor patches GRADING/DONE/FAILED (strict enum — GRADED 500s). No saved response: needs a live row; path verified against SubmissionInternalController."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Course internal (executor/result-service callers)",
+      "item": [
+        {
+          "name": "internal grading config (executor)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{course-service}}/api/v1/internal/assignments/22222222-0000-4000-8000-0000000000a2",
+              "host": [
+                "{{course-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "internal",
+                "assignments",
+                "22222222-0000-4000-8000-0000000000a2"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (course-internal-config.json)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{course-service}}/api/v1/internal/assignments/22222222-0000-4000-8000-0000000000a2",
+                  "host": [
+                    "{{course-service}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "internal",
+                    "assignments",
+                    "22222222-0000-4000-8000-0000000000a2"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"id\":\"8f2e2414-0869-4d10-aee1-81b99094a459\",\"classId\":\"a677d263-f661-488b-9530-02e95e6efab2\",\"gradingStrategy\":\"LECTURER_DOCKER_COMPOSE\",\"dockerComposeTemplate\":\"version: \\\"3\\\"\\nservices:\\n  app:\\n    image: ghcr.io/org/app:v1.0\",\"dockerComposePort\":8080,\"startupTimeoutMs\":60000,\"executionTimeoutMs\":300000,\"maxMemoryMb\":512,\"maxCpu\":1.0,\"dockerImageUrls\":[]}"
+            }
+          ]
+        },
+        {
+          "name": "internal plans + weights (result-service Feign)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{course-service}}/api/v1/internal/assignments/22222222-0000-4000-8000-0000000000a2/plans",
+              "host": [
+                "{{course-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "internal",
+                "assignments",
+                "22222222-0000-4000-8000-0000000000a2",
+                "plans"
+              ]
+            },
+            "description": "Source of truth for per-plan weights in max-policy scoring."
+          },
+          "response": [
+            {
+              "name": "live 200 (course-internal-plans.json)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{course-service}}/api/v1/internal/assignments/22222222-0000-4000-8000-0000000000a2/plans",
+                  "host": [
+                    "{{course-service}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "internal",
+                    "assignments",
+                    "22222222-0000-4000-8000-0000000000a2",
+                    "plans"
+                  ]
+                },
+                "description": "Source of truth for per-plan weights in max-policy scoring."
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "[{\"id\":\"4f914d7a-d976-4e8b-b017-bb51c008856b\",\"name\":\"Câu 1 — CRUD sách (sửa)\",\"sequenceOrder\":1,\"weight\":3,\"steps\":[{\"id\":\"68e0f92b-ee55-405f-9b04-1c6fd73d8f84\",\"stepOrder\":1,\"name\":\"Tạo sách\",\"stepType\":\"HTTP_REQUEST\",\"config\":\"{\\\"body\\\": {\\\"title\\\": \\\"Clean Code\\\", \\\"author\\\": \\\"Martin\\\"}, \\\"path\\\": \\\"/api/books\\\", \\\"method\\\": \\\"POST\\\", \\\"extract\\\": [{\\\"from\\\": \\\"response_body\\\", \\\"name\\\": \\\"bookId\\\", \\\"expression\\\": \\\"$.id\\\"}, {\\\"from\\\": \\\"response_body\\\", \\\"name\\\": \\\"staticEnv\\\", \\\"expression\\\": \\\"$.env\\\"}], \\\"headers\\\": {\\\"X-Tenant\\\": \\\"ptit\\\"}, \\\"assertions\\\": [{\\\"kind\\\": \\\"status\\\", \\\"equals\\\": \\\"201\\\"}, {\\\"kind\\\": \\\"contains\\\", \\\"text\\\": \\\"Clean Code\\\"}, {\\\"kind\\\": \\\"json_path\\\", \\\"path\\\": \\\"$.id\\\"}, {\\\"json\\\": {\\\"id\\\": 42, \\\"title\\\": \\\"Clean Code\\\"}, \\\"kind\\\": \\\"body_equals\\\"}, {\\\"json\\\": {\\\"id\\\": 0, \\\"title\\\": \\\"\\\"}, \\\"kind\\\": \\\"body_structure\\\"}, {\\\"kind\\\": \\\"field_equals\\\", \\\"path\\\": \\\"$.title\\\", \\\"equals\\\": \\\"Clean Code\\\"}], \\\"query_params\\\": {\\\"page\\\": \\\"1\\\"}, \\\"expected_status\\\": 201}\",\"expectedResult\":null,\"weight\":2,\"timeoutMs\":30000,\"required\":true},{\"id\":\"d838fb71-9dba-4d99-9902-4c582dd3bd58\",\"stepOrder\":2,\"name\":\"Đọc sách vừa tạo\",\"stepType\":\"HTTP_REQUEST\",\"config\":\"{\\\"path\\\": \\\"/api/books/${bookId}\\\", \\\"method\\\": \\\"GET\\\", \\\"assertions\\\": [{\\\"kind\\\": \\\"status\\\", \\\"equals\\\": \\\"200\\\"}, {\\\"kind\\\": \\\"field_equals\\\", \\\"path\\\": \\\"$.id\\\", \\\"equals\\\": \\\"${bookId}\\\"}], \\\"expected_status\\\": 200}\",\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"172c9c6d-89f1-42a2-81a3-15310a7420a6\",\"stepOrder\":3,\"name\":\"Verify DB row\",\"stepType\":\"DB_QUERY\",\"config\":\"{\\\"query\\\": \\\"SELECT id, title FROM books WHERE id = ${bookId}\\\", \\\"expected\\\": {\\\"columns\\\": [\\\"id\\\", \\\"title\\\"], \\\"row_count\\\": 1}, \\\"connection\\\": {\\\"db_port\\\": 5432, \\\"db_type\\\": \\\"postgres\\\", \\\"database\\\": \\\"bookdb\\\", \\\"password\\\": \\\"CHANGEME\\\", \\\"username\\\": \\\"app\\\", \\\"db_service\\\": \\\"postgres-service\\\"}}\",\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"4dec1ffe-bad1-46ad-9871-a4cdfc92831a\",\"stepOrder\":4,\"name\":\"Verify schema\",\"stepType\":\"DB_SCHEMA_CHECK\",\"config\":\"{\\\"checks\\\": [{\\\"kind\\\": \\\"TABLE_EXISTS\\\", \\\"table_name\\\": \\\"books\\\"}, {\\\"kind\\\": \\\"COLUMN_EXISTS\\\", \\\"data_type\\\": \\\"varchar\\\", \\\"table_name\\\": \\\"books\\\", \\\"column_name\\\": \\\"title\\\"}, {\\\"kind\\\": \\\"INDEX_EXISTS\\\", \\\"index_name\\\": \\\"idx_books_title\\\", \\\"table_name\\\": \\\"books\\\"}, {\\\"kind\\\": \\\"PRIMARY_KEY\\\", \\\"column\\\": \\\"id\\\", \\\"table_name\\\": \\\"books\\\"}], \\\"connection\\\": {\\\"db_type\\\": \\\"postgres\\\", \\\"database\\\": \\\"bookdb\\\", \\\"password\\\": \\\"CHANGEME\\\", \\\"username\\\": \\\"app\\\"}}\",\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"eb6c07f2-816b-4b00-a138-cad15e005912\",\"stepOrder\":5,\"name\":\"Migrate genre\",\"stepType\":\"DB_MIGRATION\",\"config\":\"{\\\"connection\\\": {\\\"db_type\\\": \\\"postgres\\\", \\\"database\\\": \\\"bookdb\\\", \\\"password\\\": \\\"CHANGEME\\\", \\\"username\\\": \\\"app\\\"}, \\\"statements\\\": [\\\"ALTER TABLE books ADD COLUMN IF NOT EXISTS genre VARCHAR(64)\\\", \\\"UPDATE books SET genre = 'tech' WHERE genre IS NULL\\\"]}\",\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":true},{\"id\":\"bc464876-d0a3-477e-8737-5b58f303ea0e\",\"stepOrder\":6,\"name\":\"Health check\",\"stepType\":\"HTTP_REQUEST\",\"config\":\"{\\\"path\\\": \\\"/health\\\", \\\"method\\\": \\\"GET\\\", \\\"expected_status\\\": 200}\",\"expectedResult\":null,\"weight\":1,\"timeoutMs\":null,\"required\":false}]},{\"id\":\"2790926b-a1a7-41c3-8d96-d813335376b7\",\"name\":\"Câu 2\",\"sequenceOrder\":2,\"weight\":1,\"steps\":[]}]"
+            }
+          ]
+        },
+        {
+          "name": "internal assignment exists",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{course-service}}/api/v1/internal/assignments/22222222-0000-4000-8000-0000000000a2/exists",
+              "host": [
+                "{{course-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "internal",
+                "assignments",
+                "22222222-0000-4000-8000-0000000000a2",
+                "exists"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "live 200 (course-internal-exists.json)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{course-service}}/api/v1/internal/assignments/22222222-0000-4000-8000-0000000000a2/exists",
+                  "host": [
+                    "{{course-service}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "internal",
+                    "assignments",
+                    "22222222-0000-4000-8000-0000000000a2",
+                    "exists"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"exists\":true}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

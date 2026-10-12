@@ -1,0 +1,7 @@
+username,fullName,email,role
+B22DCCN090,Nguyen Van Tam,b22dccn090@ptit.edu.vn,STUDENT
+B22DCCN091,,b22dccn091@ptit.edu.vn,
+gv099,Tran Thi Giang,gv099@ptit.edu.vn,LECTURER
+B22DCCN090,Duplicate User,dup@ptit.edu.vn,STUDENT
+B22DCCN092,Bad Role,bad@ptit.edu.vn,ADMIN
+only-one-column
