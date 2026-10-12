@@ -809,11 +809,16 @@ public class GradingOrchestrator
                 .durationMs(result != null ? result.getDurationMs() : null)
                 // Review: 2026-10-11, phase A2 verbose evidence — raw evidence
                 // strings redacted here (trust boundary); nulls stay null.
+                // Review: 2026-10-11, Pullfrog — every evidence string is
+                // redacted; assertionDetails/extractedVars reuse the
+                // redact-intact-then-cap helper so large verdict arrays cannot
+                // bloat the row/payload unbounded.
                 .assertionDetails(result == null ? null
-                        : EvidenceRedactor.redact(result.getAssertionResult()))
+                        : truncateForStudent(result.getAssertionResult()))
                 .extractedVars(result == null ? null
-                        : EvidenceRedactor.redact(result.getExtractedVariables()))
-                .requestUrl(result == null ? null : result.getRequestUrl())
+                        : truncateForStudent(result.getExtractedVariables()))
+                .requestUrl(result == null ? null
+                        : EvidenceRedactor.redact(result.getRequestUrl()))
                 .requestBody(result == null ? null
                         : truncateForStudent(result.getRequestBody()))
                 .responseStatus(result == null ? null : result.getActualStatusCode())

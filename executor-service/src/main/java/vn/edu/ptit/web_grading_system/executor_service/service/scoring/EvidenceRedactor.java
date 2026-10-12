@@ -39,7 +39,9 @@ public final class EvidenceRedactor {
     private static final Pattern BEARER_BASIC =
             Pattern.compile("\\b(Bearer|Basic)\\s+[A-Za-z0-9\\-._~+/=]+");
     private static final Pattern KEY_VALUE =
-            Pattern.compile("(?i)(password|passwd|secret|token)\\s*[:=]\\s*\\S+");
+            // [^\s&]+ (not \S+): stop at & so one secret query param does not
+            // eat the innocent params after it (?token=abc&x=1 keeps x=1).
+            Pattern.compile("(?i)(password|passwd|secret|token)\\s*[:=]\\s*[^\\s&]+");
     // User kept, password masked: matches up to the LAST @ before a slash, so
     // passwords containing @ are still fully covered (best-effort; a password
     // containing / is out of reach and documented in the phase doc).

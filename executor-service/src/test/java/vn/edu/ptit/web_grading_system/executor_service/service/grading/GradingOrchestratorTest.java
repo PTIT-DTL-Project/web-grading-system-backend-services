@@ -512,6 +512,39 @@ class GradingOrchestratorTest {
     }
 
     @Test
+    void stepItem_masksSecretsInRequestUrl() throws Exception {
+        GradingStepResult result = GradingStepResult.builder()
+                .responseBody("{}")
+                .requestUrl("http://localhost:8080/api/books?token=abc123&x=1")
+                .durationMs(12)
+                .build();
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), result, true, false, null);
+
+        assertTrue(item.getRequestUrl().contains("token=***"));
+        assertTrue(item.getRequestUrl().contains("x=1"));
+        assertFalse(item.getRequestUrl().contains("abc123"));
+    }
+
+    @Test
+    void stepItem_capsLongAssertionDetails() throws Exception {
+        // A contains-verdict embedding a large body would otherwise bloat the
+        // TEXT row and API payload unbounded (Pullfrog).
+        String bigDetails = "[{\"kind\":\"contains\",\"passed\":false,\"actual\":\""
+                + "z".repeat(25000) + "\"}]";
+        GradingStepResult result = GradingStepResult.builder()
+                .responseBody("{}")
+                .assertionResult(bigDetails)
+                .durationMs(12)
+                .build();
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), result, false, false, null);
+
+        assertTrue(item.getAssertionDetails().contains("...(truncated 20000/"));
+        assertTrue(item.getAssertionDetails().length() < 21000);
+    }
+
+    @Test
     void stepItem_redactsThenCapsLongVerdictActual() throws Exception {
         // Actual carried as a JSON string (the shape checkContains produces):
         // redact masks keys first, cap applies to the redacted text.
