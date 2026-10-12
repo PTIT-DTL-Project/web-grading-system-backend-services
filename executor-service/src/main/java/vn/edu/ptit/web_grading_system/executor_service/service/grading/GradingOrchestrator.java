@@ -807,6 +807,16 @@ public class GradingOrchestrator
                 .errorMessage(errorMessage != null ? errorMessage
                         : joinFailedVerdicts(result == null ? null : result.getAssertionResult()))
                 .durationMs(result != null ? result.getDurationMs() : null)
+                // Review: 2026-10-11, phase A2 verbose evidence — raw evidence
+                // strings redacted here (trust boundary); nulls stay null.
+                .assertionDetails(result == null ? null
+                        : EvidenceRedactor.redact(result.getAssertionResult()))
+                .extractedVars(result == null ? null
+                        : EvidenceRedactor.redact(result.getExtractedVariables()))
+                .requestUrl(result == null ? null : result.getRequestUrl())
+                .requestBody(result == null ? null
+                        : truncateForStudent(result.getRequestBody()))
+                .responseStatus(result == null ? null : result.getActualStatusCode())
                 .build();
     }
 

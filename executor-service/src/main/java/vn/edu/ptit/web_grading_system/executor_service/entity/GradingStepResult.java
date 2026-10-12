@@ -68,9 +68,8 @@ public class GradingStepResult extends BaseEntity {
     @Column(name = "expected_status_code")
     private Integer expectedStatusCode;
 
-    @Column(name = "expected_response_body")
-    private String expectedResponseBody;
-
+    // Review: 2026-10-11, phase A3 — expected_response_body column dropped
+    // (V8): never populated by any writer repo-wide.
     @Column(name = "extracted_variables", columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)
     private String extractedVariables;

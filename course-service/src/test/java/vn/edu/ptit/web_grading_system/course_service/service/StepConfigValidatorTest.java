@@ -264,41 +264,26 @@ class StepConfigValidatorTest {
         assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, ok));
     }
 
-    // ---------- EXTRACT ----------
+    // ---------- EXTRACT / DELAY (rejected standalone since phase A3) ----------
 
     @Test
-    void extract_valueForm_and_fromForm_pass() {
+    void extract_standalone_rejected() {
         ObjectNode n = node("""
             {"variables":[
                {"name":"pageSize","value":"10"},
                {"name":"firstBookId","from":"step_1","expression":"$.id"}
             ]}""");
-        assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.EXTRACT, n));
-    }
-
-    @Test
-    void extract_variableWithoutValueOrFrom_fails() {
-        ObjectNode n = node("{\"variables\":[{\"name\":\"orphan\"}]}");
         var e = assertThrows(IllegalArgumentException.class,
                 () -> StepConfigValidator.validateAndSerialize(StepType.EXTRACT, n));
-        assertTrue(e.getMessage().contains("'value' or"));
+        assertTrue(e.getMessage().contains("extract[]"));
     }
-
-    // ---------- DELAY ----------
 
     @Test
-    void delay_positive_passes() {
-        assertDoesNotThrow(() ->
-                StepConfigValidator.validateAndSerialize(StepType.DELAY, node("{\"duration_ms\":5000}")));
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"0", "-5"})
-    void delay_nonPositive_fails(String v) {
-        ObjectNode n = node("{\"duration_ms\":" + v + "}");
+    void delay_standalone_rejected() {
         var e = assertThrows(IllegalArgumentException.class,
-                () -> StepConfigValidator.validateAndSerialize(StepType.DELAY, n));
-        assertTrue(e.getMessage().contains("positive integer"));
+                () -> StepConfigValidator.validateAndSerialize(StepType.DELAY,
+                        node("{\"duration_ms\":5000}")));
+        assertTrue(e.getMessage().contains("not supported"));
     }
 
     // ---------- generic ----------

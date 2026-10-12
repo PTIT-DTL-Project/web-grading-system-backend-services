@@ -474,6 +474,28 @@ class GradingOrchestratorTest {
     }
 
     @Test
+    void stepItem_carriesEvidenceFields() throws Exception {
+        GradingStepResult result = GradingStepResult.builder()
+                .responseBody("{}")
+                .assertionResult("[{\"kind\":\"status\",\"passed\":true}]")
+                .extractedVariables("{\"bookId\":\"42\"}")
+                .requestUrl("http://localhost:8080/api/books")
+                .requestBody("{\"title\":\"t\"}")
+                .actualStatusCode(201)
+                .durationMs(12)
+                .build();
+
+        ResultServiceClient.StepResultItem item =
+                invokeStepItem(aPlan(), aStep(), result, true, false, null);
+
+        assertEquals("[{\"kind\":\"status\",\"passed\":true}]", item.getAssertionDetails());
+        assertEquals("{\"bookId\":\"42\"}", item.getExtractedVars());
+        assertEquals("http://localhost:8080/api/books", item.getRequestUrl());
+        assertEquals("{\"title\":\"t\"}", item.getRequestBody());
+        assertEquals(201, item.getResponseStatus());
+    }
+
+    @Test
     void stepItem_masksJsonKeysInsideVerdictActual() throws Exception {
         // Pullfrog probe verbatim: JSON keys must mask even though the joined
         // line itself is not JSON (regex-only sweep misses them).
