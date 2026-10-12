@@ -77,8 +77,12 @@ public class HttpLogService {
         }
         String value = new String(bytes, StandardCharsets.UTF_8);
         value = SENSITIVE_QUERY_PARAM_PATTERN.matcher(value).replaceAll("$1REDACTED");
+        // Review: 2026-10-11, phase A3 — shared ...(truncated N/M) marker
+        // contract: kept/input-chars-at-this-stage (operator rows here are
+        // unredacted, so the denominator is the raw length).
         return value.length() <= MAX_CAPTURE_CHARS
                 ? value
-                : value.substring(0, MAX_CAPTURE_CHARS) + "...(truncated)";
+                : value.substring(0, MAX_CAPTURE_CHARS)
+                        + "...(truncated " + MAX_CAPTURE_CHARS + "/" + value.length() + ")";
     }
 }
