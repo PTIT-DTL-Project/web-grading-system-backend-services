@@ -343,7 +343,12 @@ public class ResultService {
         for (Result old : previous) {
             old.setLatest(false);
         }
-        resultRepository.saveAll(previous);
+        // Flush the demotion BEFORE inserting: Hibernate flushes entity INSERTs
+        // before UPDATEs within one transaction, so without this the new
+        // latest=true row hits idx_results_latest while the old one is still
+        // true → 409 on every same-scope regrade (executor then drops the
+        // report silently as a 4xx). Review: 2026-10-12, Postman capture found it.
+        resultRepository.saveAllAndFlush(previous);
 
         Result result = resultRepository.save(Result.builder()
                 .submissionId(request.getSubmissionId())

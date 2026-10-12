@@ -2,6 +2,7 @@ package vn.edu.ptit.web_grading_system.result_service.service;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 import vn.edu.ptit.web_grading_system.result_service.dto.request.CreateResultRequest;
 import vn.edu.ptit.web_grading_system.result_service.entity.Result;
@@ -74,7 +75,7 @@ class ResultServiceCreateTest {
         UUID id = f.service().createResult(request(planId));
 
         assertTrue(previous.getLatest() == null || !previous.getLatest());
-        Mockito.verify(f.results()).saveAll(Mockito.eq(List.of(previous)));
+        Mockito.verify(f.results()).saveAllAndFlush(Mockito.eq(List.of(previous)));
         ArgumentCaptor<Result> saved = ArgumentCaptor.forClass(Result.class);
         Mockito.verify(f.results()).save(saved.capture());
         assertEquals(ResultStatus.DONE, saved.getValue().getStatus());
@@ -125,7 +126,28 @@ class ResultServiceCreateTest {
         // new overall 10 and the average halved the score. Both go false.
         assertFalse(perPlan.getLatest());
         assertFalse(overall.getLatest());
-        Mockito.verify(f.results()).saveAll(Mockito.eq(List.of(perPlan, overall)));
+        Mockito.verify(f.results()).saveAllAndFlush(Mockito.eq(List.of(perPlan, overall)));
+    }
+
+    @Test
+    void createResult_demotionFlushesBeforeInsert() {
+        // Regression for the live-found 409: without an explicit flush Hibernate
+        // issues the new latest=true INSERT before the demote UPDATEs in the
+        // same transaction, violating idx_results_latest on every same-scope
+        // regrade. Mocks cannot reproduce flush ordering — this test pins the
+        // call order; the DB proof is the manual double-POST in the fix report.
+        Fixture f = fixture();
+        UUID planId = UUID.randomUUID();
+        Result previous = Result.builder().latest(true).build();
+        Mockito.when(f.results().findByStudentIdAndAssignmentIdAndPlanIdAndLatestTrue(
+                        Mockito.any(), Mockito.any(), Mockito.eq(planId)))
+                .thenReturn(List.of(previous));
+
+        f.service().createResult(request(planId));
+
+        InOrder order = Mockito.inOrder(f.results());
+        order.verify(f.results()).saveAllAndFlush(Mockito.eq(List.of(previous)));
+        order.verify(f.results()).save(Mockito.any(Result.class));
     }
 
     @Test
