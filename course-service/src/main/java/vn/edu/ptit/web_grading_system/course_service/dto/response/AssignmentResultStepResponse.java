@@ -25,10 +25,18 @@ public class AssignmentResultStepResponse {
     private String stepName;
     private String stepType;
     private Boolean passed;
+    private Boolean skipped;
     private Integer weight;
     private BigDecimal score;
     private String actualValue;
     private String expectedValue;
     private String errorMessage;
     private Integer durationMs;
+    // Review: 2026-10-12, lecturer evidence parity — mirrors result_service
+    // StepResultResponse verbose fields (NULL = not captured on old rows).
+    private String assertionDetails;
+    private String extractedVars;
+    private String requestUrl;
+    private String requestBody;
+    private Integer responseStatus;
 }
