@@ -31,6 +31,8 @@ public class AssignmentResultResponse {
     private UUID studentId;
     private UUID planId;
     private Integer planWeight;
+    /** FULL = whole-assignment run, PLAN = single-plan run (mirrors result-service). */
+    private String scope;
     private BigDecimal score;
     private BigDecimal maxScore;
     private String status;

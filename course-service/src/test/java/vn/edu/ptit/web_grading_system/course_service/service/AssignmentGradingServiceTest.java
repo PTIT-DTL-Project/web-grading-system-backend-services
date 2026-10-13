@@ -180,6 +180,43 @@ class AssignmentGradingServiceTest {
         assertNull(out.get(0).getStudentName());
     }
 
+    @Test
+    void results_scopeAndEvidenceSurviveDeserialization() throws Exception {
+        // Locks the result-service → course-service wire contract: scope plus
+        // the A2 evidence fields must land on the mirror DTOs (unknown fields
+        // would be silently dropped, starving the lecturer evidence view).
+        // Review: 2026-10-12, lecturer detail parity.
+        String json = """
+                {"studentUserId":"%s","studentCode":"SV0001","studentName":"N",
+                 "exerciseScore":8.50,
+                 "results":[{"id":"%s","submissionId":"%s","assignmentId":"%s",
+                   "studentId":"%s","planId":null,"planWeight":1,"scope":"FULL",
+                   "score":8.50,"maxScore":10.00,"status":"DONE","summaryLog":"s",
+                   "latest":true,"startedAt":null,"completedAt":null,
+                   "steps":[{"id":"%s","planId":null,"stepId":"%s","stepOrder":1,
+                     "stepName":"s","stepType":"HTTP_REQUEST","passed":false,
+                     "skipped":false,"weight":1,"score":0.00,
+                     "actualValue":"{}","expectedValue":null,
+                     "errorMessage":"status: expected 200, got 404",
+                     "durationMs":45,"assertionDetails":"[{\\"kind\\":\\"status\\"}]",
+                     "extractedVars":null,"requestUrl":"http://x/y",
+                     "requestBody":null,"responseStatus":404}]}]}"""
+                .formatted(STUDENT, UUID.randomUUID(), UUID.randomUUID(), ASSIGNMENT_ID,
+                        STUDENT, UUID.randomUUID(), UUID.randomUUID());
+        tools.jackson.databind.ObjectMapper mapper = new tools.jackson.databind.ObjectMapper();
+        StudentResultResponse group = mapper.readValue(json, StudentResultResponse.class);
+
+        assertEquals("FULL", group.getResults().get(0).getScope());
+        assertEquals("status: expected 200, got 404",
+                group.getResults().get(0).getSteps().get(0).getErrorMessage());
+        assertEquals("[{\"kind\":\"status\"}]",
+                group.getResults().get(0).getSteps().get(0).getAssertionDetails());
+        assertEquals("http://x/y",
+                group.getResults().get(0).getSteps().get(0).getRequestUrl());
+        assertEquals(404,
+                group.getResults().get(0).getSteps().get(0).getResponseStatus());
+    }
+
     // --- submissions -----------------------------------------------------------
 
     @Test
