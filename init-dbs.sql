@@ -1,0 +1,6 @@
+CREATE DATABASE assignment_db;
+CREATE DATABASE submission_db;
+CREATE DATABASE result_db;
+CREATE DATABASE executor_db;
+CREATE DATABASE keycloak;
+CREATE DATABASE ai_db;

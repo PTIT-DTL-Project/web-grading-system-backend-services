@@ -1,0 +1,5 @@
+ALTER TABLE step_results
+ADD COLUMN IF NOT EXISTS db_query_count INTEGER,
+ADD COLUMN IF NOT EXISTS db_query_logs TEXT,
+ADD COLUMN IF NOT EXISTS stack_trace TEXT,
+ADD COLUMN IF NOT EXISTS peak_memory_mb INTEGER;
