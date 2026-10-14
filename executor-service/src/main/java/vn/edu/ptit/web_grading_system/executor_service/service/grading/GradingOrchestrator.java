@@ -822,6 +822,9 @@ public class GradingOrchestrator
                 .requestBody(result == null ? null
                         : truncateForStudent(result.getRequestBody()))
                 .responseStatus(result == null ? null : result.getActualStatusCode())
+                .dbQueryCount(result == null ? null : result.getDbQueryCount())
+                .dbQueryLogs(result == null ? null : truncateForStudent(result.getDbQueryLogs()))
+                .stackTrace(result == null ? null : truncateForStudent(result.getStackTrace()))
                 .build();
     }
 

@@ -53,4 +53,7 @@ public class GradingJob extends BaseEntity {
 
     @Column(name = "trace_id")
     private String traceId;
+
+    @Column(name = "peak_memory_mb")
+    private Integer peakMemoryMb;
 }

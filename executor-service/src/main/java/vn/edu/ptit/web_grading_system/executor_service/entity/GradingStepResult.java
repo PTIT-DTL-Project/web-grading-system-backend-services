@@ -89,4 +89,13 @@ public class GradingStepResult extends BaseEntity {
 
     @Column(name = "completed_at")
     private OffsetDateTime completedAt;
+
+    @Column(name = "db_query_count")
+    private Integer dbQueryCount;
+
+    @Column(name = "db_query_logs", columnDefinition = "text")
+    private String dbQueryLogs;
+
+    @Column(name = "stack_trace", columnDefinition = "text")
+    private String stackTrace;
 }

@@ -305,6 +305,10 @@ public class ResultService {
                 .requestUrl(step.getRequestUrl())
                 .requestBody(step.getRequestBody())
                 .responseStatus(step.getResponseStatus())
+                .dbQueryCount(step.getDbQueryCount())
+                .dbQueryLogs(step.getDbQueryLogs())
+                .stackTrace(step.getStackTrace())
+                .peakMemoryMb(step.getPeakMemoryMb())
                 .build();
     }
 
@@ -398,6 +402,10 @@ public class ResultService {
                         .requestUrl(item.getRequestUrl())
                         .requestBody(item.getRequestBody())
                         .responseStatus(item.getResponseStatus())
+                        .dbQueryCount(item.getDbQueryCount())
+                        .dbQueryLogs(item.getDbQueryLogs())
+                        .stackTrace(item.getStackTrace())
+                        .peakMemoryMb(item.getPeakMemoryMb())
                         .build());
             }
         }
