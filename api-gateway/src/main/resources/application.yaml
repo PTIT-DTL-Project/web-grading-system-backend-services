@@ -26,6 +26,10 @@ spring:
               uri: ${RESULT_SERVICE_URI:http://localhost:8084}
               predicates:
                 - Path=/api/v1/results/**
+            - id: ai-assistant-service
+              uri: ${AI_ASSISTANT_SERVICE_URI:http://localhost:8086}
+              predicates:
+                - Path=/api/v1/ai/**
 
 # Trust settings stamped on every forwarded request by api-gateway.
 #   secret        -> X-Gateway-Secret; services refuse to build a SecurityContext without
