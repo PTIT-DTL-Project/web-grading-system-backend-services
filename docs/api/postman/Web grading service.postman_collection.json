@@ -5478,6 +5478,169 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "AI assistant service",
+      "description": "ai-assistant-service (port 8086), direct-to-service calls (add environment variable `ai-assistant-service`, e.g. http://localhost:8086, like {{course-service}}).\n\nResponses saved 2026-10-15 from a local boot: postgres:16-alpine on :5433, blank AI_API_KEY (LlmClient fallback template, no provider call), result-service and course-service stubbed on :9199, submissionId 22222222-2222-2222-2222-222222222222. A real-provider happy path and real upstream services were NOT captured. The non-owner case answers 401 (see UC-18 notes in docs/design/usecase-flows.md), so the 401 request below is the ownership/identity error contract currently observed.\n\nResponses are raw DTOs: this service does not use the ApiResponse envelope.",
+      "item": [
+        {
+          "name": "get explanation (cache miss)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{fake_student_id}}",
+                "type": "default"
+              }
+            ],
+            "url": {
+              "raw": "{{ai-assistant-service}}/api/v1/ai/submissions/{{submissionId}}/explain",
+              "host": [
+                "{{ai-assistant-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "submissions",
+                "{{submissionId}}",
+                "explain"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "404 Not Found (nothing cached yet)",
+              "originalRequest": null,
+              "status": "Not Found",
+              "code": 404,
+              "header": [],
+              "_postman_previewlanguage": "json",
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "generate explanation (owner, fallback mode)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{fake_student_id}}",
+                "type": "default"
+              }
+            ],
+            "url": {
+              "raw": "{{ai-assistant-service}}/api/v1/ai/submissions/{{submissionId}}/explain",
+              "host": [
+                "{{ai-assistant-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "submissions",
+                "{{submissionId}}",
+                "explain"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK (fromCache false, blank AI_API_KEY fallback)",
+              "originalRequest": null,
+              "status": "OK",
+              "code": 200,
+              "header": [],
+              "_postman_previewlanguage": "json",
+              "body": "{\"id\":\"8f3a4418-ebf1-4bfa-a8d0-d215dc9eae75\",\"submissionId\":\"22222222-2222-2222-2222-222222222222\",\"category\":\"FULL_ANALYSIS\",\"fromCache\":false,\"overallSummary\":\"Bài nộp đã được kiểm tra toàn diện. Hệ thống ghi nhận kết quả và đưa ra các đánh giá kỹ thuật bên dưới.\",\"stepAnalyses\":[{\"stepId\":\"44444444-4444-4444-4444-444444444444\",\"stepName\":\"create book\",\"stepType\":\"HTTP_REQUEST\",\"passed\":true,\"category\":\"OPTIMIZE_PASS\",\"diagnosis\":\"Step đã vượt qua kiểm thử chức năng thành công.\",\"suspectedLocation\":\"Tầng Repository / Service\",\"actionableHints\":[\"Đảm bảo sử dụng phân trang và chỉ chọn các trường cần thiết (DTO Projection).\",\"Kiểm tra số lượng truy vấn cơ sở dữ liệu để tránh N+1 Query.\"],\"learningKeywords\":[\"Query Optimization\",\"JPA Fetch Join\"],\"telemetryAudit\":{\"durationMs\":120,\"expectedThresholdMs\":200,\"nPlusOneDetected\":false,\"queryCount\":1,\"sensitiveFieldsExposed\":[],\"peakMemoryMb\":64}},{\"stepId\":\"44444444-4444-4444-4444-444444444444\",\"stepName\":\"reject blank name\",\"stepType\":\"HTTP_REQUEST\",\"passed\":false,\"category\":\"DEBUG_FAIL\",\"diagnosis\":\"Yêu cầu HTTP thất bại: mã phản hồi hoặc nội dung trả về không khớp với kết quả kỳ vọng.\",\"suspectedLocation\":\"Kiểm tra tầng Controller / Service xử lý request tương ứng.\",\"actionableHints\":[\"Rà soát lại dữ liệu đầu vào và các ràng buộc dữ liệu (@Valid, @NotNull).\",\"Kiểm tra mã trạng thái HTTP (status code) và log ngoại lệ của ứng dụng.\"],\"learningKeywords\":[\"Spring Validation\",\"ExceptionHandler\"],\"telemetryAudit\":{\"durationMs\":95,\"expectedThresholdMs\":200,\"nPlusOneDetected\":false,\"queryCount\":1,\"sensitiveFieldsExposed\":[],\"peakMemoryMb\":61}}],\"createdAt\":\"2026-10-15T23:07:48.18412654+07:00\"}"
+            }
+          ]
+        },
+        {
+          "name": "get explanation (cached)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{fake_student_id}}",
+                "type": "default"
+              }
+            ],
+            "url": {
+              "raw": "{{ai-assistant-service}}/api/v1/ai/submissions/{{submissionId}}/explain",
+              "host": [
+                "{{ai-assistant-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "submissions",
+                "{{submissionId}}",
+                "explain"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK (fromCache true)",
+              "originalRequest": null,
+              "status": "OK",
+              "code": 200,
+              "header": [],
+              "_postman_previewlanguage": "json",
+              "body": "{\"id\":\"8f3a4418-ebf1-4bfa-a8d0-d215dc9eae75\",\"submissionId\":\"22222222-2222-2222-2222-222222222222\",\"category\":\"FULL_ANALYSIS\",\"fromCache\":true,\"overallSummary\":\"Bài nộp đã được kiểm tra toàn diện. Hệ thống ghi nhận kết quả và đưa ra các đánh giá kỹ thuật bên dưới.\",\"stepAnalyses\":[{\"stepId\":\"44444444-4444-4444-4444-444444444444\",\"stepName\":\"create book\",\"stepType\":\"HTTP_REQUEST\",\"passed\":true,\"category\":\"OPTIMIZE_PASS\",\"diagnosis\":\"Step đã vượt qua kiểm thử chức năng thành công.\",\"suspectedLocation\":\"Tầng Repository / Service\",\"actionableHints\":[\"Đảm bảo sử dụng phân trang và chỉ chọn các trường cần thiết (DTO Projection).\",\"Kiểm tra số lượng truy vấn cơ sở dữ liệu để tránh N+1 Query.\"],\"learningKeywords\":[\"Query Optimization\",\"JPA Fetch Join\"],\"telemetryAudit\":{\"durationMs\":120,\"expectedThresholdMs\":200,\"nPlusOneDetected\":false,\"queryCount\":1,\"sensitiveFieldsExposed\":[],\"peakMemoryMb\":64}},{\"stepId\":\"44444444-4444-4444-4444-444444444444\",\"stepName\":\"reject blank name\",\"stepType\":\"HTTP_REQUEST\",\"passed\":false,\"category\":\"DEBUG_FAIL\",\"diagnosis\":\"Yêu cầu HTTP thất bại: mã phản hồi hoặc nội dung trả về không khớp với kết quả kỳ vọng.\",\"suspectedLocation\":\"Kiểm tra tầng Controller / Service xử lý request tương ứng.\",\"actionableHints\":[\"Rà soát lại dữ liệu đầu vào và các ràng buộc dữ liệu (@Valid, @NotNull).\",\"Kiểm tra mã trạng thái HTTP (status code) và log ngoại lệ của ứng dụng.\"],\"learningKeywords\":[\"Spring Validation\",\"ExceptionHandler\"],\"telemetryAudit\":{\"durationMs\":95,\"expectedThresholdMs\":200,\"nPlusOneDetected\":false,\"queryCount\":1,\"sensitiveFieldsExposed\":[],\"peakMemoryMb\":61}}],\"createdAt\":\"2026-10-15T16:07:48.184127Z\"}"
+            }
+          ]
+        },
+        {
+          "name": "explain without valid gateway secret",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{fake_student_id}}",
+                "type": "default"
+              },
+              {
+                "key": "X-Gateway-Secret",
+                "value": "wrong-secret",
+                "type": "default"
+              }
+            ],
+            "url": {
+              "raw": "{{ai-assistant-service}}/api/v1/ai/submissions/{{submissionId}}/explain",
+              "host": [
+                "{{ai-assistant-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "submissions",
+                "{{submissionId}}",
+                "explain"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "401 Unauthorized (fail-closed on bad secret)",
+              "originalRequest": null,
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [],
+              "_postman_previewlanguage": "json",
+              "body": "{\"statusCode\":401,\"message\":\"Unauthorized: Missing or invalid identity header\",\"data\":null}"
+            }
+          ]
+        }
+      ]
     }
   ],
   "header": [
