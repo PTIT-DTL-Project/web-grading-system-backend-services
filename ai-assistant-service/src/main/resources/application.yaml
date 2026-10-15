@@ -5,10 +5,12 @@ spring:
   application:
     name: ai-assistant-service
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ai_db}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    url: ${JDBC_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ai_db}}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
   jpa:
     hibernate:
       ddl-auto: validate
@@ -18,17 +20,39 @@ spring:
         default_schema: public
   flyway:
     enabled: true
+    locations: classpath:db/migration
     baseline-on-migrate: true
+  # Slow course/result/LLM-adjacent reads must fail fast into fallbacks instead
+  # of holding request threads up to Feign's 60s default read timeout.
+  # Prefix verified: spring.cloud.openfeign.client — legacy feign.client.config
+  # silently binds nothing.
+  cloud:
+    openfeign:
+      client:
+        config:
+          course-service:
+            connectTimeout: 2000
+            readTimeout: 3000
+          result-service:
+            connectTimeout: 2000
+            readTimeout: 3000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
 
 gateway:
   security:
     secret: ${GATEWAY_TRUSTED_SECRET:}
 
+# Service-to-service endpoints (Feign) — env-overridable for local runs
 feign:
   result-service:
-    url: ${RESULT_SERVICE_URL:http://localhost:8084}
+    url: ${RESULT_SERVICE_URI:http://grading-result-service:8084}
   course-service:
-    url: ${COURSE_SERVICE_URL:http://localhost:8081}
+    url: ${COURSE_SERVICE_URI:http://grading-course-service:8081}
 
 ai:
   model:

@@ -2,8 +2,8 @@ package vn.edu.ptit.web_grading_system.ai_assistant_service.service;
 
 import com.google.gson.*;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -24,14 +24,11 @@ public class LlmClient {
     private final HttpClient httpClient;
     private final Gson gson = new Gson();
 
-    public LlmClient(
-            @Value("${ai.model.provider:openai}") String provider,
-            @Value("${ai.model.api-key:}") String apiKey,
-            @Value("${ai.model.model-name:gpt-4o-mini}") String modelName,
-            @Value("${ai.model.base-url:https://api.openai.com/v1}") String baseUrl) {
-        this.provider = provider;
-        this.apiKey = apiKey;
-        this.modelName = modelName;
+    public LlmClient(AiModelProperties props) {
+        this.provider = props.provider();
+        this.apiKey = props.apiKey();
+        this.modelName = props.modelName();
+        String baseUrl = props.baseUrl();
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
