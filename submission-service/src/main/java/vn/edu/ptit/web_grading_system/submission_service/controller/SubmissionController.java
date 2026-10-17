@@ -62,11 +62,14 @@ public class SubmissionController {
             @RequestHeader("X-User-Id") String studentId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String q) {
+            // Review: 2026-10-17 — `?search` (not `?q`) to match the repo-wide paged-list
+            // convention (ClassController:48, StudentAssignmentController:29); a mismatched
+            // query param is silently ignored, yielding an unfiltered 200.
+            @RequestParam(required = false) String search) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<SubmissionResponse> body = (q == null || q.isBlank())
+        Page<SubmissionResponse> body = (search == null || search.isBlank())
                 ? submissionService.listByStudent(UUID.fromString(studentId), pageable)
-                : submissionService.listByStudent(UUID.fromString(studentId), q.trim(), pageable);
+                : submissionService.listByStudent(UUID.fromString(studentId), search.trim(), pageable);
         return ResponseEntity.ok(body);
     }
 

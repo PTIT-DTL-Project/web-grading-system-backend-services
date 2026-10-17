@@ -49,7 +49,7 @@ class SubmissionControllerTest {
                 new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
         mvc.perform(get("/api/v1/submissions")
                         .param("page", "0").param("size", "20")
-                        .param("q", "book-app-fail")
+                        .param("search", "book-app-fail")
                         .header("X-User-Id", STUDENT.toString()))
                 .andExpect(status().isOk());
         verify(repository).findByStudentIdAndZipFileNameContainingIgnoreCaseOrderByCreatedAtDesc(
@@ -63,6 +63,20 @@ class SubmissionControllerTest {
                 new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
         mvc.perform(get("/api/v1/submissions")
                         .param("page", "0").param("size", "20")
+                        .header("X-User-Id", STUDENT.toString()))
+                .andExpect(status().isOk());
+        verify(repository).findByStudentIdOrderByCreatedAtDesc(eq(STUDENT), any());
+        verify(repository, never()).findByStudentIdAndZipFileNameContainingIgnoreCaseOrderByCreatedAtDesc(
+                eq(STUDENT), anyString(), any());
+    }
+
+    @Test
+    void getByAssignment_blankSearchUsesPlainListing() throws Exception {
+        when(repository.findByStudentIdOrderByCreatedAtDesc(eq(STUDENT), any())).thenReturn(
+                new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+        mvc.perform(get("/api/v1/submissions")
+                        .param("page", "0").param("size", "20")
+                        .param("search", "   ")
                         .header("X-User-Id", STUDENT.toString()))
                 .andExpect(status().isOk());
         verify(repository).findByStudentIdOrderByCreatedAtDesc(eq(STUDENT), any());

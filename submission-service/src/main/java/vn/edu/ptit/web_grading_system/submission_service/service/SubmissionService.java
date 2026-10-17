@@ -130,15 +130,15 @@ public class SubmissionService {
     }
 
     /**
-     * Student search (MySubmissionsPage): server-side {@code ?q} match on the zip
-     * file name only — {@code Assignment} lives in assignment_db, not submission_db,
-     * so title search can't be done with a join here.
+     * Student search (MySubmissionsPage): server-side {@code ?search} match on the zip
+     * file name only — {@code Assignment} lives in {@code assignment_db}, not
+     * {@code submission_db}, so title search can't be done with a join here.
      */
     @Transactional(readOnly = true)
-    public Page<SubmissionResponse> listByStudent(UUID studentId, String q, Pageable pageable) {
+    public Page<SubmissionResponse> listByStudent(UUID studentId, String search, Pageable pageable) {
         return submissionRepository
                 .findByStudentIdAndZipFileNameContainingIgnoreCaseOrderByCreatedAtDesc(
-                        studentId, q, pageable)
+                        studentId, search, pageable)
                 .map(submissionMapper::toResponse);
     }
 
