@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.result_service.dto.request.CreateResultRequest;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.AssignmentResultGroupResponse;
+import vn.edu.ptit.web_grading_system.result_service.dto.response.ResultResponse;
 import vn.edu.ptit.web_grading_system.result_service.service.ResultService;
 
 import java.math.BigDecimal;
@@ -43,6 +44,18 @@ public class ResultInternalController {
             @RequestParam(defaultValue = "false") boolean includeSteps) {
         return ResponseEntity.ok(
                 resultService.getByAssignment(assignmentId, studentUserId, includeSteps));
+    }
+
+    /**
+     * Every result row of one submission, identity-free, for ai-assistant-service's lecturer
+     * view. The caller has already authorized the request: it resolves the submission's
+     * assignment and owner from these rows only <em>after</em> confirming the lecturer owns the
+     * assignment. The public {@code GET /api/v1/results/{submissionId}} keeps its own
+     * {@code caller == studentId} check, which is what students still go through.
+     */
+    @GetMapping("/submission/{submissionId}")
+    public ResponseEntity<List<ResultResponse>> bySubmission(@PathVariable UUID submissionId) {
+        return ResponseEntity.ok(resultService.getBySubmissionId(submissionId));
     }
 
     @PostMapping

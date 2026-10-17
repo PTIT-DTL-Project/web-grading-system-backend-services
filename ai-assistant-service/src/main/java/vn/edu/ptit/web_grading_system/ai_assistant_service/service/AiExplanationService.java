@@ -29,10 +29,26 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * Reads and generates one submission's AI explanation for its two audiences.
+ *
+ * <p>Each audience is authorized here, not by the controller's role gate alone: a student must
+ * be the submission's owner, a lecturer must own the class of the submission's assignment. The
+ * lecturer check runs <em>before</em> any grading row is read, and it answers 404 — an id the
+ * caller may not see must stay indistinguishable from one that does not exist.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AiExplanationService {
+
+    private static final String CATEGORY = "FULL_ANALYSIS";
+
+    /** The authority this service asserts downstream, and only after its own request already
+     *  passed {@code @PreAuthorize("hasRole('LECTURER')")}. course-service's
+     *  {@code GET /api/v1/assignments/{id}} is role-gated, so omitting the header there
+     *  answers 403 and this service would report it as a 502. */
+    private static final String LECTURER_AUTHORITY = "ROLE_LECTURER";
 
     private final AiExplanationRepository explanationRepository;
     private final ResultServiceClient resultServiceClient;
@@ -43,9 +59,11 @@ public class AiExplanationService {
     private final AiModelProperties aiModelProperties;
     private final Gson gson = new Gson();
 
+    // --- student audience -------------------------------------------------------
+
     @Transactional(readOnly = true)
     public Optional<AiExplanationResponse> getExplanation(UUID submissionId, UUID studentId) {
-        return explanationRepository.findBySubmissionIdAndCategory(submissionId, "FULL_ANALYSIS")
+        return explanationRepository.findBySubmissionIdAndCategory(submissionId, CATEGORY)
                 .map(entity -> {
                     if (!studentId.equals(entity.getStudentId())) {
                         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden: Not your submission");
@@ -60,7 +78,7 @@ public class AiExplanationService {
     // its own short transaction; the unique index (V2) is the atomicity backstop.
     public AiExplanationResponse explainSubmission(UUID submissionId, UUID studentId) {
         // 1. Idempotency check: return cached if already analyzed
-        Optional<AiExplanation> cached = explanationRepository.findBySubmissionIdAndCategory(submissionId, "FULL_ANALYSIS");
+        Optional<AiExplanation> cached = explanationRepository.findBySubmissionIdAndCategory(submissionId, CATEGORY);
         if (cached.isPresent()) {
             AiExplanation entity = cached.get();
             if (!studentId.equals(entity.getStudentId())) {
@@ -69,7 +87,124 @@ public class AiExplanationService {
             return toResponse(entity, true);
         }
 
-        // 2. Fetch submission results
+        // 2. Fetch submission results, then verify the caller owns them
+        List<ResultDto> results = fetchResultsAsStudent(submissionId, studentId);
+        ResultDto result = results.get(0);
+        // Ownership verification
+        if (!studentId.equals(result.getStudentId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden: You are not the owner of this submission");
+        }
+
+        // 3. Assignment metadata, then the LLM
+        return generate(submissionId, studentId,
+                studentAssignmentMetadata(result.getAssignmentId(), studentId), results);
+    }
+
+    // --- lecturer audience ------------------------------------------------------
+
+    /**
+     * The cached explanation of a submission inside one of the caller's own assignments.
+     *
+     * <p>Not {@code @Transactional}: authorizing the caller is two HTTP round trips, and holding
+     * a pooled connection across them is exactly what the student path avoids.
+     */
+    public Optional<AiExplanationResponse> getExplanationForLecturer(
+            UUID assignmentId, UUID submissionId, UUID lecturerId) {
+        LecturerTarget target = authorizeLecturer(assignmentId, submissionId, lecturerId);
+        return cachedExplanationFor(submissionId, target.studentId());
+    }
+
+    /**
+     * Generates the explanation for a submission inside one of the caller's own assignments, or
+     * returns the cached row. The row is written under the student's id, so a lecturer who
+     * generates it warms the cache the student reads next.
+     */
+    public AiExplanationResponse explainSubmissionForLecturer(
+            UUID assignmentId, UUID submissionId, UUID lecturerId) {
+        LecturerTarget target = authorizeLecturer(assignmentId, submissionId, lecturerId);
+
+        Optional<AiExplanationResponse> cached = cachedExplanationFor(submissionId, target.studentId());
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+
+        return generate(submissionId, target.studentId(), target.assignment(), target.results());
+    }
+
+    /**
+     * The cached row of a submission the caller is already authorized to see.
+     *
+     * <p>The owner comparison is defensive: cache rows are keyed by submission id, so a row whose
+     * {@code studentId} is not this submission's owner is not this submission's row — answer
+     * {@code 404} rather than serve another student's analysis.
+     */
+    private Optional<AiExplanationResponse> cachedExplanationFor(UUID submissionId, UUID ownerId) {
+        return explanationRepository.findBySubmissionIdAndCategory(submissionId, CATEGORY)
+                .map(entity -> {
+                    if (!ownerId.equals(entity.getStudentId())) {
+                        throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                "No AI explanation for submission: " + submissionId);
+                    }
+                    return toResponse(entity, true);
+                });
+    }
+
+    /** The resolved student id, the assignment (already fetched during the ownership check) and
+     *  the grading rows the prompt is built from. */
+    private record LecturerTarget(UUID studentId, AssignmentDetailDto assignment, List<ResultDto> results) {
+    }
+
+    /**
+     * Proves the lecturer may see this assignment's submissions, and returns what the caller
+     * needs to answer.
+     *
+     * <p>Ordering is the point: ownership is confirmed before a single grading row is read, so an
+     * unowned assignment id never reaches result-service. The ownership call doubles as the
+     * assignment-metadata read, so authorizing costs nothing extra.
+     */
+    private LecturerTarget authorizeLecturer(UUID assignmentId, UUID submissionId, UUID lecturerId) {
+        AssignmentDetailDto assignment;
+        try {
+            // Called with the lecturer's own id — the one the gateway stamped on this request.
+            // The endpoint is @PreAuthorize("hasRole('LECTURER')") + owner-scoped, so a 404 here
+            // IS the negative authorization answer, and LECTURER_AUTHORITY is what lets the call
+            // through at all.
+            ApiEnvelope<AssignmentDetailDto> envelope = courseServiceClient.getOwnedAssignment(
+                    assignmentId, lecturerId.toString(), LECTURER_AUTHORITY, gatewayProperties.secret());
+            assignment = envelope != null ? envelope.getData() : null;
+        } catch (FeignException.NotFound e) {
+            // 404, never 403: an assignment outside the caller's classes must stay
+            // indistinguishable from one that does not exist.
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Assignment not found: " + assignmentId);
+        } catch (FeignException e) {
+            // Ownership cannot be established, so the request fails closed — but as a 502, not a
+            // generic 500: the dependency being down is retryable and is not the caller's error.
+            log.warn("course-service unavailable while checking assignment {}: {}", assignmentId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Course service unavailable");
+        }
+
+        // The internal route is identity-free by design: reaching it already means the check above
+        // passed, and these rows are what reveal the submission's owner.
+        List<ResultDto> results = resultServiceClient.getBySubmissionIdInternal(submissionId);
+        if (results == null || results.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No grading results found for submission");
+        }
+        ResultDto first = results.get(0);
+        if (!assignmentId.equals(first.getAssignmentId())) {
+            // Guards the id pair: the caller's own assignmentId combined with a submission id from
+            // another class must never resolve to that submission.
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Submission not found in this assignment");
+        }
+        return new LecturerTarget(first.getStudentId(), assignment, results);
+    }
+
+    // --- shared internals -------------------------------------------------------
+
+    /**
+     * The submission's grading rows, read as the student so result-service re-checks ownership
+     * independently of this service's own checks.
+     */
+    private List<ResultDto> fetchResultsAsStudent(UUID submissionId, UUID studentId) {
         // Review: 2026-10-17, Pullfrog follow-up — result-service wraps its body
         // in ApiResponse{status,message,data}; bind the envelope and take .data.
         ApiEnvelope<List<ResultDto>> resultsEnvelope;
@@ -88,25 +223,32 @@ public class AiExplanationService {
         if (results == null || results.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No grading results found for submission");
         }
+        return results;
+    }
 
-        ResultDto result = results.get(0);
-        // Ownership verification
-        if (!studentId.equals(result.getStudentId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden: You are not the owner of this submission");
-        }
-
-        // 3. Fetch assignment metadata
-        AssignmentDetailDto assignment = null;
+    /** Assignment title/description for the prompt, or null when it cannot be read: the metadata
+     *  is context, not authorization, so a failure only degrades the prompt. */
+    private AssignmentDetailDto studentAssignmentMetadata(UUID assignmentId, UUID studentId) {
         try {
             // Review: 2026-10-17, Pullfrog follow-up — unwrap the ApiResponse
             // envelope; the previous raw binding silently failed and left
             // `assignment` null on every request.
             ApiEnvelope<AssignmentDetailDto> assignmentEnvelope = courseServiceClient.getAssignment(
-                    result.getAssignmentId(), studentId.toString(), gatewayProperties.secret());
-            assignment = assignmentEnvelope != null ? assignmentEnvelope.getData() : null;
+                    assignmentId, studentId.toString(), gatewayProperties.secret());
+            return assignmentEnvelope != null ? assignmentEnvelope.getData() : null;
         } catch (Exception e) {
-            log.warn("Could not fetch assignment details for id {}: {}", result.getAssignmentId(), e.getMessage());
+            log.warn("Could not fetch assignment details for id {}: {}", assignmentId, e.getMessage());
+            return null;
         }
+    }
+
+    /**
+     * The expensive half: build the prompt, call the LLM, parse the answer and cache it under
+     * {@code studentId}. Shared by both audiences so they cannot drift apart.
+     */
+    private AiExplanationResponse generate(UUID submissionId, UUID studentId,
+            AssignmentDetailDto assignment, List<ResultDto> results) {
+        ResultDto result = results.get(0);
 
         // 4. Build prompt & call LLM
         String systemPrompt = promptBuilder.buildSystemPrompt();
@@ -138,7 +280,7 @@ public class AiExplanationService {
         AiExplanation entity = AiExplanation.builder()
                 .submissionId(submissionId)
                 .studentId(studentId)
-                .category("FULL_ANALYSIS")
+                .category(CATEGORY)
                 .diagnosis(diagnosis)
                 .overallSummary(overallSummary)
                 // Review: 2026-10-17, Pullfrog — a null hints/keywords list made
@@ -165,7 +307,7 @@ public class AiExplanationService {
             // submission both pass the idempotency check above; the partial
             // unique index (V2) rejects the loser. Return the winner's cached
             // row instead of surfacing a 500.
-            saved = explanationRepository.findBySubmissionIdAndCategory(submissionId, "FULL_ANALYSIS")
+            saved = explanationRepository.findBySubmissionIdAndCategory(submissionId, CATEGORY)
                     .orElseThrow(() -> conflict);
             return toResponse(saved, true);
         }
