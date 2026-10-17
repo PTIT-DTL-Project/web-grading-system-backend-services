@@ -79,26 +79,8 @@ public class ResultService {
      * A DONE FULL row without attributable steps is likewise unscorable.
      */
     private BigDecimal maxPerPlanAverage(List<Result> rows, Map<UUID, List<StepResult>> stepsByResult) {
-        Map<PlanKey, BigDecimal> best = new LinkedHashMap<>();
-        Map<PlanKey, Integer> weights = new LinkedHashMap<>();
-        for (Result r : rows) {
-            if (r.getScope() == ResultScope.PLAN && r.getPlanId() != null) {
-                BigDecimal n = normalized(r.getScore(), r.getMaxScore());
-                if (n != null) {
-                    PlanKey key = new PlanKey(r.getAssignmentId(), r.getPlanId());
-                    best.merge(key, n, BigDecimal::max);
-                    weights.putIfAbsent(key, r.getPlanWeight() != null ? r.getPlanWeight() : 1);
-                }
-            } else {
-                // FULL (or legacy) row: decompose into per-plan subtotals from
-                // its step rows — the row's single score covers every plan.
-                for (Map.Entry<UUID, BigDecimal> e : planSubtotals(
-                        stepsByResult.getOrDefault(r.getId(), List.of())).entrySet()) {
-                    best.merge(new PlanKey(r.getAssignmentId(), e.getKey()), e.getValue(),
-                            BigDecimal::max);
-                }
-            }
-        }
+        PlanBests perPlan = perPlanBests(rows, stepsByResult);
+        Map<PlanKey, PlanBest> best = perPlan.best();
         if (best.isEmpty()) {
             return null;
         }
@@ -106,17 +88,84 @@ public class ResultService {
                 best.keySet().stream().map(PlanKey::assignmentId).collect(Collectors.toSet()));
         BigDecimal weightedSum = BigDecimal.ZERO;
         BigDecimal weightTotal = BigDecimal.ZERO;
-        for (Map.Entry<PlanKey, BigDecimal> e : best.entrySet()) {
+        for (Map.Entry<PlanKey, PlanBest> e : best.entrySet()) {
             int weight = courseWeights.getOrDefault(e.getKey().assignmentId(), Map.of())
-                    .getOrDefault(e.getKey().planId(), weights.getOrDefault(e.getKey(), 1));
+                    .getOrDefault(e.getKey().planId(),
+                            perPlan.carried().getOrDefault(e.getKey(), 1));
             BigDecimal weightBd = BigDecimal.valueOf(weight);
-            weightedSum = weightedSum.add(e.getValue().multiply(weightBd));
+            weightedSum = weightedSum.add(e.getValue().score().multiply(weightBd));
             weightTotal = weightTotal.add(weightBd);
         }
         if (weightTotal.signum() == 0) {
             return null;
         }
         return weightedSum.divide(weightTotal, 2, RoundingMode.HALF_UP);
+    }
+
+    /** One plan's best score in one assignment, with the attempt row that earned it. */
+    private record PlanBest(BigDecimal score, Result row) {
+    }
+
+    /** Per-plan bests plus the plan weight carried on the rows (used when course-service is down). */
+    private record PlanBests(Map<PlanKey, PlanBest> best, Map<PlanKey, Integer> carried) {
+    }
+
+    /**
+     * Per-plan bests of one assignment, each paired with the attempt that earned it — the
+     * single walk over the FULL/PLAN decomposition. The score formula and the lecturer's
+     * displayed rows both read it, so the number and the evidence under it cannot drift.
+     *
+     * <p>{@code carried} holds the plan weight stored on the row, used only when the real
+     * weights are unavailable (see {@link #coursePlanWeights}).
+     */
+    private PlanBests perPlanBests(List<Result> rows, Map<UUID, List<StepResult>> stepsByResult) {
+        Map<PlanKey, PlanBest> best = new LinkedHashMap<>();
+        Map<PlanKey, Integer> carried = new LinkedHashMap<>();
+        for (Result r : rows) {
+            if (r.getScope() == ResultScope.PLAN && r.getPlanId() != null) {
+                BigDecimal n = normalized(r.getScore(), r.getMaxScore());
+                if (n != null) {
+                    PlanKey key = new PlanKey(r.getAssignmentId(), r.getPlanId());
+                    best.merge(key, new PlanBest(n, r), ResultService::higher);
+                    carried.putIfAbsent(key, r.getPlanWeight() != null ? r.getPlanWeight() : 1);
+                }
+            } else {
+                // FULL (or legacy) row: decompose into per-plan subtotals from
+                // its step rows — the row's single score covers every plan.
+                for (Map.Entry<UUID, BigDecimal> e : planSubtotals(
+                        stepsByResult.getOrDefault(r.getId(), List.of())).entrySet()) {
+                    best.merge(new PlanKey(r.getAssignmentId(), e.getKey()),
+                            new PlanBest(e.getValue(), r), ResultService::higher);
+                }
+            }
+        }
+        return new PlanBests(best, carried);
+    }
+
+    /** Keeps the higher-scoring attempt; the earlier one wins a tie. */
+    private static PlanBest higher(PlanBest a, PlanBest b) {
+        return b.score().compareTo(a.score()) > 0 ? b : a;
+    }
+
+    /**
+     * The attempt rows the exercise score is made of: for each plan, the row whose score was
+     * counted. Latest state is deliberately NOT what the lecturer's grading view shows — a
+     * student who scored 10 then resubmitted a broken zip for 5 must not read the 5 next to
+     * their 10. Falls back to the latest rows when nothing is scorable (e.g. only a stepless
+     * failed FULL run) so the detail never goes blank.
+     *
+     * <p>Review: 2026-10-17 — reported as "score 10 but detail shows 5"; the view was
+     * showing the latest attempt while the score came from the best one.
+     */
+    private List<Result> gradedRows(List<Result> attempts, Map<UUID, List<StepResult>> stepsByResult) {
+        Set<UUID> graded = perPlanBests(attempts, stepsByResult).best().values().stream()
+                .map(b -> b.row().getId())
+                .collect(Collectors.toSet());
+        List<Result> rows = attempts.stream().filter(r -> graded.contains(r.getId())).toList();
+        if (!rows.isEmpty()) {
+            return rows;
+        }
+        return attempts.stream().filter(r -> Boolean.TRUE.equals(r.getLatest())).toList();
     }
 
     /** Score normalized to the 0–10 scale; null when unscorable (never throws). */
@@ -204,9 +253,10 @@ public class ResultService {
     /**
      * All-attempt rows of one assignment grouped per student, for the lecturer's
      * grading view (course-service owns the "may this lecturer see this assignment"
-     * decision and calls this only after its own owner check). The displayed
-     * rows stay the latest per plan scope; the exercise score is the max-per-plan
-     * best over every attempt (see {@link #weightedScoreByPlan}).
+     * decision and calls this only after its own owner check). The displayed rows are
+     * the attempts the exercise score is made of — the best attempt per plan, not the
+     * latest one — so the detail under a student's score always shows that score's
+     * evidence (see {@link #gradedRows} and {@link #weightedScoreByPlan}).
      *
      * @param studentUserId restricts to one student; null returns the whole class
      * @param includeSteps  false keeps step rows out of the display payload —
@@ -232,13 +282,10 @@ public class ResultService {
 
         List<AssignmentResultGroupResponse> groups = new ArrayList<>();
         byStudent.forEach((studentId, attempts) -> {
-            List<Result> latest = attempts.stream()
-                    .filter(r -> Boolean.TRUE.equals(r.getLatest()))
-                    .toList();
             groups.add(AssignmentResultGroupResponse.builder()
                     .studentUserId(studentId)
                     .exerciseScore(maxPerPlanAverage(attempts, stepsByResult))
-                    .results(latest.stream()
+                    .results(gradedRows(attempts, stepsByResult).stream()
                             .map(result -> toResponse(result,
                                     includeSteps
                                             ? stepsByResult.getOrDefault(result.getId(), List.of())

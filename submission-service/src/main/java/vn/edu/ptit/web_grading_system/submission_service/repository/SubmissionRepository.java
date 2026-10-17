@@ -18,6 +18,10 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
 
     Page<Submission> findByStudentIdOrderByCreatedAtDesc(UUID studentId, Pageable pageable);
 
+    // MySubmissionsPage search: file-name ?q match (Assignment title lives in another DB).
+    Page<Submission> findByStudentIdAndZipFileNameContainingIgnoreCaseOrderByCreatedAtDesc(
+            UUID studentId, String q, Pageable pageable);
+
     List<Submission> findByAssignmentIdAndLatestTrueOrderByCreatedAtDesc(UUID assignmentId);
 
     List<Submission> findByAssignmentIdOrderByCreatedAtDesc(UUID assignmentId);

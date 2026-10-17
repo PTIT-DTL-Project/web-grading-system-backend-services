@@ -61,9 +61,16 @@ public class SubmissionController {
     public ResponseEntity<Page<SubmissionResponse>> listMySubmissions(
             @RequestHeader("X-User-Id") String studentId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            // Review: 2026-10-17 — `?search` (not `?q`) to match the repo-wide paged-list
+            // convention (ClassController:48, StudentAssignmentController:29); a mismatched
+            // query param is silently ignored, yielding an unfiltered 200.
+            @RequestParam(required = false) String search) {
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(submissionService.listByStudent(UUID.fromString(studentId), pageable));
+        Page<SubmissionResponse> body = (search == null || search.isBlank())
+                ? submissionService.listByStudent(UUID.fromString(studentId), pageable)
+                : submissionService.listByStudent(UUID.fromString(studentId), search.trim(), pageable);
+        return ResponseEntity.ok(body);
     }
 
     // Review: 2026-09-30, role-split slice (plan role-split-result-apis-v1.0, D3) — this
