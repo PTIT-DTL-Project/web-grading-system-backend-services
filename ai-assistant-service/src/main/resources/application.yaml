@@ -1,0 +1,66 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: ai-assistant-service
+  datasource:
+    url: ${JDBC_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ai_db}}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: public
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  # Slow course/result/LLM-adjacent reads must fail fast into fallbacks instead
+  # of holding request threads up to Feign's 60s default read timeout.
+  # Prefix verified: spring.cloud.openfeign.client — legacy feign.client.config
+  # silently binds nothing.
+  cloud:
+    openfeign:
+      client:
+        config:
+          course-service:
+            connectTimeout: 2000
+            readTimeout: 3000
+          result-service:
+            connectTimeout: 2000
+            readTimeout: 3000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Review: 2026-10-17, Pullfrog — prometheus was exposed while the pom
+        # had no micrometer-registry-prometheus, so /actuator/prometheus 404'd.
+        # Observability is not wired yet; re-add prometheus together with the
+        # registry dependency (see result-service pom) when it is.
+        include: health,info
+
+gateway:
+  security:
+    secret: ${GATEWAY_TRUSTED_SECRET:}
+
+# Service-to-service endpoints (Feign) — env-overridable for local runs
+feign:
+  result-service:
+    url: ${RESULT_SERVICE_URI:http://grading-result-service:8084}
+  course-service:
+    url: ${COURSE_SERVICE_URI:http://grading-course-service:8081}
+
+ai:
+  model:
+    provider: ${AI_PROVIDER:openai}
+    api-key: ${AI_API_KEY:}
+    model-name: ${AI_MODEL_NAME:gpt-4o-mini}
+    base-url: ${AI_BASE_URL:https://api.openai.com/v1}

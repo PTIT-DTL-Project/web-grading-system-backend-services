@@ -21,6 +21,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -216,6 +219,13 @@ public class HttpStepExecutor implements StepExecutor
             log.warn(Constant.Message.HTTP_LOG_SAVE_FAILED, ex.getMessage());
         }
 
+        String stackTrace = (respStatus != null && respStatus >= 500) || (actualStatus != null && actualStatus >= 500)
+                ? extractStackTrace(respBody) : null;
+        if (stackTrace == null && err != null)
+        {
+            stackTrace = extractStackTrace(err);
+        }
+
         return GradingStepResult.builder()
                 .jobId(ctx.getJobId())
                 .planId(ctx.getPlanId())
@@ -235,10 +245,42 @@ public class HttpStepExecutor implements StepExecutor
                 .extractedVariables(extractedJson)
                 .assertionResult(assertionJson)
                 .errorMessage(err)
+                .stackTrace(stackTrace)
                 .durationMs((int) (System.currentTimeMillis() - startMs))
                 .startedAt(startedAt)
                 .completedAt(OffsetDateTime.now())
                 .build();
+    }
+
+    public static List<String> extractSqlQueries(String logContent)
+    {
+        if (logContent == null || logContent.isBlank())
+        {
+            return List.of();
+        }
+        List<String> list = new ArrayList<>();
+        Pattern pattern = Pattern.compile("(?i)(statement:\\s*|Hibernate:\\s*)(SELECT|INSERT|UPDATE|DELETE)\\b.*", Pattern.MULTILINE);
+        Matcher matcher = pattern.matcher(logContent);
+        while (matcher.find())
+        {
+            list.add(matcher.group().trim());
+        }
+        return list;
+    }
+
+    public static String extractStackTrace(String responseBody)
+    {
+        if (responseBody == null || responseBody.isBlank())
+        {
+            return null;
+        }
+        Pattern pattern = Pattern.compile("(?s)(?:at\\s+[\\w\\.$_]+\\(.*?:\\d+\\)|Exception:.*)");
+        Matcher matcher = pattern.matcher(responseBody);
+        if (matcher.find())
+        {
+            return responseBody.length() <= 10000 ? responseBody : responseBody.substring(0, 10000);
+        }
+        return null;
     }
 
     private static String safeMessage(Exception e)

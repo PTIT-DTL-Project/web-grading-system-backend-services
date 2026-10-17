@@ -33,4 +33,8 @@ public class StepResultResponse {
     private String requestUrl;
     private String requestBody;
     private Integer responseStatus;
+    private Integer dbQueryCount;
+    private String dbQueryLogs;
+    private String stackTrace;
+    private Integer peakMemoryMb;
 }
