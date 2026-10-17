@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -71,8 +72,18 @@ public class AiExplanationService {
         // 2. Fetch submission results
         // Review: 2026-10-17, Pullfrog follow-up — result-service wraps its body
         // in ApiResponse{status,message,data}; bind the envelope and take .data.
-        ApiEnvelope<List<ResultDto>> resultsEnvelope = resultServiceClient.getBySubmissionId(
-                submissionId, studentId.toString(), gatewayProperties.secret());
+        ApiEnvelope<List<ResultDto>> resultsEnvelope;
+        try {
+            resultsEnvelope = resultServiceClient.getBySubmissionId(
+                    submissionId, studentId.toString(), gatewayProperties.secret());
+        } catch (FeignException e) {
+            // 2026-10-17 — a result-service read timeout / outage (RetryableException)
+            // escaped unhandled and surfaced as a raw 500. The upstream dependency
+            // being unavailable is not the caller's error: answer 502 so the client
+            // can retry, instead of a generic Internal Server Error.
+            log.warn("result-service unavailable for submission {}: {}", submissionId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Grading result service unavailable");
+        }
         List<ResultDto> results = resultsEnvelope != null ? resultsEnvelope.getData() : null;
         if (results == null || results.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No grading results found for submission");
