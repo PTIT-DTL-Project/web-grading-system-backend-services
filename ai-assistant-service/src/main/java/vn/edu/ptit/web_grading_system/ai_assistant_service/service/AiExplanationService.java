@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * Reads and generates one submission's AI explanation for its two audiences.
@@ -185,10 +186,8 @@ public class AiExplanationService {
 
         // The internal route is identity-free by design: reaching it already means the check above
         // passed, and these rows are what reveal the submission's owner.
-        List<ResultDto> results = resultServiceClient.getBySubmissionIdInternal(submissionId);
-        if (results == null || results.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No grading results found for submission");
-        }
+        List<ResultDto> results = readGradingResults(submissionId,
+                () -> resultServiceClient.getBySubmissionIdInternal(submissionId));
         ResultDto first = results.get(0);
         if (!assignmentId.equals(first.getAssignmentId())) {
             // Guards the id pair: the caller's own assignmentId combined with a submission id from
@@ -203,23 +202,40 @@ public class AiExplanationService {
     /**
      * The submission's grading rows, read as the student so result-service re-checks ownership
      * independently of this service's own checks.
+     *
+     * <p>Only the enrolment-specific parts live here: the student's identity and the envelope this
+     * public route answers with. The fault mapping and the empty check are shared.
      */
     private List<ResultDto> fetchResultsAsStudent(UUID submissionId, UUID studentId) {
         // Review: 2026-10-17, Pullfrog follow-up — result-service wraps its body
         // in ApiResponse{status,message,data}; bind the envelope and take .data.
-        ApiEnvelope<List<ResultDto>> resultsEnvelope;
-        try {
-            resultsEnvelope = resultServiceClient.getBySubmissionId(
+        return readGradingResults(submissionId, () -> {
+            ApiEnvelope<List<ResultDto>> resultsEnvelope = resultServiceClient.getBySubmissionId(
                     submissionId, studentId.toString(), gatewayProperties.secret());
+            return resultsEnvelope != null ? resultsEnvelope.getData() : null;
+        });
+    }
+
+    /**
+     * The submission's grading rows, read through {@code call}.
+     *
+     * <p>Every result-service read goes through here so both audiences fail identically: a
+     * FeignException (timeout or outage) becomes a retryable 502, and an empty row set becomes a
+     * 404. The two reads had already drifted apart once — the lecturer path lacked the 502 mapping
+     * and answered a raw 500 — so the guard lives in one place instead of in each caller.
+     */
+    private List<ResultDto> readGradingResults(UUID submissionId, Supplier<List<ResultDto>> call) {
+        List<ResultDto> results;
+        try {
+            results = call.get();
         } catch (FeignException e) {
-            // 2026-10-17 — a result-service read timeout / outage (RetryableException)
-            // escaped unhandled and surfaced as a raw 500. The upstream dependency
-            // being unavailable is not the caller's error: answer 502 so the client
-            // can retry, instead of a generic Internal Server Error.
+            // Review: 2026-10-17, Pullfrog PR #48 — the lecturer path's internal read was the only
+            // result-service call without this guard, so a read timeout / outage surfaced as a raw
+            // 500. The upstream dependency being unavailable is not the caller's error: answer 502
+            // so the client can retry.
             log.warn("result-service unavailable for submission {}: {}", submissionId, e.getMessage());
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Grading result service unavailable");
         }
-        List<ResultDto> results = resultsEnvelope != null ? resultsEnvelope.getData() : null;
         if (results == null || results.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No grading results found for submission");
         }

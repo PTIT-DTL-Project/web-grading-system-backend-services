@@ -251,6 +251,27 @@ public class AiExplanationServiceTest {
                         e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
+    // 2026-10-17, Pullfrog PR #48 — regression: the lecturer path's internal result read was the
+    // only result-service call without a FeignException guard, so a read timeout escaped as a raw
+    // 500 instead of the retryable 502 the student path answers.
+    @Test
+    void explainSubmissionForLecturer_returnsBadGateway_whenResultServiceTimesOut() {
+        UUID assignmentId = UUID.randomUUID();
+        UUID lecturerId = UUID.randomUUID();
+        stubOwnedAssignment(assignmentId, lecturerId);
+        Request request = Request.create(HttpMethod.GET,
+                "http://grading-result-service:8084/api/v1/internal/results/submission/" + submissionId,
+                Map.of(), (byte[]) null, null, null);
+        when(resultServiceClient.getBySubmissionIdInternal(submissionId))
+                .thenThrow(new RetryableException(0, "Read timed out", HttpMethod.GET, 0L, request));
+
+        assertThatThrownBy(() -> explanationService.explainSubmissionForLecturer(assignmentId, submissionId, lecturerId))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY));
+
+        verifyNoInteractions(llmClient);
+    }
+
     @Test
     void getExplanationForLecturer_returnsCachedRow_ofTheResolvedOwner() {
         UUID assignmentId = UUID.randomUUID();
