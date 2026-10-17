@@ -4,6 +4,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ApiEnvelope;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ResultDto;
 
 import java.util.List;
@@ -12,8 +13,11 @@ import java.util.UUID;
 @FeignClient(name = "result-service", url = "${feign.result-service.url}")
 public interface ResultServiceClient {
 
+    // Review: 2026-10-17, Pullfrog follow-up — the endpoint is enveloped
+    // ({status,message,data}); bind the wrapper and unwrap in the service,
+    // otherwise Feign throws DecodeException on the raw List<ResultDto>.
     @GetMapping("/api/v1/results/{submissionId}")
-    List<ResultDto> getBySubmissionId(
+    ApiEnvelope<List<ResultDto>> getBySubmissionId(
             @PathVariable("submissionId") UUID submissionId,
             @RequestHeader("X-User-Id") String userId,
             @RequestHeader("X-Gateway-Secret") String gatewaySecret

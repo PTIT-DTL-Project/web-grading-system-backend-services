@@ -28,7 +28,13 @@ public class SecurityConfig {
             "/actuator/**",
             "/swagger-ui/**",
             "/swagger-ui.html",
-            "/v3/api-docs/**"
+            "/v3/api-docs/**",
+            // Review: 2026-10-17, Pullfrog follow-up — Boot forwards servlet
+            // errors to /error on a fresh dispatch, which the security chain
+            // re-evaluated as authenticated-only; every 403/404/405/500 the app
+            // produced was surfaced as a misleading 401. Permit /error so the
+            // real status reaches the client.
+            "/error"
     };
 
     @Bean
