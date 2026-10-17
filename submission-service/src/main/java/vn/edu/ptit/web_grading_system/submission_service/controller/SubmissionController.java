@@ -61,9 +61,13 @@ public class SubmissionController {
     public ResponseEntity<Page<SubmissionResponse>> listMySubmissions(
             @RequestHeader("X-User-Id") String studentId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q) {
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(submissionService.listByStudent(UUID.fromString(studentId), pageable));
+        Page<SubmissionResponse> body = (q == null || q.isBlank())
+                ? submissionService.listByStudent(UUID.fromString(studentId), pageable)
+                : submissionService.listByStudent(UUID.fromString(studentId), q.trim(), pageable);
+        return ResponseEntity.ok(body);
     }
 
     // Review: 2026-09-30, role-split slice (plan role-split-result-apis-v1.0, D3) — this
