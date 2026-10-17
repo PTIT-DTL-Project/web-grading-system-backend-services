@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,7 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.client.CourseServiceC
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.ResultServiceClient;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.AssignmentDetailDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ResultDto;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.GatewayTrustProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.AiExplanationResponse;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.StepAnalysis;
@@ -36,6 +38,7 @@ public class AiExplanationService {
     private final PromptBuilder promptBuilder;
     private final LlmClient llmClient;
     private final GatewayTrustProperties gatewayProperties;
+    private final AiModelProperties aiModelProperties;
     private final Gson gson = new Gson();
 
     @Transactional(readOnly = true)
@@ -49,7 +52,10 @@ public class AiExplanationService {
                 });
     }
 
-    @Transactional
+    // Review: 2026-10-17, Pullfrog — deliberately NOT @Transactional: the
+    // Feign reads and the multi-second LLM call below must not hold one of the
+    // 10 Hikari connections for the whole request. Each repository call opens
+    // its own short transaction; the unique index (V2) is the atomicity backstop.
     public AiExplanationResponse explainSubmission(UUID submissionId, UUID studentId) {
         // 1. Idempotency check: return cached if already analyzed
         Optional<AiExplanation> cached = explanationRepository.findBySubmissionIdAndCategory(submissionId, "FULL_ANALYSIS");
@@ -116,13 +122,34 @@ public class AiExplanationService {
                 .category("FULL_ANALYSIS")
                 .diagnosis(diagnosis)
                 .overallSummary(overallSummary)
-                .actionableHints(gson.toJson(stepAnalyses.stream().flatMap(s -> s.getActionableHints() != null ? s.getActionableHints().stream() : null).toList()))
-                .learningKeywords(gson.toJson(stepAnalyses.stream().flatMap(s -> s.getLearningKeywords() != null ? s.getLearningKeywords().stream() : null).toList()))
+                // Review: 2026-10-17, Pullfrog — a null hints/keywords list made
+                // the mapper return null; Stream.flatMap(null) then threw NPE and
+                // turned a valid LLM answer into a 500. Optional.ofNullable keeps
+                // the inner stream non-null for absent lists.
+                .actionableHints(gson.toJson(stepAnalyses.stream()
+                        .flatMap(s -> Optional.ofNullable(s.getActionableHints()).orElse(List.of()).stream())
+                        .toList()))
+                .learningKeywords(gson.toJson(stepAnalyses.stream()
+                        .flatMap(s -> Optional.ofNullable(s.getLearningKeywords()).orElse(List.of()).stream())
+                        .toList()))
                 .telemetryAudit(gson.toJson(stepAnalyses))
-                .modelName("gpt-4o-mini")
+                // Review: 2026-10-17, Pullfrog — was hardcoded "gpt-4o-mini";
+                // read the configured value (ai.model.model-name) instead.
+                .modelName(aiModelProperties.modelName())
                 .build();
 
-        AiExplanation saved = explanationRepository.save(entity);
+        AiExplanation saved;
+        try {
+            saved = explanationRepository.save(entity);
+        } catch (DataIntegrityViolationException conflict) {
+            // Review: 2026-10-17, Pullfrog — two concurrent POSTs for one
+            // submission both pass the idempotency check above; the partial
+            // unique index (V2) rejects the loser. Return the winner's cached
+            // row instead of surfacing a 500.
+            saved = explanationRepository.findBySubmissionIdAndCategory(submissionId, "FULL_ANALYSIS")
+                    .orElseThrow(() -> conflict);
+            return toResponse(saved, true);
+        }
 
         AiExplanationResponse response = toResponse(saved, false);
         response.setStepAnalyses(stepAnalyses);

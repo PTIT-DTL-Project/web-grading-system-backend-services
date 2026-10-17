@@ -41,7 +41,11 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        # Review: 2026-10-17, Pullfrog — prometheus was exposed while the pom
+        # had no micrometer-registry-prometheus, so /actuator/prometheus 404'd.
+        # Observability is not wired yet; re-add prometheus together with the
+        # registry dependency (see result-service pom) when it is.
+        include: health,info
 
 gateway:
   security:

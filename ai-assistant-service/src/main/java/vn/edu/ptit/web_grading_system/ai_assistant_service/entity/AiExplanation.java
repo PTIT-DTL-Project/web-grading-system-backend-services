@@ -3,6 +3,7 @@ package vn.edu.ptit.web_grading_system.ai_assistant_service.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
@@ -10,6 +11,10 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "ai_explanations")
+// Review: 2026-10-17, Pullfrog — aligns the lookup with the V2 partial unique
+// index (WHERE deleted_at IS NULL): a soft-deleted row no longer hides behind
+// (nor collides with) an active one.
+@SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor

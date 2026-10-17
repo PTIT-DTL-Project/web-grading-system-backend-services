@@ -10,6 +10,7 @@ import org.springframework.web.server.ResponseStatusException;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.CourseServiceClient;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.ResultServiceClient;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ResultDto;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.GatewayTrustProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.AiExplanationResponse;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.entity.AiExplanation;
@@ -44,6 +45,9 @@ public class AiExplanationServiceTest {
 
     @Mock
     private GatewayTrustProperties gatewayProperties;
+
+    @Mock
+    private AiModelProperties aiModelProperties;
 
     @InjectMocks
     private AiExplanationService explanationService;
@@ -119,5 +123,35 @@ public class AiExplanationServiceTest {
                 .hasMessageContaining("Forbidden");
 
         verifyNoInteractions(llmClient);
+    }
+
+    // Review: 2026-10-17, Pullfrog — regression for the 500 when the LLM omits
+    // actionableHints/learningKeywords (Stream.flatMap(null) NPE).
+    @Test
+    void explainSubmission_doesNotThrow_whenStepHintsAreNull() {
+        when(explanationRepository.findBySubmissionIdAndCategory(submissionId, "FULL_ANALYSIS"))
+                .thenReturn(Optional.empty());
+
+        ResultDto result = ResultDto.builder()
+                .id(UUID.randomUUID())
+                .submissionId(submissionId)
+                .studentId(studentId)
+                .assignmentId(UUID.randomUUID())
+                .build();
+        when(resultServiceClient.getBySubmissionId(any(), any(), any()))
+                .thenReturn(List.of(result));
+        when(promptBuilder.buildSystemPrompt()).thenReturn("system");
+        when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
+        when(llmClient.generateCompletion("system", "user")).thenReturn(
+                "{\"overallSummary\":\"ok\",\"stepAnalyses\":[{\"stepId\":\""
+                        + UUID.randomUUID()
+                        + "\",\"stepName\":\"s\",\"actionableHints\":null,\"learningKeywords\":null}]}");
+        when(explanationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AiExplanationResponse res = explanationService.explainSubmission(submissionId, studentId);
+
+        assertThat(res.getFromCache()).isFalse();
+        assertThat(res.getOverallSummary()).isEqualTo("ok");
+        assertThat(res.getStepAnalyses()).hasSize(1);
     }
 }
