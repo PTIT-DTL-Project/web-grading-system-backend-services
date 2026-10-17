@@ -22,4 +22,16 @@ public interface ResultServiceClient {
             @RequestHeader("X-User-Id") String userId,
             @RequestHeader("X-Gateway-Secret") String gatewaySecret
     );
+
+    /**
+     * The same rows, read without an identity, for the lecturer path.
+     *
+     * <p>Only used after the caller has been authorized: a lecturer does not own the student, so
+     * the identity-checked route above would answer 403 for them, and these rows are what reveal
+     * the submission's assignment and true owner. The endpoint is internal (not gateway-routed,
+     * no envelope), which is why there is no header or wrapper here — the caller must not read
+     * it before deciding the request is allowed.
+     */
+    @GetMapping("/api/v1/internal/results/submission/{submissionId}")
+    List<ResultDto> getBySubmissionIdInternal(@PathVariable("submissionId") UUID submissionId);
 }

@@ -320,7 +320,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -356,7 +356,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -421,7 +421,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -466,7 +466,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -538,7 +538,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -608,7 +608,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -652,7 +652,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -725,7 +725,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -785,7 +785,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -864,7 +864,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -951,7 +951,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -1040,7 +1040,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -1083,7 +1083,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -1155,7 +1155,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -1199,7 +1199,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -1277,7 +1277,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -1330,7 +1330,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -1406,7 +1406,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -1482,7 +1482,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -1558,7 +1558,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -1634,7 +1634,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -1716,7 +1716,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -1775,7 +1775,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -1857,7 +1857,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -1939,7 +1939,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -2021,7 +2021,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -2109,7 +2109,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -2153,7 +2153,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -2226,7 +2226,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -2270,7 +2270,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -2341,7 +2341,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -2414,7 +2414,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -2464,7 +2464,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -2541,7 +2541,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -2618,7 +2618,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -2702,7 +2702,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -2738,7 +2738,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -2803,7 +2803,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -2848,7 +2848,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -2920,7 +2920,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -2990,7 +2990,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -3030,7 +3030,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -3099,7 +3099,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -3130,7 +3130,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -3188,7 +3188,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -3248,7 +3248,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -3279,7 +3279,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -3339,7 +3339,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -3371,7 +3371,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -3432,7 +3432,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -3712,7 +3712,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -3983,7 +3983,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -4029,7 +4029,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -4102,7 +4102,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -4175,7 +4175,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -4250,7 +4250,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -4291,7 +4291,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -4359,7 +4359,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -4441,7 +4441,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -4488,7 +4488,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -4567,7 +4567,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -4608,7 +4608,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -4676,7 +4676,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{fake_lecturer_id}}",
+                        "value": "{{ownerLecturer1}}",
                         "type": "default"
                       }
                     ],
@@ -4897,7 +4897,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -4946,7 +4946,7 @@
                 "header": [
                   {
                     "key": "X-User-Id",
-                    "value": "{{fake_lecturer_id}}",
+                    "value": "{{ownerLecturer1}}",
                     "type": "default"
                   }
                 ],
@@ -5452,6 +5452,29 @@
           "response": []
         },
         {
+          "name": "get results by submission (internal, identity-free)",
+          "request": {
+            "description": "Caller contract: ai-assistant-service's lecturer path. It is NOT gateway-routed, is permitAll inside result-service, and is not enveloped (FormatRestResponse skips /internal/). The response carries assignmentId + studentId, which is why the AI service must finish authorizing the lecturer BEFORE calling it. No X-User-Id is sent on purpose: the route has no identity to check. Prefer the public GET /api/v1/results/{{submissionId}} (caller == owner) for every student-facing call. Response not captured: no live boot in this environment.",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{result-service}}/api/v1/internal/results/submission/{{submissionId}}",
+              "host": [
+                "{{result-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "internal",
+                "results",
+                "submission",
+                "{{submissionId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "get results by submission (poll score)",
           "request": {
             "method": "GET",
@@ -5481,7 +5504,7 @@
     },
     {
       "name": "AI assistant service",
-      "description": "ai-assistant-service (port 8086), direct-to-service calls (add environment variable `ai-assistant-service`, e.g. http://localhost:8086, like {{course-service}}).\n\nResponses saved 2026-10-15 from a local boot: postgres:16-alpine on :5433, blank AI_API_KEY (LlmClient fallback template, no provider call), result-service and course-service stubbed on :9199, submissionId 22222222-2222-2222-2222-222222222222. A real-provider happy path and real upstream services were NOT captured. The non-owner case answers 401 (see UC-18 notes in docs/design/usecase-flows.md), so the 401 request below is the ownership/identity error contract currently observed.\n\nResponses are raw DTOs: this service does not use the ApiResponse envelope.",
+      "description": "ai-assistant-service (port 8086), direct-to-service calls (add environment variable `ai-assistant-service`, e.g. http://localhost:8086, like {{course-service}}).\n\nStudent requests: responses saved 2026-10-15 from a local boot — postgres:16-alpine on :5433, blank AI_API_KEY (LlmClient fallback template, no provider call), result-service and course-service stubbed on :9199, submissionId 22222222-2222-2222-2222-222222222222. A real-provider happy path and real upstream services were NOT captured.\n\nLecturer requests (added 2026-10-17, UC-19): definitions only — no response captured, because the service could not be booted in this environment. They must be run with `X-User-Id: {{ownerLecturer1}}` and `X-User-Roles: ROLE_LECTURER`; a 404 means either the assignment is not owned or nothing is cached yet, and UC-19 step 1 lists the full 404 set.\n\nThe audience split is enforced: the student routes below pin `X-User-Roles: ROLE_STUDENT` and 403 under the collection-level {{roles}} default (LECTURER). Ownership misses answer 403 for a student, and 404 for a lecturer (an unowned assignment must stay indistinguishable from a missing one) — the earlier 'non-owner answers 401' note predates putting `/error` in SecurityConfig.PUBLIC_PATHS (see UC-18 notes in docs/design/usecase-flows.md).\n\nResponses are raw DTOs: this service does not use the ApiResponse envelope.",
       "item": [
         {
           "name": "get explanation (cache miss)",
@@ -5492,6 +5515,12 @@
                 "key": "X-User-Id",
                 "value": "{{fake_student_id}}",
                 "type": "default"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "ROLE_STUDENT",
+                "type": "default",
+                "description": "Pinned: this route is @PreAuthorize(\"hasRole('STUDENT')\"), so the collection-level {{roles}} default (LECTURER) would 403."
               }
             ],
             "url": {
@@ -5530,6 +5559,12 @@
                 "key": "X-User-Id",
                 "value": "{{fake_student_id}}",
                 "type": "default"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "ROLE_STUDENT",
+                "type": "default",
+                "description": "Pinned: this route is @PreAuthorize(\"hasRole('STUDENT')\")."
               }
             ],
             "url": {
@@ -5608,6 +5643,11 @@
                 "type": "default"
               },
               {
+                "key": "X-User-Roles",
+                "value": "ROLE_STUDENT",
+                "type": "default"
+              },
+              {
                 "key": "X-Gateway-Secret",
                 "value": "wrong-secret",
                 "type": "default"
@@ -5639,6 +5679,111 @@
               "body": "{\"statusCode\":401,\"message\":\"Unauthorized: Missing or invalid identity header\",\"data\":null}"
             }
           ]
+        },
+        {
+          "name": "get explanation for lecturer (cache miss)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{ownerLecturer1}}",
+                "type": "default"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "ROLE_LECTURER",
+                "type": "default"
+              }
+            ],
+            "url": {
+              "raw": "{{ai-assistant-service}}/api/v1/ai/assignments/{{assignmentId}}/submissions/{{submissionId}}/explain",
+              "host": [
+                "{{ai-assistant-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "assignments",
+                "{{assignmentId}}",
+                "submissions",
+                "{{submissionId}}",
+                "explain"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "generate explanation for lecturer (owner, fallback mode)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{ownerLecturer1}}",
+                "type": "default"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "ROLE_LECTURER",
+                "type": "default"
+              }
+            ],
+            "url": {
+              "raw": "{{ai-assistant-service}}/api/v1/ai/assignments/{{assignmentId}}/submissions/{{submissionId}}/explain",
+              "host": [
+                "{{ai-assistant-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "assignments",
+                "{{assignmentId}}",
+                "submissions",
+                "{{submissionId}}",
+                "explain"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "get explanation for lecturer (assignment not owned)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{ownerLecturer1}}",
+                "type": "default"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "ROLE_LECTURER",
+                "type": "default"
+              }
+            ],
+            "url": {
+              "raw": "{{ai-assistant-service}}/api/v1/ai/assignments/{{assignmentId}}/submissions/{{submissionId}}/explain",
+              "host": [
+                "{{ai-assistant-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "assignments",
+                "{{assignmentId}}",
+                "submissions",
+                "{{submissionId}}",
+                "explain"
+              ]
+            }
+          },
+          "response": []
         }
       ]
     }
