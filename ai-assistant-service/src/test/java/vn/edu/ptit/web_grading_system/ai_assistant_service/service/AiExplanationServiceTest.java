@@ -9,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.CourseServiceClient;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.ResultServiceClient;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ApiEnvelope;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ResultDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.GatewayTrustProperties;
@@ -116,7 +117,7 @@ public class AiExplanationServiceTest {
                 .build();
 
         when(resultServiceClient.getBySubmissionId(any(), any(), any()))
-                .thenReturn(List.of(result));
+                .thenReturn(ApiEnvelope.<List<ResultDto>>builder().status(200).data(List.of(result)).build());
 
         assertThatThrownBy(() -> explanationService.explainSubmission(submissionId, studentId))
                 .isInstanceOf(ResponseStatusException.class)
@@ -139,7 +140,7 @@ public class AiExplanationServiceTest {
                 .assignmentId(UUID.randomUUID())
                 .build();
         when(resultServiceClient.getBySubmissionId(any(), any(), any()))
-                .thenReturn(List.of(result));
+                .thenReturn(ApiEnvelope.<List<ResultDto>>builder().status(200).data(List.of(result)).build());
         when(promptBuilder.buildSystemPrompt()).thenReturn("system");
         when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
         when(llmClient.generateCompletion("system", "user")).thenReturn(

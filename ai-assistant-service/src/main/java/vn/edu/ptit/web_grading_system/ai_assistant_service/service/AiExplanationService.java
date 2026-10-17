@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.CourseServiceClient;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.ResultServiceClient;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ApiEnvelope;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.AssignmentDetailDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ResultDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
@@ -68,8 +69,11 @@ public class AiExplanationService {
         }
 
         // 2. Fetch submission results
-        List<ResultDto> results = resultServiceClient.getBySubmissionId(
+        // Review: 2026-10-17, Pullfrog follow-up — result-service wraps its body
+        // in ApiResponse{status,message,data}; bind the envelope and take .data.
+        ApiEnvelope<List<ResultDto>> resultsEnvelope = resultServiceClient.getBySubmissionId(
                 submissionId, studentId.toString(), gatewayProperties.secret());
+        List<ResultDto> results = resultsEnvelope != null ? resultsEnvelope.getData() : null;
         if (results == null || results.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No grading results found for submission");
         }
@@ -83,8 +87,12 @@ public class AiExplanationService {
         // 3. Fetch assignment metadata
         AssignmentDetailDto assignment = null;
         try {
-            assignment = courseServiceClient.getAssignment(
+            // Review: 2026-10-17, Pullfrog follow-up — unwrap the ApiResponse
+            // envelope; the previous raw binding silently failed and left
+            // `assignment` null on every request.
+            ApiEnvelope<AssignmentDetailDto> assignmentEnvelope = courseServiceClient.getAssignment(
                     result.getAssignmentId(), studentId.toString(), gatewayProperties.secret());
+            assignment = assignmentEnvelope != null ? assignmentEnvelope.getData() : null;
         } catch (Exception e) {
             log.warn("Could not fetch assignment details for id {}: {}", result.getAssignmentId(), e.getMessage());
         }
