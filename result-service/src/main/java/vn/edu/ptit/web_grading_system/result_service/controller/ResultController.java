@@ -3,6 +3,7 @@ package vn.edu.ptit.web_grading_system.result_service.controller;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -42,11 +43,9 @@ public class ResultController {
         // parsed from the gateway-trusted X-User-Roles header, matching exactly how
         // course-service's @PreAuthorize("hasRole('LECTURER')") checks work.
         // Pullfrog flagged that a substring match would silently accept future roles
-        // like LECTURER_ASSISTANT; hasRole("LECTURER") is exact and consistent.
-        boolean isLecturer = org.springframework.security.core.context.SecurityContextHolder.getContext()
-                .getAuthentication() != null
-            && org.springframework.security.core.context.SecurityContextHolder.getContext()
-                .getAuthentication().getAuthorities().stream()
+        // like LECTURER_ASSISTANT; ROLE_LECTURER is exact and consistent.
+        boolean isLecturer = SecurityContextHolder.getContext().getAuthentication() != null
+            && SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_LECTURER"));
         if (!isLecturer && !results.stream().allMatch(r -> callerId.equals(r.getStudentId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not owner of submission");
