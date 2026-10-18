@@ -26,6 +26,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
 
     List<Submission> findByAssignmentIdOrderByCreatedAtDesc(UUID assignmentId);
 
+    Page<Submission> findByAssignmentIdOrderByCreatedAtDesc(UUID assignmentId, Pageable pageable);
+
     Optional<Submission> findByRustfsPath(String rustfsPath);
 
     // Returns a List: there is no unique constraint on submissions.latest — the real

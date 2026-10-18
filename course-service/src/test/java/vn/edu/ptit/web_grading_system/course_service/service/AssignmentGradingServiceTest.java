@@ -17,7 +17,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -99,7 +104,7 @@ class AssignmentGradingServiceTest {
                 .thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> service().results(ASSIGNMENT_ID, OWNER, null, false));
+                () -> service().results(ASSIGNMENT_ID, OWNER, null, false, null, null));
 
         // Forwarding would turn this endpoint into an oracle for foreign assignment ids.
         verifyNoInteractions(resultServiceClient, submissionInternalClient);
@@ -113,7 +118,7 @@ class AssignmentGradingServiceTest {
         when(resultServiceClient.assignmentResults(ASSIGNMENT_ID, null, false))
                 .thenReturn(List.of(group()));
 
-        List<StudentResultResponse> out = service().results(ASSIGNMENT_ID, OWNER, null, false);
+        List<StudentResultResponse> out = service().results(ASSIGNMENT_ID, OWNER, null, false, null, null).getContent();
 
         assertEquals(1, out.size());
         assertEquals("SV0001", out.get(0).getStudentCode());
@@ -127,7 +132,7 @@ class AssignmentGradingServiceTest {
         when(classStudentRepository.findAllByClassId(CLASS_ID))
                 .thenReturn(List.of(rostered("SV0001", "Nguyen Van A")));
 
-        assertTrue(service().results(ASSIGNMENT_ID, OWNER, "NOPE", false).isEmpty());
+        assertTrue(service().results(ASSIGNMENT_ID, OWNER, "NOPE", false, null, null).getContent().isEmpty());
 
         verifyNoInteractions(resultServiceClient);
     }
@@ -140,7 +145,7 @@ class AssignmentGradingServiceTest {
         when(resultServiceClient.assignmentResults(ASSIGNMENT_ID, STUDENT, false))
                 .thenReturn(List.of(group()));
 
-        List<StudentResultResponse> out = service().results(ASSIGNMENT_ID, OWNER, " SV0001 ", false);
+        List<StudentResultResponse> out = service().results(ASSIGNMENT_ID, OWNER, " SV0001 ", false, null, null).getContent();
 
         assertEquals(1, out.size());
         // The roster code is translated here — only course-service can do it — so the data
@@ -156,7 +161,7 @@ class AssignmentGradingServiceTest {
         when(classStudentRepository.findAllByClassId(CLASS_ID))
                 .thenReturn(List.of(student));
 
-        assertTrue(service().results(ASSIGNMENT_ID, OWNER, "SV0001", false).isEmpty());
+        assertTrue(service().results(ASSIGNMENT_ID, OWNER, "SV0001", false, null, null).getContent().isEmpty());
 
         verifyNoInteractions(resultServiceClient);
     }
@@ -168,7 +173,7 @@ class AssignmentGradingServiceTest {
         when(resultServiceClient.assignmentResults(ASSIGNMENT_ID, null, true))
                 .thenReturn(List.of());
 
-        service().results(ASSIGNMENT_ID, OWNER, null, true);
+        service().results(ASSIGNMENT_ID, OWNER, null, true, null, null);
 
         verify(resultServiceClient).assignmentResults(ASSIGNMENT_ID, null, true);
     }
@@ -180,9 +185,9 @@ class AssignmentGradingServiceTest {
         when(resultServiceClient.assignmentResults(ASSIGNMENT_ID, null, false))
                 .thenReturn(List.of(group()));
 
-        List<StudentResultResponse> out = service().results(ASSIGNMENT_ID, OWNER, null, false);
-
-        // Dropping the row would make the class view look complete when it is not.
+        // Dropped row (now skipped via page impl) keeps the class view honest.
+        Page<StudentResultResponse> page = service().results(ASSIGNMENT_ID, OWNER, null, false, null, null);
+        List<StudentResultResponse> out = page.getContent();
         assertEquals(1, out.size());
         assertEquals(STUDENT, out.get(0).getStudentUserId());
         assertNull(out.get(0).getStudentCode());
@@ -202,7 +207,7 @@ class AssignmentGradingServiceTest {
         when(resultServiceClient.assignmentResults(ASSIGNMENT_ID, null, false))
                 .thenReturn(List.of(group())); // only SV0001 has results
 
-        List<StudentResultResponse> out = service().results(ASSIGNMENT_ID, OWNER, null, false);
+        List<StudentResultResponse> out = service().results(ASSIGNMENT_ID, OWNER, null, false, null, null).getContent();
 
         assertEquals(2, out.size());
         // Real result row keeps its scored value, sorted by code first.
@@ -231,7 +236,7 @@ class AssignmentGradingServiceTest {
                         .build()));
 
         // Single-student view: no synthesis, the 0 (or any score) for SV0002 only.
-        List<StudentResultResponse> out = service().results(ASSIGNMENT_ID, OWNER, "SV0002", false);
+        List<StudentResultResponse> out = service().results(ASSIGNMENT_ID, OWNER, "SV0002", false, null, null).getContent();
         assertEquals(1, out.size());
         assertEquals(sv2, out.get(0).getStudentUserId());
         assertEquals("SV0002", out.get(0).getStudentCode());
@@ -282,7 +287,7 @@ class AssignmentGradingServiceTest {
                 .thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> service().submissions(ASSIGNMENT_ID, OWNER, null));
+                () -> service().submissions(ASSIGNMENT_ID, OWNER, null, null, null));
 
         verifyNoInteractions(resultServiceClient, submissionInternalClient);
     }
@@ -307,10 +312,10 @@ class AssignmentGradingServiceTest {
                 .studentId(stranger)
                 .status("UPLOADED")
                 .build();
-        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID))
-                .thenReturn(List.of(row, departed));
+        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID, null, null))
+                .thenReturn(new PageImpl<>(List.of(row, departed)));
 
-        List<SubmissionResponse> out = service().submissions(ASSIGNMENT_ID, OWNER, null);
+        List<SubmissionResponse> out = service().submissions(ASSIGNMENT_ID, OWNER, null, null, null).getContent();
 
         assertEquals(2, out.size());
         assertEquals(row.getId(), out.get(0).getId());
@@ -332,22 +337,22 @@ class AssignmentGradingServiceTest {
         when(classStudentRepository.findAllByClassId(CLASS_ID))
                 .thenReturn(List.of(rostered(STUDENT, "SV0001", "Nguyen Van A"),
                         rostered(sv2, "SV0002", "Tran Van B")));
-        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID))
-                .thenReturn(List.of(
+        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID, null, null))
+                .thenReturn(new PageImpl<>(List.of(
                         SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID)
                                 .studentId(STUDENT).status("UPLOADED").build(),
                         SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID)
                                 .studentId(sv2).status("UPLOADED").build(),
                         SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID)
-                                .studentId(sv2).status("LATE").build()));
+                                .studentId(sv2).status("LATE").build())));
 
-        List<SubmissionResponse> sv1Only = service().submissions(ASSIGNMENT_ID, OWNER, "SV0001");
+        List<SubmissionResponse> sv1Only = service().submissions(ASSIGNMENT_ID, OWNER, "SV0001", null, null).getContent();
         assertEquals(1, sv1Only.size());
         assertEquals(STUDENT, sv1Only.get(0).getStudentId());
         assertEquals("SV0001", sv1Only.get(0).getStudentCode());
 
         // Unknown code for this class => no rows (indistinguishable from "no submissions").
-        assertTrue(service().submissions(ASSIGNMENT_ID, OWNER, "SV9999").isEmpty());
+        assertTrue(service().submissions(ASSIGNMENT_ID, OWNER, "SV9999", null, null).getContent().isEmpty());
     }
 
     @Test
@@ -362,9 +367,63 @@ class AssignmentGradingServiceTest {
         when(resultServiceClient.assignmentResults(ASSIGNMENT_ID, null, false))
                 .thenReturn(List.of());
 
-        List<StudentResultResponse> out = service().results(ASSIGNMENT_ID, OWNER, null, false);
-
-        assertTrue(out.isEmpty(), "unlinked roster student must not synthesize a row");
+        assertTrue(service().results(ASSIGNMENT_ID, OWNER, null, false, null, null).getContent().isEmpty(), "unlinked roster student must not synthesize a row");
         verify(resultServiceClient).assignmentResults(ASSIGNMENT_ID, null, false);
+    }
+
+    // --- pagination ---------------------------------------------------------
+
+    @Test
+    void results_paginatesTheSynthezisedWholeClassList() {
+        // 3 roster students, none with result rows → 3 synthesised 0-rows.
+        ownerExistsOnMyClass();
+        when(classStudentRepository.findAllByClassId(CLASS_ID))
+                .thenReturn(List.of(
+                        rostered(STUDENT, "SV0001", "A"),
+                        rostered(UUID.fromString("4f1c1e1c-0000-4000-8000-000000000007"), "SV0002", "B"),
+                        rostered(UUID.fromString("4f1c1e1c-0000-4000-8000-000000000008"), "SV0003", "C")));
+        when(resultServiceClient.assignmentResults(ASSIGNMENT_ID, null, false))
+                .thenReturn(List.of());
+
+        // page=0, size=2 → first 2 of 3.
+        Page<StudentResultResponse> p0 = service().results(ASSIGNMENT_ID, OWNER, null, false, 0, 2);
+        assertEquals(2, p0.getContent().size());
+        assertEquals(3, p0.getTotalElements());
+        assertEquals(2, p0.getTotalPages());
+        assertEquals("SV0001", p0.getContent().get(0).getStudentCode());
+
+        // page=1 → last of the 3.
+        Page<StudentResultResponse> p1 = service().results(ASSIGNMENT_ID, OWNER, null, false, 1, 2);
+        assertEquals(1, p1.getContent().size());
+        assertEquals("SV0003", p1.getContent().get(0).getStudentCode());
+    }
+
+    @Test
+    void submissions_paginatesTheWholeClassSubmissionList() {
+        UUID sv2 = UUID.fromString("4f1c1e1c-0000-4000-8000-000000000007");
+        ownerExistsOnMyClass();
+        when(classStudentRepository.findAllByClassId(CLASS_ID))
+                .thenReturn(List.of(rostered(STUDENT, "SV0001", "A"),
+                        rostered(sv2, "SV0002", "B")));
+        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID, 0, 2))
+                .thenReturn(new PageImpl<>(List.of(
+                        SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID).studentId(STUDENT).build(),
+                        SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID).studentId(sv2).build(),
+                        SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID).studentId(sv2).build()),
+                        PageRequest.of(0, 2), 3));
+        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID, 0, 10))
+                .thenReturn(new PageImpl<>(List.of(
+                        SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID).studentId(STUDENT).build(),
+                        SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID).studentId(sv2).build(),
+                        SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID).studentId(sv2).build()),
+                        PageRequest.of(0, 10), 3));
+
+        Page<SubmissionResponse> p0 = service().submissions(ASSIGNMENT_ID, OWNER, null, 0, 2);
+        assertEquals(2, p0.getContent().size());
+        assertEquals(3, p0.getTotalElements());
+        assertEquals(2, p0.getTotalPages());
+        // Single-student filter still narrows before paging.
+        Page<SubmissionResponse> sv2Page = service().submissions(ASSIGNMENT_ID, OWNER, "SV0002", 0, 10);
+        assertEquals(2, sv2Page.getContent().size());
     }
 }

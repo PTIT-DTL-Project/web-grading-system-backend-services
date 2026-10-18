@@ -21,6 +21,8 @@ import vn.edu.ptit.web_grading_system.course_service.security.HeaderAuthenticati
 import vn.edu.ptit.web_grading_system.course_service.service.AssignmentGradingService;
 import vn.edu.ptit.web_grading_system.course_service.service.HttpLogService;
 
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -91,9 +93,9 @@ class AssignmentGradingAuthorizationTest {
 
     /** Stands in for the service's ownership check failing on an assignment someone else owns. */
     private void ownerCheckFails() {
-        when(assignmentGradingService.results(any(UUID.class), any(UUID.class), any(), anyBoolean()))
+        when(assignmentGradingService.results(any(UUID.class), any(UUID.class), any(), anyBoolean(), any(), any()))
                 .thenThrow(new ResourceNotFoundException("Assignment not found: " + ASSIGNMENT_ID));
-        when(assignmentGradingService.submissions(any(UUID.class), any(UUID.class), any()))
+        when(assignmentGradingService.submissions(any(UUID.class), any(UUID.class), any(), any(), any()))
                 .thenThrow(new ResourceNotFoundException("Assignment not found: " + ASSIGNMENT_ID));
     }
 
@@ -101,18 +103,18 @@ class AssignmentGradingAuthorizationTest {
 
     @Test
     void lecturerMayReadTheResultsOfAnAssignmentTheyOwn() throws Exception {
-        when(assignmentGradingService.results(eq(ASSIGNMENT_ID), eq(OWNER), isNull(), eq(false)))
-                .thenReturn(List.of(StudentResultResponse.builder()
+        when(assignmentGradingService.results(eq(ASSIGNMENT_ID), eq(OWNER), isNull(), eq(false), isNull(), isNull()))
+                .thenReturn(new PageImpl<>(List.of(StudentResultResponse.builder()
                         .studentUserId(STUDENT)
                         .studentCode("SV0001")
                         .exerciseScore(new BigDecimal("8.50"))
                         .results(List.of())
-                        .build()));
+                        .build()), PageRequest.of(0, 20), 1));
 
         mockMvc.perform(asCaller(get("/api/v1/assignments/{id}/results", ASSIGNMENT_ID), "LECTURER"))
                 .andExpect(status().isOk());
 
-        verify(assignmentGradingService).results(ASSIGNMENT_ID, OWNER, null, false);
+        verify(assignmentGradingService).results(ASSIGNMENT_ID, OWNER, null, false, null, null);
     }
 
     @Test
@@ -132,7 +134,7 @@ class AssignmentGradingAuthorizationTest {
 
         // The gate runs before the handler — the service must not even be consulted.
         verify(assignmentGradingService, never())
-                .results(any(UUID.class), any(UUID.class), any(), anyBoolean());
+                .results(any(UUID.class), any(UUID.class), any(), anyBoolean(), any(), any());
     }
 
     @Test
@@ -142,7 +144,7 @@ class AssignmentGradingAuthorizationTest {
                 .andExpect(status().isForbidden());
 
         verify(assignmentGradingService, never())
-                .results(any(UUID.class), any(UUID.class), any(), anyBoolean());
+                .results(any(UUID.class), any(UUID.class), any(), anyBoolean(), any(), any());
     }
 
     // --- GET /api/v1/assignments/{id}/submissions -----------------------------
@@ -152,7 +154,7 @@ class AssignmentGradingAuthorizationTest {
         mockMvc.perform(asCaller(get("/api/v1/assignments/{id}/submissions", ASSIGNMENT_ID), "LECTURER"))
                 .andExpect(status().isOk());
 
-        verify(assignmentGradingService).submissions(ASSIGNMENT_ID, OWNER, null);
+        verify(assignmentGradingService).submissions(ASSIGNMENT_ID, OWNER, null, null, null);
     }
 
     @Test
@@ -168,7 +170,7 @@ class AssignmentGradingAuthorizationTest {
         mockMvc.perform(asCaller(get("/api/v1/assignments/{id}/submissions", ASSIGNMENT_ID), "STUDENT"))
                 .andExpect(status().isForbidden());
 
-        verify(assignmentGradingService, never()).submissions(any(UUID.class), any(UUID.class), any());
+        verify(assignmentGradingService, never()).submissions(any(UUID.class), any(UUID.class), any(), any(), any());
     }
 
     @Test
@@ -176,7 +178,7 @@ class AssignmentGradingAuthorizationTest {
         mockMvc.perform(asCaller(get("/api/v1/assignments/{id}/submissions", ASSIGNMENT_ID), null))
                 .andExpect(status().isForbidden());
 
-        verify(assignmentGradingService, never()).submissions(any(UUID.class), any(UUID.class), any());
+        verify(assignmentGradingService, never()).submissions(any(UUID.class), any(UUID.class), any(), any(), any());
     }
 
     // --- trust boundary ---
