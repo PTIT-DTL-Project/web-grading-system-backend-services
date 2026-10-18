@@ -32,7 +32,7 @@ class ResultControllerTest {
         Mockito.when(service.getBySubmissionId(submissionId)).thenReturn(payload);
 
         ResponseEntity<List<ResultResponse>> response =
-                new ResultController(service).getBySubmission(submissionId, studentId.toString());
+                new ResultController(service).getBySubmission(submissionId, studentId.toString(), null);
 
         assertEquals(200, response.getStatusCode().value());
         assertEquals(payload, response.getBody());
@@ -46,7 +46,7 @@ class ResultControllerTest {
 
         ResponseEntity<List<ResultResponse>> response =
                 new ResultController(service).getBySubmission(submissionId,
-                        "00000000-0000-0000-0000-000000000001");
+                        "00000000-0000-0000-0000-000000000001", null);
 
         assertEquals(200, response.getStatusCode().value());
         assertTrue(response.getBody().isEmpty());
@@ -66,7 +66,7 @@ class ResultControllerTest {
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
                 new ResultController(service).getBySubmission(submissionId,
-                        "00000000-0000-0000-0000-000000000002"));
+                        "00000000-0000-0000-0000-000000000002", null));
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
     }
 }

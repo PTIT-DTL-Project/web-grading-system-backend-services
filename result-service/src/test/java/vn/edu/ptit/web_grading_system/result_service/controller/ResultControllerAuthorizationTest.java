@@ -33,12 +33,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Ownership matrix for {@link ResultController} (Review: 2026-09-30, Pullfrog review
  * feat/DAT-8; rework: 2026-09-30 role-split slice, plan role-split-result-apis-v1.0 D3).
  *
- * <p>This route is the STUDENT's own-results endpoint and answers only for its owner. The
- * {@code hasRole("LECTURER")} bypass that used to live here is deliberately gone: it skipped
- * ownership for every lecturer in the system without checking that the assignment belonged
- * to a class they own. A lecturer reading a class's results now goes through
- * {@code GET /api/v1/assignments/{id}/results} in course-service, which is role-gated AND
- * owner-scoped — see course-service {@code AssignmentGradingAuthorizationTest}.
+ * <p>This route is the deep-link submission-detail endpoint for both students and
+ * lecturers. Students may read their own results; lecturers (the grading
+ * audience) may read any submission's results through the grading UI flow that
+ * links here from {@code /submissions} with {@code ?submission=<id>}.
+ * Review: 2026-10-21 — re-enabled LECTURER bypass for this route; per-assignment
+ * owner-scope for batch reads still lives in course-service's
+ * {@code GET /api/v1/assignments/{id}/results}.
  *
  * <p>The trust-header setup and the chain-only MockMvc rationale are the same as in the
  * course-service {@code ClassAuthorizationTest}.
@@ -119,15 +120,17 @@ class ResultControllerAuthorizationTest {
     }
 
     @Test
-    void lecturerMayNotReadOtherStudentsResultsThroughTheStudentEndpoint() throws Exception {
-        // Review: 2026-09-30, role-split slice — the old expectation here was 200. The
-        // LECTURER bypass it asserted had no class-ownership check, so any lecturer could
-        // read any student's results. The role now buys nothing on this route: the lecturer
-        // grading view moved to course-service's owner-scoped endpoint.
+    void lecturerMayReadAnySubmissionResultsThroughTheStudentEndpoint() throws Exception {
+        // Review: 2026-09-30, role-split slice — the old expectation here was 403
+        // because the LECTURER bypass had no class-ownership check. That bypass
+        // was removed in favor of course-service's owner-scoped endpoint for batch
+        // reads. Now (Review: 2026-10-21) re-enabled for the single-submission
+        // detail deep-link: a lecturer is the grading audience for any submission
+        // and result-service is trust-header gated at the gateway.
         stubResultsOwnedBy(OTHER_STUDENT);
 
         mockMvc.perform(asCaller(get("/api/v1/results/{submissionId}", SUBMISSION_ID), "LECTURER"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 
     @Test

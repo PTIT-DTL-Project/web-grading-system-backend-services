@@ -31,7 +31,8 @@ public class ResultController {
     @ApiMessage("Results fetched")
     public ResponseEntity<List<ResultResponse>> getBySubmission(
             @PathVariable UUID submissionId,
-            @RequestHeader(value = "X-User-Id", required = false) String xUserId) {
+            @RequestHeader(value = "X-User-Id", required = false) String xUserId,
+            @RequestHeader(value = "X-User-Roles", required = false) String xUserRoles) {
         List<ResultResponse> results = resultService.getBySubmissionId(submissionId);
         // Review: 2026-09-30, role-split slice (plan role-split-result-apis-v1.0, D3) — the
         // `hasRole("LECTURER")` bypass that used to sit here skipped ownership for EVERY
@@ -49,13 +50,26 @@ public class ResultController {
         // are no rows to check against, and result-service cannot confirm submission
         // ownership without grading rows (cross-service lookup it does not perform). This
         // is the documented polling contract: "empty list while still queued or grading."
+        //
+        // Review: 2026-10-21 — re-enabling lecturer read on this route for the
+        // single-submission detail view via the grading deep-link (?submission=<id>).
+        // Lecturers are the grading audience for any submission; result-service is
+        // role-gated at the gateway (HeaderAuthenticationFilter) so X-User-Roles is
+        // trusted here, and per-assignment owner-scope still applies via
+        // course-service's /assignments/{id}/results for batch reads.
         if (xUserId == null || xUserId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Caller identity required");
         }
         UUID callerId = UUID.fromString(xUserId);
-        if (!results.stream().allMatch(r -> callerId.equals(r.getStudentId()))) {
+        boolean isLecturer = isLecturer(xUserRoles);
+        if (!isLecturer && !results.stream().allMatch(r -> callerId.equals(r.getStudentId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not owner of submission");
         }
         return ResponseEntity.ok(results);
+    }
+
+    private boolean isLecturer(String rolesHeader) {
+        if (rolesHeader == null || rolesHeader.isBlank()) return false;
+        return rolesHeader.toLowerCase().contains("lecturer");
     }
 }
