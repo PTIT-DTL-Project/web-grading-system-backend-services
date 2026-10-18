@@ -3,13 +3,15 @@ package vn.edu.ptit.web_grading_system.submission_service.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.submission_service.dto.request.UpdateStatusRequest;
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.SubmissionResponse;
 import vn.edu.ptit.web_grading_system.submission_service.service.SubmissionService;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -33,9 +35,14 @@ public class SubmissionInternalController {
      * lecturer could list any class's submissions.
      */
     @GetMapping("/assignment/{assignmentId}")
-    public ResponseEntity<List<SubmissionResponse>> listByAssignment(
-            @PathVariable UUID assignmentId) {
-        return ResponseEntity.ok(submissionService.listByAssignment(assignmentId));
+    public ResponseEntity<Page<SubmissionResponse>> listByAssignment(
+            @PathVariable UUID assignmentId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        Pageable pageable = (page != null && size != null)
+                ? PageRequest.of(page, size)
+                : Pageable.unpaged();
+        return ResponseEntity.ok(submissionService.listByAssignment(assignmentId, pageable));
     }
 
     @PutMapping("/{id}/status")

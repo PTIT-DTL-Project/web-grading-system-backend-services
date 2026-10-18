@@ -18,6 +18,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -310,8 +312,8 @@ class AssignmentGradingServiceTest {
                 .studentId(stranger)
                 .status("UPLOADED")
                 .build();
-        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID))
-                .thenReturn(List.of(row, departed));
+        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID, null, null))
+                .thenReturn(new PageImpl<>(List.of(row, departed)));
 
         List<SubmissionResponse> out = service().submissions(ASSIGNMENT_ID, OWNER, null, null, null).getContent();
 
@@ -335,14 +337,14 @@ class AssignmentGradingServiceTest {
         when(classStudentRepository.findAllByClassId(CLASS_ID))
                 .thenReturn(List.of(rostered(STUDENT, "SV0001", "Nguyen Van A"),
                         rostered(sv2, "SV0002", "Tran Van B")));
-        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID))
-                .thenReturn(List.of(
+        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID, null, null))
+                .thenReturn(new PageImpl<>(List.of(
                         SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID)
                                 .studentId(STUDENT).status("UPLOADED").build(),
                         SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID)
                                 .studentId(sv2).status("UPLOADED").build(),
                         SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID)
-                                .studentId(sv2).status("LATE").build()));
+                                .studentId(sv2).status("LATE").build())));
 
         List<SubmissionResponse> sv1Only = service().submissions(ASSIGNMENT_ID, OWNER, "SV0001", null, null).getContent();
         assertEquals(1, sv1Only.size());
@@ -403,11 +405,18 @@ class AssignmentGradingServiceTest {
         when(classStudentRepository.findAllByClassId(CLASS_ID))
                 .thenReturn(List.of(rostered(STUDENT, "SV0001", "A"),
                         rostered(sv2, "SV0002", "B")));
-        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID))
-                .thenReturn(List.of(
+        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID, 0, 2))
+                .thenReturn(new PageImpl<>(List.of(
                         SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID).studentId(STUDENT).build(),
                         SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID).studentId(sv2).build(),
-                        SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID).studentId(sv2).build()));
+                        SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID).studentId(sv2).build()),
+                        PageRequest.of(0, 2), 3));
+        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID, 0, 10))
+                .thenReturn(new PageImpl<>(List.of(
+                        SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID).studentId(STUDENT).build(),
+                        SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID).studentId(sv2).build(),
+                        SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID).studentId(sv2).build()),
+                        PageRequest.of(0, 10), 3));
 
         Page<SubmissionResponse> p0 = service().submissions(ASSIGNMENT_ID, OWNER, null, 0, 2);
         assertEquals(2, p0.getContent().size());

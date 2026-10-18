@@ -193,7 +193,10 @@ public class AssignmentGradingService {
         }
         UUID studentUserId = wantedId.orElse(null);
         // Roster read first, Feign second: same no-connection-across-HTTP rule as above.
-        List<SubmissionResponse> rows = submissionInternalClient.listByAssignment(assignmentId);
+        // Forward page/size to submission-service for true server-side paging.
+        Page<SubmissionResponse> fetched = submissionInternalClient.listByAssignment(
+                assignmentId, page, size);
+        List<SubmissionResponse> rows = fetched.getContent();
         for (SubmissionResponse row : rows) {
             ClassStudent student = row.getStudentId() == null
                     ? null : roster.get(row.getStudentId());
@@ -211,9 +214,10 @@ public class AssignmentGradingService {
         } else {
             narrowed = rows;
         }
-        // Server-side page the narrowed set; null => whole set in one PageImpl
-        // (backward compat with callers that ignore page/size).
-        // Review: 2026-10-19, pagination-via-course-service.
+        // Page the narrowed set. When no page/size were supplied (null), the
+        // upstream PageImpl already carries the full list — pass it through.
+        // When filtering reduced the content (studentCode narrowing happens client-side
+        // here, post-fetch), re-slice to reflect the actual visible total.
         if (page == null || size == null) {
             return new PageImpl<>(narrowed);
         }

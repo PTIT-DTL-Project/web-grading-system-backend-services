@@ -9,6 +9,7 @@ import vn.edu.ptit.web_grading_system.submission_service.event.WgsEventsProducer
 import vn.edu.ptit.web_grading_system.submission_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.submission_service.mapper.SubmissionMapper;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -143,11 +144,15 @@ public class SubmissionService {
     }
 
     @Transactional(readOnly = true)
-    public List<SubmissionResponse> listByAssignment(UUID assignmentId) {
-        return submissionRepository.findByAssignmentIdOrderByCreatedAtDesc(assignmentId)
-                .stream()
-                .map(submissionMapper::toResponse)
-                .toList();
+    public Page<SubmissionResponse> listByAssignment(UUID assignmentId, Pageable pageable) {
+        if (pageable.isUnpaged()) {
+            return new PageImpl<>(submissionRepository.findByAssignmentIdOrderByCreatedAtDesc(assignmentId)
+                    .stream()
+                    .map(submissionMapper::toResponse)
+                    .toList());
+        }
+        return submissionRepository.findByAssignmentIdOrderByCreatedAtDesc(assignmentId, pageable)
+                .map(submissionMapper::toResponse);
     }
 
     @Transactional(readOnly = true)
