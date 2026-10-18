@@ -2,6 +2,9 @@ package vn.edu.ptit.web_grading_system.course_service.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import vn.edu.ptit.web_grading_system.course_service.client.ResultServiceClient;
 import vn.edu.ptit.web_grading_system.course_service.client.SubmissionInternalClient;
@@ -96,15 +99,16 @@ public class AssignmentGradingService {
      * @param includeSteps false keeps the read to one small payload; the FE passes true only
      *                     when drilling into one student's step detail.
      */
-    public List<StudentResultResponse> results(
-            UUID assignmentId, UUID ownerId, String studentCode, boolean includeSteps) {
+    public Page<StudentResultResponse> results(
+            UUID assignmentId, UUID ownerId, String studentCode, boolean includeSteps,
+            Integer page, Integer size) {
         Assignment assignment = requireOwnedAssignment(assignmentId, ownerId);
         Map<UUID, ClassStudent> roster = rosterByUserId(assignment.getClassId());
 
         // Single-student path: translate the roster code to a user id up front.
         Optional<UUID> wantedId = studentIdFor(roster, studentCode);
         if (studentCode != null && !studentCode.isBlank() && wantedId.isEmpty()) {
-            return List.of();
+            return Page.empty();
         }
         UUID studentUserId = wantedId.orElse(null);
 
@@ -155,11 +159,21 @@ public class AssignmentGradingService {
         }
         // Preserve roster order (by studentCode) for a stable column on re-renders; the
         // freshly-synthesised rows land in the same natural order as the real ones.
-        return byUser.values().stream()
+        List<StudentResultResponse> ordered = byUser.values().stream()
                 .sorted(Comparator.comparing(
                         StudentResultResponse::getStudentCode,
                         Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
+        // Server-side page the synthesized list. page/size null => whole list (backward
+        // compatible: FE sends neither and gets the full class as one PageImpl so its
+        // ListPage still pagates client-side on meta.total).
+        // Review: 2026-10-19, pagination-via-course-service.
+        if (page == null || size == null) {
+            return new PageImpl<>(ordered);
+        }
+        int from = Math.max(0, Math.min(page * size, ordered.size()));
+        int to = Math.min(from + size, ordered.size());
+        return new PageImpl<>(ordered.subList(from, to), PageRequest.of(page, size), ordered.size());
     }
 
     /**
@@ -168,13 +182,14 @@ public class AssignmentGradingService {
      * An unknown code for this class returns an empty list — there are no
      * submissions to show, indistinguishable from "none submitted yet".
      */
-    public List<SubmissionResponse> submissions(UUID assignmentId, UUID ownerId, String studentCode) {
+    public Page<SubmissionResponse> submissions(UUID assignmentId, UUID ownerId, String studentCode,
+            Integer page, Integer size) {
         Assignment assignment = requireOwnedAssignment(assignmentId, ownerId);
         Map<UUID, ClassStudent> roster = rosterByUserId(assignment.getClassId());
 
         Optional<UUID> wantedId = studentIdFor(roster, studentCode);
         if (studentCode != null && !studentCode.isBlank() && wantedId.isEmpty()) {
-            return List.of();
+            return Page.empty();
         }
         UUID studentUserId = wantedId.orElse(null);
         // Roster read first, Feign second: same no-connection-across-HTTP rule as above.
@@ -188,11 +203,22 @@ public class AssignmentGradingService {
             }
         }
         // Narrow to the requested student (null => whole class, keep all rows).
+        List<SubmissionResponse> narrowed;
         if (studentUserId != null) {
-            return rows.stream()
+            narrowed = rows.stream()
                     .filter(row -> studentUserId.equals(row.getStudentId()))
                     .toList();
+        } else {
+            narrowed = rows;
         }
-        return rows;
+        // Server-side page the narrowed set; null => whole set in one PageImpl
+        // (backward compat with callers that ignore page/size).
+        // Review: 2026-10-19, pagination-via-course-service.
+        if (page == null || size == null) {
+            return new PageImpl<>(narrowed);
+        }
+        int from = Math.max(0, Math.min(page * size, narrowed.size()));
+        int to = Math.min(from + size, narrowed.size());
+        return new PageImpl<>(narrowed.subList(from, to), PageRequest.of(page, size), narrowed.size());
     }
 }
