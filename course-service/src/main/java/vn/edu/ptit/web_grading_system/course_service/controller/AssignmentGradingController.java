@@ -52,8 +52,9 @@ public class AssignmentGradingController {
     @GetMapping("/submissions")
     public ResponseEntity<List<SubmissionResponse>> submissions(
             @PathVariable UUID assignmentId,
-            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId) {
+            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId,
+            @RequestParam(required = false) String studentCode) {
         return ResponseEntity.ok(
-                assignmentGradingService.submissions(assignmentId, UUID.fromString(ownerId)));
+                assignmentGradingService.submissions(assignmentId, UUID.fromString(ownerId), studentCode));
     }
 }
