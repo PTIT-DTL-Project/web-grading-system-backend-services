@@ -13,8 +13,13 @@ import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundE
 import vn.edu.ptit.web_grading_system.course_service.repository.AssignmentRepository;
 import vn.edu.ptit.web_grading_system.course_service.repository.ClassStudentRepository;
 
+import java.math.BigDecimal;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -57,7 +62,33 @@ public class AssignmentGradingService {
     }
 
     /**
+     * Resolves a roster code to the owning user id. Shared by the results and
+     * submissions handlers so the code→uuid translation never diverges.
+     *
+     * @return empty when the code is blank, unknown for this class, or mapped to
+     *         a student with no user id yet (e.g. imported-but-unlinked) — both
+     *         are "no matching student", indistinguishable from "no rows".
+     */
+    private Optional<UUID> studentIdFor(Map<UUID, ClassStudent> roster, String studentCode) {
+        if (studentCode == null || studentCode.isBlank()) {
+            return Optional.empty();
+        }
+        return roster.entrySet().stream()
+                .filter(e -> studentCode.trim().equals(e.getValue().getStudentCode()))
+                .map(Map.Entry::getValue)
+                .map(ClassStudent::getStudentUserId)
+                .filter(Objects::nonNull)
+                .findFirst();
+    }
+
+    /**
      * Auto-grading results for one assignment, whole class or a single student.
+     *
+     * <p>When {@code studentCode} is null/blank the whole class is returned — including
+     * students who have not yet run anything: each such student appears with
+     * {@code exerciseScore = 0} and an empty {@code results} list (temporary 0, not
+     * a graded zero), so the class view never looks complete while submissions are
+     * still outstanding (review: 2026-10-18, lecturer "all students" view).
      *
      * @param studentCode roster code (e.g. {@code SV0001}); null/blank returns the whole class.
      *                    An unknown code for this class returns an empty list rather than an
@@ -70,24 +101,12 @@ public class AssignmentGradingService {
         Assignment assignment = requireOwnedAssignment(assignmentId, ownerId);
         Map<UUID, ClassStudent> roster = rosterByUserId(assignment.getClassId());
 
-        // This is the only layer that can translate a roster code into a user id, so the
-        // translation happens here and the downstream call already carries the narrowed set.
-        UUID studentUserId = null;
-        if (studentCode != null && !studentCode.isBlank()) {
-            String wanted = studentCode.trim();
-            ClassStudent match = roster.entrySet().stream()
-                    .filter(entry -> wanted.equals(entry.getValue().getStudentCode()))
-                    .map(Map.Entry::getValue)
-                    .findFirst()
-                    .orElse(null);
-            if (match == null) {
-                return List.of();
-            }
-            studentUserId = match.getStudentUserId();
-            if (studentUserId == null) {
-                return List.of();
-            }
+        // Single-student path: translate the roster code to a user id up front.
+        Optional<UUID> wantedId = studentIdFor(roster, studentCode);
+        if (studentCode != null && !studentCode.isBlank() && wantedId.isEmpty()) {
+            return List.of();
         }
+        UUID studentUserId = wantedId.orElse(null);
 
         // Deliberately NOT swallowed by try/catch (the "degrade gracefully" rule in skill §10
         // does not fit here): an empty list would read as "nobody has submitted yet" and could
@@ -95,6 +114,10 @@ public class AssignmentGradingService {
         List<StudentResultResponse> groups =
                 resultServiceClient.assignmentResults(assignmentId, studentUserId, includeSteps);
 
+        // Only the whole-class view synthesises the still-missing students — a single-student
+        // view must never invent rows for people who have no results at all.
+        boolean synthesizeMissing = studentUserId == null;
+        Map<UUID, StudentResultResponse> byUser = new LinkedHashMap<>();
         for (StudentResultResponse group : groups) {
             ClassStudent student = roster.get(group.getStudentUserId());
             if (student != null) {
@@ -103,18 +126,51 @@ public class AssignmentGradingService {
             }
             // A result whose student left the roster keeps its raw studentUserId with null
             // code/name — hiding the row would make the class view look complete when it isn't.
+            byUser.put(group.getStudentUserId(), group);
         }
-        return groups;
+        if (synthesizeMissing) {
+            BigDecimal ZERO = BigDecimal.ZERO;
+            for (Map.Entry<UUID, ClassStudent> entry : roster.entrySet()) {
+                UUID userId = entry.getKey();
+                if (byUser.containsKey(userId)) {
+                    continue;
+                }
+                ClassStudent student = entry.getValue();
+                byUser.put(userId, StudentResultResponse.builder()
+                        .studentUserId(userId)
+                        .studentCode(student.getStudentCode())
+                        .studentName(student.getStudentName())
+                        .exerciseScore(ZERO)
+                        .results(List.of())
+                        .build());
+            }
+        }
+        // Preserve roster order (by studentCode) for a stable column on re-renders; the
+        // freshly-synthesised rows land in the same natural order as the real ones.
+        return byUser.values().stream()
+                .sorted(Comparator.comparing(
+                        StudentResultResponse::getStudentCode,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
     }
 
-    /** Submissions of one assignment — the list that used to sit behind a bare role check. */
-    public List<SubmissionResponse> submissions(UUID assignmentId, UUID ownerId) {
+    /**
+     * Every submission of one assignment, optionally narrowed to one student via
+     * {@code studentCode}. Null/blank returns everyone (the whole-class list).
+     * An unknown code for this class returns an empty list — there are no
+     * submissions to show, indistinguishable from "none submitted yet".
+     */
+    public List<SubmissionResponse> submissions(UUID assignmentId, UUID ownerId, String studentCode) {
         Assignment assignment = requireOwnedAssignment(assignmentId, ownerId);
-        // Roster read first, Feign second: same no-connection-across-HTTP rule as above.
         Map<UUID, ClassStudent> roster = rosterByUserId(assignment.getClassId());
+
+        Optional<UUID> wantedId = studentIdFor(roster, studentCode);
+        if (studentCode != null && !studentCode.isBlank() && wantedId.isEmpty()) {
+            return List.of();
+        }
+        UUID studentUserId = wantedId.orElse(null);
+        // Roster read first, Feign second: same no-connection-across-HTTP rule as above.
         List<SubmissionResponse> rows = submissionInternalClient.listByAssignment(assignmentId);
-        // A submission whose student left the roster keeps null code/name — hiding
-        // the row would make the view look complete when it isn't (same rule as results).
         for (SubmissionResponse row : rows) {
             ClassStudent student = row.getStudentId() == null
                     ? null : roster.get(row.getStudentId());
@@ -122,6 +178,12 @@ public class AssignmentGradingService {
                 row.setStudentCode(student.getStudentCode());
                 row.setStudentName(student.getStudentName());
             }
+        }
+        // Narrow to the requested student (null => whole class, keep all rows).
+        if (studentUserId != null) {
+            return rows.stream()
+                    .filter(row -> studentUserId.equals(row.getStudentId()))
+                    .toList();
         }
         return rows;
     }

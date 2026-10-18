@@ -93,7 +93,7 @@ class AssignmentGradingAuthorizationTest {
     private void ownerCheckFails() {
         when(assignmentGradingService.results(any(UUID.class), any(UUID.class), any(), anyBoolean()))
                 .thenThrow(new ResourceNotFoundException("Assignment not found: " + ASSIGNMENT_ID));
-        when(assignmentGradingService.submissions(any(UUID.class), any(UUID.class)))
+        when(assignmentGradingService.submissions(any(UUID.class), any(UUID.class), any()))
                 .thenThrow(new ResourceNotFoundException("Assignment not found: " + ASSIGNMENT_ID));
     }
 
@@ -152,7 +152,7 @@ class AssignmentGradingAuthorizationTest {
         mockMvc.perform(asCaller(get("/api/v1/assignments/{id}/submissions", ASSIGNMENT_ID), "LECTURER"))
                 .andExpect(status().isOk());
 
-        verify(assignmentGradingService).submissions(ASSIGNMENT_ID, OWNER);
+        verify(assignmentGradingService).submissions(ASSIGNMENT_ID, OWNER, null);
     }
 
     @Test
@@ -168,7 +168,7 @@ class AssignmentGradingAuthorizationTest {
         mockMvc.perform(asCaller(get("/api/v1/assignments/{id}/submissions", ASSIGNMENT_ID), "STUDENT"))
                 .andExpect(status().isForbidden());
 
-        verify(assignmentGradingService, never()).submissions(any(UUID.class), any(UUID.class));
+        verify(assignmentGradingService, never()).submissions(any(UUID.class), any(UUID.class), any());
     }
 
     @Test
@@ -176,10 +176,10 @@ class AssignmentGradingAuthorizationTest {
         mockMvc.perform(asCaller(get("/api/v1/assignments/{id}/submissions", ASSIGNMENT_ID), null))
                 .andExpect(status().isForbidden());
 
-        verify(assignmentGradingService, never()).submissions(any(UUID.class), any(UUID.class));
+        verify(assignmentGradingService, never()).submissions(any(UUID.class), any(UUID.class), any());
     }
 
-    // --- trust boundary -------------------------------------------------------
+    // --- trust boundary ---
 
     @Test
     void requestWithoutTrustSecretIsRejectedBeforeAnyRoleRule() throws Exception {

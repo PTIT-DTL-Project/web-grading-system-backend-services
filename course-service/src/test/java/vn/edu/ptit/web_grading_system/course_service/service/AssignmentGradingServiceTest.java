@@ -69,6 +69,15 @@ class AssignmentGradingServiceTest {
         return student;
     }
 
+    private static ClassStudent rostered(UUID studentUserId, String studentCode, String studentName) {
+        ClassStudent student = new ClassStudent();
+        student.setClassId(CLASS_ID);
+        student.setStudentCode(studentCode);
+        student.setStudentName(studentName);
+        student.setStudentUserId(studentUserId);
+        return student;
+    }
+
     private static StudentResultResponse group() {
         return StudentResultResponse.builder()
                 .studentUserId(STUDENT)
@@ -180,6 +189,54 @@ class AssignmentGradingServiceTest {
         assertNull(out.get(0).getStudentName());
     }
 
+    // --- "all students incl. non-submitters show 0" (review: 2026-10-18) -------------------
+
+    @Test
+    void results_wholeClassViewSynthesizesZeroRowsForStudentsWithoutResults() {
+        // Two students on the roster; only one has a result row from result-service.
+        UUID sv2 = UUID.fromString("4f1c1e1c-0000-4000-8000-000000000007");
+        ownerExistsOnMyClass();
+        when(classStudentRepository.findAllByClassId(CLASS_ID))
+                .thenReturn(List.of(rostered(STUDENT, "SV0001", "Nguyen Van A"),
+                        rostered(sv2, "SV0002", "Tran Van B")));
+        when(resultServiceClient.assignmentResults(ASSIGNMENT_ID, null, false))
+                .thenReturn(List.of(group())); // only SV0001 has results
+
+        List<StudentResultResponse> out = service().results(ASSIGNMENT_ID, OWNER, null, false);
+
+        assertEquals(2, out.size());
+        // Real result row keeps its scored value, sorted by code first.
+        StudentResultResponse a = out.get(0);
+        assertEquals("SV0001", a.getStudentCode());
+        assertEquals(new BigDecimal("8.50"), a.getExerciseScore());
+        // Non-submitter synthesised with a temporary 0 and empty evidence.
+        StudentResultResponse b = out.get(1);
+        assertEquals("SV0002", b.getStudentCode());
+        assertEquals(BigDecimal.ZERO, b.getExerciseScore());
+        assertTrue(b.getResults().isEmpty());
+    }
+
+    @Test
+    void results_studentCodeFilterSuppressesSynthesisForUnknownOnlyReturnsTheOneStudent() {
+        UUID sv2 = UUID.fromString("4f1c1e1c-0000-4000-8000-000000000007");
+        ownerExistsOnMyClass();
+        when(classStudentRepository.findAllByClassId(CLASS_ID))
+                .thenReturn(List.of(rostered(STUDENT, "SV0001", "Nguyen Van A"),
+                        rostered(sv2, "SV0002", "Tran Van B")));
+        when(resultServiceClient.assignmentResults(ASSIGNMENT_ID, sv2, false))
+                .thenReturn(List.of(StudentResultResponse.builder()
+                        .studentUserId(sv2)
+                        .exerciseScore(new BigDecimal("0"))
+                        .results(List.of())
+                        .build()));
+
+        // Single-student view: no synthesis, the 0 (or any score) for SV0002 only.
+        List<StudentResultResponse> out = service().results(ASSIGNMENT_ID, OWNER, "SV0002", false);
+        assertEquals(1, out.size());
+        assertEquals(sv2, out.get(0).getStudentUserId());
+        assertEquals("SV0002", out.get(0).getStudentCode());
+    }
+
     @Test
     void results_scopeAndEvidenceSurviveDeserialization() throws Exception {
         // Locks the result-service → course-service wire contract: scope plus
@@ -225,7 +282,7 @@ class AssignmentGradingServiceTest {
                 .thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> service().submissions(ASSIGNMENT_ID, OWNER));
+                () -> service().submissions(ASSIGNMENT_ID, OWNER, null));
 
         verifyNoInteractions(resultServiceClient, submissionInternalClient);
     }
@@ -253,7 +310,7 @@ class AssignmentGradingServiceTest {
         when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID))
                 .thenReturn(List.of(row, departed));
 
-        List<SubmissionResponse> out = service().submissions(ASSIGNMENT_ID, OWNER);
+        List<SubmissionResponse> out = service().submissions(ASSIGNMENT_ID, OWNER, null);
 
         assertEquals(2, out.size());
         assertEquals(row.getId(), out.get(0).getId());
@@ -264,5 +321,32 @@ class AssignmentGradingServiceTest {
         assertEquals("Nguyen Van A", out.get(0).getStudentName());
         assertNull(out.get(1).getStudentCode());
         assertNull(out.get(1).getStudentName());
+    }
+
+    @Test
+    void submissions_filtersByStudentCodeAndReturnsEmptyForUnknown() {
+        ownerExistsOnMyClass();
+        // SV0002 maps to a distinct user id (different from STUDENT) so the code→userId
+        // translation separates the two students.
+        UUID sv2 = UUID.fromString("4f1c1e1c-0000-4000-8000-000000000007");
+        when(classStudentRepository.findAllByClassId(CLASS_ID))
+                .thenReturn(List.of(rostered(STUDENT, "SV0001", "Nguyen Van A"),
+                        rostered(sv2, "SV0002", "Tran Van B")));
+        when(submissionInternalClient.listByAssignment(ASSIGNMENT_ID))
+                .thenReturn(List.of(
+                        SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID)
+                                .studentId(STUDENT).status("UPLOADED").build(),
+                        SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID)
+                                .studentId(sv2).status("UPLOADED").build(),
+                        SubmissionResponse.builder().assignmentId(ASSIGNMENT_ID)
+                                .studentId(sv2).status("LATE").build()));
+
+        List<SubmissionResponse> sv1Only = service().submissions(ASSIGNMENT_ID, OWNER, "SV0001");
+        assertEquals(1, sv1Only.size());
+        assertEquals(STUDENT, sv1Only.get(0).getStudentId());
+        assertEquals("SV0001", sv1Only.get(0).getStudentCode());
+
+        // Unknown code for this class => no rows (indistinguishable from "no submissions").
+        assertTrue(service().submissions(ASSIGNMENT_ID, OWNER, "SV9999").isEmpty());
     }
 }
