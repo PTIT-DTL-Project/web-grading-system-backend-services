@@ -6,6 +6,7 @@ import vn.edu.ptit.web_grading_system.result_service.client.CourseServicePlansCl
 import vn.edu.ptit.web_grading_system.result_service.dto.response.AssignmentResultGroupResponse;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.ResultResponse;
 import vn.edu.ptit.web_grading_system.result_service.entity.Result;
+import vn.edu.ptit.web_grading_system.result_service.entity.ResultScope;
 import vn.edu.ptit.web_grading_system.result_service.entity.ResultStatus;
 import vn.edu.ptit.web_grading_system.result_service.entity.StepResult;
 import vn.edu.ptit.web_grading_system.result_service.entity.StepType;
@@ -86,17 +87,23 @@ class ResultServiceReadTest {
 
     /** One latest PLAN-scope result row of an assignment; caller assigns the id so steps can key off it. */
     private static Result planRow(UUID resultId, UUID studentId, int planWeight, String score) {
+        return planRow(resultId, studentId, UUID.randomUUID(), planWeight, score, true);
+    }
+
+    /** One PLAN-scope row with an explicit plan id and latest flag (resubmission cases). */
+    private static Result planRow(UUID resultId, UUID studentId, UUID planId, int planWeight,
+            String score, boolean latest) {
         Result result = Result.builder()
                 .submissionId(UUID.randomUUID())
                 .assignmentId(ASSIGNMENT)
                 .studentId(studentId)
-                .planId(UUID.randomUUID())
-                .scope(vn.edu.ptit.web_grading_system.result_service.entity.ResultScope.PLAN)
+                .planId(planId)
+                .scope(ResultScope.PLAN)
                 .planWeight(planWeight)
                 .score(new BigDecimal(score))
                 .maxScore(new BigDecimal("10.00"))
                 .status(ResultStatus.DONE)
-                .latest(true)
+                .latest(latest)
                 .build();
         result.setId(resultId);
         return result;
@@ -191,6 +198,55 @@ class ResultServiceReadTest {
         assertEquals(1, groups.get(0).getResults().get(0).getSteps().size());
         assertEquals("create book", groups.get(0).getResults().get(0).getSteps().get(0).getStepName());
         Mockito.verify(steps, Mockito.never()).findByResultId(Mockito.any());
+    }
+
+    /**
+     * Regression (report 2026-10-17): a student who scored 10 then resubmitted a failing zip
+     * for 5 read "score 10 / detail 5". The view must carry the attempt the score is made of,
+     * not the newest one.
+     */
+    @Test
+    void getByAssignment_showsTheGradedAttemptNotTheLatestResubmission() {
+        UUID planId = UUID.randomUUID();
+        UUID gradedId = UUID.randomUUID();
+        Result graded = planRow(gradedId, STUDENT_A, planId, 1, "10.00", false);
+        Result resubmission = planRow(UUID.randomUUID(), STUDENT_A, planId, 1, "5.00", true);
+        ResultRepository results = Mockito.mock(ResultRepository.class);
+        StepResultRepository steps = Mockito.mock(StepResultRepository.class);
+        Mockito.when(results.findByAssignmentId(ASSIGNMENT))
+                .thenReturn(List.of(graded, resubmission));
+
+        AssignmentResultGroupResponse group =
+                service(results, steps).getByAssignment(ASSIGNMENT, null, false).get(0);
+
+        assertEquals(new BigDecimal("10.00"), group.getExerciseScore());
+        assertEquals(1, group.getResults().size());
+        assertEquals(gradedId, group.getResults().get(0).getId());
+    }
+
+    /** A stepless failed FULL run is unscorable, so the detail must still show that attempt. */
+    @Test
+    void getByAssignment_fallsBackToTheLatestRowWhenNothingIsScorable() {
+        UUID resultId = UUID.randomUUID();
+        Result failed = Result.builder()
+                .submissionId(UUID.randomUUID())
+                .assignmentId(ASSIGNMENT)
+                .studentId(STUDENT_A)
+                .scope(ResultScope.FULL)
+                .status(ResultStatus.FAILED)
+                .latest(true)
+                .build();
+        failed.setId(resultId);
+        ResultRepository results = Mockito.mock(ResultRepository.class);
+        StepResultRepository steps = Mockito.mock(StepResultRepository.class);
+        Mockito.when(results.findByAssignmentId(ASSIGNMENT)).thenReturn(List.of(failed));
+
+        AssignmentResultGroupResponse group =
+                service(results, steps).getByAssignment(ASSIGNMENT, null, false).get(0);
+
+        assertNull(group.getExerciseScore());
+        assertEquals(1, group.getResults().size());
+        assertEquals(resultId, group.getResults().get(0).getId());
     }
 
     @Test
