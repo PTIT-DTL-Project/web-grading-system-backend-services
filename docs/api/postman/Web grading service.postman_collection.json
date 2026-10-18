@@ -5454,7 +5454,7 @@
         {
           "name": "get results by submission (internal, identity-free)",
           "request": {
-            "description": "Caller contract: ai-assistant-service's lecturer path. It is NOT gateway-routed, is permitAll inside result-service, and is not enveloped (FormatRestResponse skips /internal/). The response carries assignmentId + studentId, which is why the AI service must finish authorizing the lecturer BEFORE calling it. No X-User-Id is sent on purpose: the route has no identity to check. Prefer the public GET /api/v1/results/{{submissionId}} (caller == owner) for every student-facing call. Response not captured: no live boot in this environment.",
+            "description": "Caller contract: ai-assistant-service's lecturer path. It is NOT gateway-routed, is permitAll inside result-service, and is not enveloped (FormatRestResponse skips /internal/). The response carries assignmentId + studentId, which is why the AI service must finish authorizing the lecturer BEFORE calling it. No X-User-Id is sent on purpose: the route has no identity to check. Prefer the public GET /api/v1/results/{{submissionId}}: students get their own results (403 on mismatch), and LECTURERs may read any submission (exact ROLE_LECTURER via SecurityContext, Review: 2026-10-21). Use this internal route only for the AI service's already-authorized lecturer path. Response not captured: no live boot in this environment.",
             "method": "GET",
             "header": [],
             "url": {
