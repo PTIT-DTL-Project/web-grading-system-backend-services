@@ -71,12 +71,18 @@ still has no trust secret gets `401` first. In mode A you send the role yourself
 much as the secret next to it; in mode B the gateway derives it from the token's `realm_access.roles` and
 forwards only what `gateway.security.allowed-roles` (default `LECTURER,STUDENT`) keeps.
 
-Ownership, not role, decides the student reads: `GET /api/v1/submissions/{id}` answers `404` for a non-owner
-indistinguishably from a missing id, and `GET /api/v1/results/{submissionId}` answers `403` when the rows
-belong to someone else. Neither submission-service nor result-service reads roles anymore, so a lecturer
-gets the same answer as anyone else on those two routes — the lecturer's wider view is the pair of
-`/api/v1/assignments/{assignmentId}/…` endpoints above, each of which first checks that the assignment
-belongs to a class the `X-User-Id` owns (another lecturer's assignment → `404`).
+Ownership, not role, decides the submission read: `GET /api/v1/submissions/{id}` answers `404` for
+a non-owner indistinguishably from a missing id.
+
+The result-detail read (`GET /api/v1/results/{submissionId}`) now has a two-layer audience model:
+- **Students** — ownership-gated (403 on mismatch), as before.
+- **Lecturers** — any `ROLE_LECTURER` caller may read any submission's results through this route
+  (Review: 2026-10-21). This serves the grading-UI deep-link `?submission=<id>`: the lecturer
+  reaches it only after already passing course-service's class-ownership check on
+  `GET /api/v1/assignments/{assignmentId}/results` (§5.4, 404 if unowned), so the per-assignment
+  boundary is enforced upstream. The role check uses the exact `ROLE_LECTURER` authority from
+  the SecurityContext (gateway-trusted via `X-User-Roles` allowlist), not a substring match.
+
 
 ---
 
@@ -368,6 +374,34 @@ Expected `200`: `data` = per-student groups (`studentCode`, `studentName`,
 Negatives: `X-User-Id: {{ownerLecturer2}}` (other lecturer) → `404` ·
 `X-User-Roles: STUDENT` or no role header → `403` · no `X-Gateway-Secret` → `401`.
 
+### 5.5 Single-submission detail (result-service)
+
+Deep-link reached from the §5.4 grading view — the submissions table's "View result" link
+appends `&submission=<id>` to `/classes/{classId}/assignments/{assignmentId}/results`.
+
+```
+GET {{result-service}}/api/v1/results/{{submissionId}}
+X-User-Id: {{ownerLecturer1}}
+X-User-Roles: LECTURER
+```
+
+Expected `200`: raw `ResultResponse[]` (one row per plan scope) with `steps[]`,
+`assertionDetails`, `actualValue`/`expectedValue`, `requestUrl`/`requestBody`,
+`extractedVars`, `summaryLog`; the FE renders it as the same detail card the student sees.
+An unowned assignment is unreachable here — the lecturer passes course-service's 404 owner
+check in §5.4 before navigating to this URL, so no additional ownership gate is needed in
+result-service.
+
+```
+Response (excerpt):
+{ "status": 200, "message": "Results fetched",
+  "data": [{ "id":"…", "submissionId":"…", "assignmentId":"…", "studentId":"…",
+             "score": 5.00, "maxScore": 10.00, "status": "DONE", "summaryLog": "…",
+             "latest": true, "completedAt": "2026-10-17T10:49:09.196943Z",
+             "steps": [{ "stepName": "Create a book", "passed": true, "score": 1.00,
+                         "durationMs": 1971, "requestUrl": "…", "requestBody": "…", … }] }] }
+```
+
 ---
 
 ## 6. Change password (UC-14, gateway-only)
@@ -433,7 +467,7 @@ flow B plain change, live Keycloak captures) see
 | missing/invalid `X-Gateway-Secret` on the direct path | 401 from the service entry point — a role header sent without the secret is ignored, not honoured |
 | missing `X-User-Id` (direct path) | 400 — anonymous default → `invalid UUID`; submission endpoints → `Missing required header: X-User-Id`; non-canonical UUID → `X-User-Id must be a canonical UUID` |
 | `roles=STUDENT` (or no `X-User-Roles`) on a lecturer-only endpoint | 403 from method security — see §0 *Role rule*; `GET /api/v1/classes/{id}` is the one class endpoint that stays 200 (owner-scoped) |
-| `X-User-Roles` on a non-own submission / non-own result | `GET /api/v1/submissions/{id}` → 404 · `GET /api/v1/results/{submissionId}` → 403 — no role bypass; the lecturer's wider read is §5.4 |
+| `X-User-Roles` on a non-own submission / non-own result | `GET /api/v1/submissions/{id}` → 404 · `GET /api/v1/results/{submissionId}` → 403 for a student non-owner; a LECTURER reads 200 (deep-link, Review: 2026-10-21) — see §5.5 |
 | other lecturer's assignment on §5.4 grading view | 404 (owner check runs before either internal Feign call) |
 | other lecturer's resource | 404 (no information leak) |
 | duplicate unique field | 400 with descriptive message |
