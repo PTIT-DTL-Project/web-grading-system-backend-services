@@ -97,7 +97,7 @@ public class StudentAssignmentService {
                 .toList();
     }
 
-    private Assignment requireVisible(UUID studentId, UUID assignmentId) {
+    private StepResponse toSanitizedStep(TestStep step) {
         return StepResponse.builder()
                 .id(step.getId())
                 .stepOrder(step.getStepOrder())

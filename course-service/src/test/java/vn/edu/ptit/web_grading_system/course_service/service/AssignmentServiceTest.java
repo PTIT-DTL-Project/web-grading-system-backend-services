@@ -8,6 +8,7 @@ import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResp
 import vn.edu.ptit.web_grading_system.course_service.entity.Assignment;
 import vn.edu.ptit.web_grading_system.course_service.entity.CourseClass;
 import vn.edu.ptit.web_grading_system.course_service.entity.GradingStrategy;
+import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.course_service.mapper.AssignmentMapper;
 import vn.edu.ptit.web_grading_system.course_service.repository.AssignmentRepository;
