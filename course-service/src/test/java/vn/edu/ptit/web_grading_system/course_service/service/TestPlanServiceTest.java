@@ -227,15 +227,4 @@ class TestPlanServiceTest {
         var stepRes = service.updateStep(ASSIGNMENT_ID, OWNER, PLAN_ID, UUID.randomUUID(), req);
         assertEquals("old note", stepRes.getDescription());
     }
-
-    // Review: 2026-09-27, Pullfrog PR #20 — dockerImageUrls must be populated
-    // in the grading config that the executor fetches.
-    @Test
-    void internalGradingConfig_populatesDockerImageUrls() {
-        stubOwnedAssignment();
-        Mockito.when(assignmentService.getAssignmentImageUrls(ASSIGNMENT_ID))
-                .thenReturn(List.of("postgres:16"));
-        var res = service.internalGradingConfig(ASSIGNMENT_ID);
-        assertEquals(List.of("postgres:16"), res.getDockerImageUrls());
-    }
 }

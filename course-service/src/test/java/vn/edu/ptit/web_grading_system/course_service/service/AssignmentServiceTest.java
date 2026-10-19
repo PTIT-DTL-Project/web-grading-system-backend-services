@@ -7,15 +7,11 @@ import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateAssignmen
 import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResponse;
 import vn.edu.ptit.web_grading_system.course_service.entity.Assignment;
 import vn.edu.ptit.web_grading_system.course_service.entity.CourseClass;
-import vn.edu.ptit.web_grading_system.course_service.entity.DockerImage;
 import vn.edu.ptit.web_grading_system.course_service.entity.GradingStrategy;
-import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.course_service.mapper.AssignmentMapper;
-import vn.edu.ptit.web_grading_system.course_service.repository.AssignmentDockerImageRepository;
 import vn.edu.ptit.web_grading_system.course_service.repository.AssignmentRepository;
 import vn.edu.ptit.web_grading_system.course_service.repository.CourseClassRepository;
-import vn.edu.ptit.web_grading_system.course_service.repository.DockerImageRepository;
 
 import java.util.List;
 import java.util.Optional;
@@ -38,9 +34,7 @@ class AssignmentServiceTest {
     private final CourseClassRepository classRepo = Mockito.mock(CourseClassRepository.class);
     private final AssignmentRepository assignmentRepo = Mockito.mock(AssignmentRepository.class);
     private final AssignmentMapper mapper = Mockito.mock(AssignmentMapper.class);
-    private final AssignmentDockerImageRepository imageLinkRepo = Mockito.mock(AssignmentDockerImageRepository.class);
-    private final DockerImageRepository dockerImageRepo = Mockito.mock(DockerImageRepository.class);
-    private final AssignmentService service = new AssignmentService(classRepo, assignmentRepo, mapper, imageLinkRepo, dockerImageRepo);
+    private final AssignmentService service = new AssignmentService(classRepo, assignmentRepo, mapper);
 
     private CreateAssignmentRequest createRequest(GradingStrategy strategy) {
         CreateAssignmentRequest req = new CreateAssignmentRequest();
@@ -176,58 +170,11 @@ class AssignmentServiceTest {
         Mockito.verify(assignmentRepo, Mockito.never()).delete(Mockito.any());
     }
 
-    // Review: 2026-09-27, Pullfrog PR #20 — sync must de-duplicate and never
-    // misreport an unknown id as "unknown or soft-deleted" (IN-clause dedup).
     @Test
-    void syncAssignmentImages_unknownId_throws400() {
-        stubOwnedAssignment(true);
-        UUID unknown = UUID.randomUUID();
-        Mockito.when(dockerImageRepo.findAllByIdIn(List.of(unknown)))
-                .thenReturn(List.of());
-        BadRequestException e = assertThrows(BadRequestException.class,
-                () -> service.syncAssignmentImages(ASSIGNMENT_ID, OWNER, List.of(unknown)));
-        assertTrue(e.getMessage().contains("unknown or soft-deleted"));
-    }
-
-    @Test
-    void syncAssignmentImages_duplicateCollapsed_insertsOnce() {
-        stubOwnedAssignment(true);
-        UUID img = UUID.randomUUID();
-        Mockito.when(dockerImageRepo.findAllByIdIn(List.of(img)))
-                .thenReturn(List.of(DockerImage.builder().id(img).ownerId(OWNER).build()));
-        service.syncAssignmentImages(ASSIGNMENT_ID, OWNER, List.of(img, img));
-        Mockito.verify(imageLinkRepo, Mockito.times(1)).save(any());
-    }
-
-    @Test
-    void syncAssignmentImages_emptyClearsLinks() {
-        stubOwnedAssignment(true);
-        service.syncAssignmentImages(ASSIGNMENT_ID, OWNER, List.of());
-        Mockito.verify(imageLinkRepo).softDeleteByAssignmentId(
-                eq(ASSIGNMENT_ID), any(java.time.OffsetDateTime.class));
-    }
-
-    // Review: 2026-09-27, Pullfrog PR #20 — sync must refuse to attach a
-    // lecturer's image to another lecturer's assignment.
-    @Test
-    void syncAssignmentImages_foreignImage_throws404() {
-        stubOwnedAssignment(true);
-        UUID foreign = UUID.randomUUID();
-        Mockito.when(dockerImageRepo.findAllByIdIn(List.of(foreign)))
-                .thenReturn(List.of(DockerImage.builder()
-                        .id(foreign).name("foreign").imageUrl("foreign:1")
-                        .ownerId(UUID.randomUUID()).build()));
-        assertThrows(ResourceNotFoundException.class,
-                () -> service.syncAssignmentImages(ASSIGNMENT_ID, OWNER, List.of(foreign)));
-    }
-
-    // Review: 2026-09-27, Pullfrog PR #20 — deleting an assignment must also
-    // remove its image links so the images remain deletable.
-    @Test
-    void delete_softDeletesLinks() {
+    void delete_softDeletesAssignment() {
         stubOwnedAssignment(false);
         service.delete(ASSIGNMENT_ID, OWNER);
-        Mockito.verify(imageLinkRepo).softDeleteByAssignmentId(
-                eq(ASSIGNMENT_ID), any(java.time.OffsetDateTime.class));
+        Mockito.verify(assignmentRepo).save(Mockito.argThat(a -> a.getDeletedAt() != null));
+        Mockito.verify(assignmentRepo, Mockito.never()).delete(Mockito.any());
     }
 }

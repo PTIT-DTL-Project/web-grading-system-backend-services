@@ -12,7 +12,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateAssignmentRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateAssignmentRequest;
-import vn.edu.ptit.web_grading_system.course_service.dto.request.AssignDockerImagesRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResponse;
 import vn.edu.ptit.web_grading_system.course_service.service.AssignmentService;
 import vn.edu.ptit.web_grading_system.course_service.util.annotation.ApiMessage;
@@ -88,15 +87,4 @@ public class AssignmentController {
         return ResponseEntity.ok(assignmentService.publish(id, UUID.fromString(ownerId)));
     }
 
-    @PreAuthorize("hasRole('LECTURER')")
-    @PutMapping("/{id}/docker-images")
-    @ApiMessage("Assignment images linked")
-    public ResponseEntity<Void> assignImages(
-            @PathVariable UUID id,
-            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId,
-            @Valid @RequestBody AssignDockerImagesRequest request) {
-        assignmentService.syncAssignmentImages(id, UUID.fromString(ownerId),
-                request.getDockerImageIds());
-        return ResponseEntity.ok().build();
-    }
 }

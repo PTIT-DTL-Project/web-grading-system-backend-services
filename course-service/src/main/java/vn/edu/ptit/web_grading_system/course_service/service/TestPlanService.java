@@ -256,7 +256,6 @@ public class TestPlanService {
                 .executionTimeoutMs(a.getExecutionTimeoutMs())
                 .maxMemoryMb(a.getMaxMemoryMb())
                 .maxCpu(a.getMaxCpu())
-                .dockerImageUrls(assignmentService.getAssignmentImageUrls(assignmentId))
                 .build();
     }
 
