@@ -17,7 +17,7 @@ spring:
             - id: course-service
               uri: ${COURSE_SERVICE_URI:http://localhost:8081}
               predicates:
-                - Path=/api/v1/classes/**,/api/v1/assignments/**,/api/v1/docker-images/**,/api/v1/student/**
+                - Path=/api/v1/classes/**,/api/v1/assignments/**,/api/v1/student/**
             - id: submission-service
               uri: ${SUBMISSION_SERVICE_URI:http://localhost:8082}
               predicates:

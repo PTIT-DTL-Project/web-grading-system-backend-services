@@ -5236,27 +5236,6 @@
               ]
             }
           ]
-        },
-        {
-          "name": "list active docker images (internal)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{course-service}}/api/v1/internal/docker-images",
-              "host": [
-                "{{course-service}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "internal",
-                "docker-images"
-              ]
-            },
-            "description": "Internal contract for the executor async pre-pull scanner (UC-13). Returns the active image URLs as a bare list (no envelope) — never exposed via the gateway. Real response requires booting course-service locally."
-          },
-          "response": []
         }
       ]
     },

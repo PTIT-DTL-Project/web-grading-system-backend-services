@@ -151,9 +151,8 @@ chứng, lọc theo `gateway.security.allowed-roles` (mặc định `LECTURER,ST
 | Endpoint | Yêu cầu |
 |---|---|
 | `GET/POST /api/v1/classes`, `PUT /api/v1/classes/{id}/archive`, import/list sinh viên, score components, nhập điểm, transcript | `LECTURER` → khác role hoặc thiếu role: `403` |
-| mọi endpoint `/api/v1/assignments` (create, list, detail, update, publish, delete, gán docker image) | `LECTURER` |
+| mọi endpoint `/api/v1/assignments` (create, list, detail, update, publish, delete) | `LECTURER` |
 | mọi endpoint plan & step dưới `/api/v1/assignments/{assignmentId}/...` | `LECTURER` |
-| mọi endpoint `/api/v1/docker-images` | `LECTURER` |
 | `GET /api/v1/assignments/{assignmentId}/results` (kết quả auto-grading cả lớp / 1 sinh viên) | `LECTURER` + owner class; sai owner → `404` |
 | `GET /api/v1/assignments/{assignmentId}/submissions` (hàng chờ chấm) | `LECTURER` + owner class; sai owner → `404` |
 | `GET /api/v1/classes/{id}` | owner-scoped, **không** role gate (sinh viên xem lớp của mình) |
@@ -275,4 +274,4 @@ cd executor-service
 mvn test -Dtest='!*ApplicationTests' -Dsurefire.failIfNoSpecifiedTests=false
 ```
 Lọc `!*ApplicationTests` bỏ qua `ExecutorServiceApplicationTests` — context Spring của nó cần `docker/kafka-ca.pem` mà file này bị `.gitignore`, nên CI chạy mà không cần CA.
-Docker-gated tests skip cleanly khi Docker không khả dụng; pure-Mockito tests (`ImageScannerTest`, `ImageEnsureTest`) và H2-slice test (`DockerImageStateRepositoryTest`) chạy mọi môi trường.
+Docker-gated tests skip cleanly khi Docker không khả dụng; pure-Mockito tests chạy mọi môi trường.

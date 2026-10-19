@@ -3678,7 +3678,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"id\":\"8f2e2414-0869-4d10-aee1-81b99094a459\",\"classId\":\"a677d263-f661-488b-9530-02e95e6efab2\",\"gradingStrategy\":\"LECTURER_DOCKER_COMPOSE\",\"dockerComposeTemplate\":\"version: \\\"3\\\"\\nservices:\\n  app:\\n    image: ghcr.io/org/app:v1.0\",\"dockerComposePort\":8080,\"startupTimeoutMs\":60000,\"executionTimeoutMs\":300000,\"maxMemoryMb\":512,\"maxCpu\":1.0,\"dockerImageUrls\":[]}"
+              "body": "{\"id\":\"8f2e2414-0869-4d10-aee1-81b99094a459\",\"classId\":\"a677d263-f661-488b-9530-02e95e6efab2\",\"gradingStrategy\":\"LECTURER_DOCKER_COMPOSE\",\"dockerComposeTemplate\":\"version: \\\"3\\\"\\nservices:\\n  app:\\n    image: ghcr.io/org/app:v1.0\",\"dockerComposePort\":8080,\"startupTimeoutMs\":60000,\"executionTimeoutMs\":300000,\"maxMemoryMb\":512,\"maxCpu\":1.0}"
             }
           ]
         },
