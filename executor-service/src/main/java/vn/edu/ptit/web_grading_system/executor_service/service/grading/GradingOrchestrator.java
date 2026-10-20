@@ -35,7 +35,6 @@ import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialectRegis
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -48,10 +47,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import vn.edu.ptit.web_grading_system.executor_service.exception.ImagePullException;
 import vn.edu.ptit.web_grading_system.executor_service.service.docker.DockerComposePatcher;
 import vn.edu.ptit.web_grading_system.executor_service.service.docker.DockerComposeRunner;
-import vn.edu.ptit.web_grading_system.executor_service.service.docker.DockerImageGateway;
 import vn.edu.ptit.web_grading_system.executor_service.service.infra.ArtifactService;
 import vn.edu.ptit.web_grading_system.executor_service.service.infra.PortAllocator;
 import vn.edu.ptit.web_grading_system.executor_service.service.scoring.EvidenceRedactor;
@@ -84,8 +81,6 @@ public class GradingOrchestrator
     private final ExecutorProperties executorProperties;
     private final SagaTracker sagaTracker;
     private final DbDialectRegistry dialectRegistry;
-
-    private final DockerImageGateway imageGateway;
 
     @Async("gradingTaskExecutor")
     public void gradeAsync(UUID jobId, UUID submissionId, UUID assignmentId, UUID studentId,
@@ -202,31 +197,6 @@ public class GradingOrchestrator
                     executorProperties.container().maxExecutionTimeMs());
             long startupTimeoutMs = nz(config.getStartupTimeoutMs(),
                     executorProperties.container().startupTimeoutMs());
-            // ENSURE_IMAGES (slot B): after the port claim so a missing
-            // image fails the job before compose boots, with its own pull
-            // budget (pull-timeout-ms = 600 s) instead of racing
-            // startup-timeout-ms (60 s). Gated on image-scan.enabled so
-            // that flag stays a real off switch -- disabled means
-            // byte-for-byte pre-Phase-3 behavior.
-            ExecutorProperties.ImageScan imageScan = executorProperties.imageScan();
-            List<String> assignmentImages = config.getDockerImageUrls();
-            if (imageScan != null && imageScan.enabled()
-                    && assignmentImages != null
-                    && !assignmentImages.isEmpty())
-            {
-                writeLog(job.getId(), submissionId, GradingLogLevel.INFO,
-                        Constant.Message.ENSURING_PREFIX + assignmentImages);
-                try
-                {
-                    ensureImages(assignmentImages, imageScan.pullTimeoutMs());
-                }
-                catch (ImagePullException imageMissing)
-                {
-                    fail(job, submissionId, assignmentId, studentId, planId,
-                            sagaId, 1, imageMissing.getMessage());
-                    return;
-                }
-            }
             bootRow = sagaTracker.step(sagaId, Constant.Saga.BOOT_COMPOSE, planId, null);
             try
             {
@@ -298,11 +268,6 @@ public class GradingOrchestrator
      * Scans all plans for {@code DB_*} steps and reads the connection block
      * of the first one; a later step targeting a different service/engine
      * is logged and ignored.
-     *
-     * <p>Named seam: {@code ensureImages(List<String>, long)} sits in
-     * {@code grade()} on the same pre-boot phase — Axis 2 (image
-     * presence, grading-time ENSURE_IMAGES) vs Axis 1 (dialect).
-     * Built 2026-09-28.
      *
      * <p>{@code connection.db_port} is the <em>container-internal</em> port;
      * the allocated <em>host</em> port is injected as {@code ${db_port}} into
@@ -986,26 +951,6 @@ public class GradingOrchestrator
         catch (Exception e)
         {
             log.warn("Temp cleanup failed for {}: {}", workDir, safeMessage(e));
-        }
-    }
-
-    private void ensureImages(List<String> urls, long pullTimeoutMs)
-    {
-        for (String url : urls)
-        {
-            if (imageGateway.present(url)) continue;
-            try
-            {
-                imageGateway.pull(url, Duration.ofMillis(pullTimeoutMs));
-            }
-            catch (ImagePullException pullFailed)
-            {
-                // Re-wrapped so the lecturer sees WHICH image could not
-                // be had, not just the registry's raw error.
-                throw new ImagePullException(
-                        Constant.ImageScan.PULL_FAILED_PREFIX + url + ": "
-                                + pullFailed.getMessage());
-            }
         }
     }
 }

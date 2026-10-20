@@ -1,6 +1,5 @@
 package vn.edu.ptit.web_grading_system.course_service.dto.internal;
 
-import java.util.List;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,6 +21,4 @@ public class AssignmentGradingConfigDto {
     private Integer executionTimeoutMs;
     private Integer maxMemoryMb;
     private Double maxCpu;
-    /** Image URLs the lecturer attached to this assignment (populated by course-service). */
-    private List<String> dockerImageUrls;
 }

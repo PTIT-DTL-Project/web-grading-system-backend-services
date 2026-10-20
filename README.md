@@ -114,7 +114,7 @@ Port: 8082
 Xử lý việc submit bài tập từ students.
 
 ### executor-service
-Thực thi code trong môi trường sandbox an toàn. Hỗ trợ 4 loại step: `HTTP_REQUEST`, `DB_QUERY`, `DB_SCHEMA_CHECK`, `DB_MIGRATION` (đa-DBMS qua dialect layer). Đảm bảo ảnh: một `@Scheduled` scanner pre-pull ảnh, và một gate `ENSURE_IMAGES` chốt trước khi boot compose.
+Thực thi code trong môi trường sandbox an toàn. Hỗ trợ 4 loại step: `HTTP_REQUEST`, `DB_QUERY`, `DB_SCHEMA_CHECK`, `DB_MIGRATION` (đa-DBMS qua dialect layer).
 
 ### api-gateway
 Port: 8080  
@@ -125,7 +125,7 @@ Quản lý và tính toán kết quả grading.
 
 ### course-service
 Port: 8081  
-Quản lý lớp học, sinh viên trong lớp, assignments, docker images, test plans và điểm số.
+Quản lý lớp học, sinh viên trong lớp, assignments, test plans và điểm số.
 
 ### ai-assistant-service
 Port: 8086  
@@ -151,9 +151,8 @@ chứng, lọc theo `gateway.security.allowed-roles` (mặc định `LECTURER,ST
 | Endpoint | Yêu cầu |
 |---|---|
 | `GET/POST /api/v1/classes`, `PUT /api/v1/classes/{id}/archive`, import/list sinh viên, score components, nhập điểm, transcript | `LECTURER` → khác role hoặc thiếu role: `403` |
-| mọi endpoint `/api/v1/assignments` (create, list, detail, update, publish, delete, gán docker image) | `LECTURER` |
+| mọi endpoint `/api/v1/assignments` (create, list, detail, update, publish, delete) | `LECTURER` |
 | mọi endpoint plan & step dưới `/api/v1/assignments/{assignmentId}/...` | `LECTURER` |
-| mọi endpoint `/api/v1/docker-images` | `LECTURER` |
 | `GET /api/v1/assignments/{assignmentId}/results` (kết quả auto-grading cả lớp / 1 sinh viên) | `LECTURER` + owner class; sai owner → `404` |
 | `GET /api/v1/assignments/{assignmentId}/submissions` (hàng chờ chấm) | `LECTURER` + owner class; sai owner → `404` |
 | `GET /api/v1/classes/{id}` | owner-scoped, **không** role gate (sinh viên xem lớp của mình) |
@@ -275,4 +274,4 @@ cd executor-service
 mvn test -Dtest='!*ApplicationTests' -Dsurefire.failIfNoSpecifiedTests=false
 ```
 Lọc `!*ApplicationTests` bỏ qua `ExecutorServiceApplicationTests` — context Spring của nó cần `docker/kafka-ca.pem` mà file này bị `.gitignore`, nên CI chạy mà không cần CA.
-Docker-gated tests skip cleanly khi Docker không khả dụng; pure-Mockito tests (`ImageScannerTest`, `ImageEnsureTest`) và H2-slice test (`DockerImageStateRepositoryTest`) chạy mọi môi trường.
+Docker-gated tests skip cleanly khi Docker không khả dụng; pure-Mockito tests chạy mọi môi trường.

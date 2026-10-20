@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Review: 2026-10-08 — student identity linking. Runs with flyway disabled and
- * ddl-auto=create-drop on H2, same convention as {@link DockerImageRepositoryTest}.
+ * ddl-auto=create-drop on H2, same convention as H2 ddl-auto convention.
  */
 @SpringBootTest
 @TestPropertySource(properties = {

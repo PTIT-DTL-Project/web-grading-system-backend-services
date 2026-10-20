@@ -4,19 +4,15 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import tools.jackson.databind.ObjectMapper;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
-import vn.edu.ptit.web_grading_system.course_service.dto.response.DockerImageResponse;
 import vn.edu.ptit.web_grading_system.course_service.entity.Assignment;
 import vn.edu.ptit.web_grading_system.course_service.entity.ClassStudent;
-import vn.edu.ptit.web_grading_system.course_service.entity.DockerImage;
 import vn.edu.ptit.web_grading_system.course_service.entity.StepType;
 import vn.edu.ptit.web_grading_system.course_service.entity.TestPlan;
 import vn.edu.ptit.web_grading_system.course_service.entity.TestStep;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.course_service.mapper.AssignmentMapper;
-import vn.edu.ptit.web_grading_system.course_service.repository.AssignmentDockerImageRepository;
 import vn.edu.ptit.web_grading_system.course_service.repository.AssignmentRepository;
 import vn.edu.ptit.web_grading_system.course_service.repository.ClassStudentRepository;
-import vn.edu.ptit.web_grading_system.course_service.repository.DockerImageRepository;
 import vn.edu.ptit.web_grading_system.course_service.repository.TestPlanRepository;
 import vn.edu.ptit.web_grading_system.course_service.repository.TestStepRepository;
 
@@ -42,12 +38,10 @@ class StudentAssignmentServiceTest {
 
     private final AssignmentRepository assignmentRepo = Mockito.mock(AssignmentRepository.class);
     private final ClassStudentRepository classStudentRepo = Mockito.mock(ClassStudentRepository.class);
-    private final AssignmentDockerImageRepository imageLinkRepo = Mockito.mock(AssignmentDockerImageRepository.class);
-    private final DockerImageRepository dockerImageRepo = Mockito.mock(DockerImageRepository.class);
     private final TestPlanRepository planRepo = Mockito.mock(TestPlanRepository.class);
     private final TestStepRepository stepRepo = Mockito.mock(TestStepRepository.class);
     private final StudentAssignmentService service = new StudentAssignmentService(
-            assignmentRepo, classStudentRepo, imageLinkRepo, dockerImageRepo,
+            assignmentRepo, classStudentRepo,
             planRepo, stepRepo,
             Mockito.mock(AssignmentMapper.class),
             new ObjectMapper(),
@@ -109,20 +103,4 @@ class StudentAssignmentServiceTest {
         assertThrows(ResourceNotFoundException.class, () -> service.listPlans(STUDENT, EMAIL, ASSIGNMENT_ID));
     }
 
-    // Review: 2026-09-27, Pullfrog PR #20 — student visibility must resolve
-    // linked image IDs through the join table even when links exist.
-    @Test
-    void getStudentImages_returnsImagesForEnrolledPublishedAssignment() {
-        stubVisible();
-        UUID img = UUID.randomUUID();
-        Mockito.when(imageLinkRepo.findDockerImageIdsByAssignmentId(ASSIGNMENT_ID))
-                .thenReturn(List.of(img));
-        Mockito.when(dockerImageRepo.findAllByIdIn(List.of(img)))
-                .thenReturn(List.of(DockerImage.builder().id(img).name("db").imageUrl("db:16").build()));
-
-        List<DockerImageResponse> images = service.getStudentImages(STUDENT, EMAIL, ASSIGNMENT_ID);
-
-        assertThat(images).hasSize(1);
-        assertThat(images.get(0).getName()).isEqualTo("db");
-    }
 }

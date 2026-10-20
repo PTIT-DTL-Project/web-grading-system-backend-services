@@ -7,7 +7,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResponse;
-import vn.edu.ptit.web_grading_system.course_service.dto.response.DockerImageResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
 import vn.edu.ptit.web_grading_system.course_service.service.StudentAssignmentService;
 
@@ -48,13 +47,5 @@ public class StudentAssignmentController {
             @RequestHeader(value = "X-User-Email", defaultValue = "") String email,
             @PathVariable UUID id) {
         return ResponseEntity.ok(studentAssignmentService.listPlans(UUID.fromString(studentId), email, id));
-    }
-
-    @GetMapping("/{id}/docker-images")
-    public ResponseEntity<List<DockerImageResponse>> images(
-            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String studentId,
-            @RequestHeader(value = "X-User-Email", defaultValue = "") String email,
-            @PathVariable UUID id) {
-        return ResponseEntity.ok(studentAssignmentService.getStudentImages(UUID.fromString(studentId), email, id));
     }
 }

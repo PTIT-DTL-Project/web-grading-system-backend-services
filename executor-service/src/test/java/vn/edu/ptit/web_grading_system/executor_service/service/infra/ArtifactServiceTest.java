@@ -36,7 +36,6 @@ class ArtifactServiceTest {
                 .container(new ExecutorProperties.Container(1000, 2000))
                 .reaper(new ExecutorProperties.Reaper(30, 300000, 3))
                 .maven(new ExecutorProperties.Maven(pinnedUrl))
-                .imageScan(new ExecutorProperties.ImageScan(true, 300000, 600000, 600000))
                 .build();
         return new ArtifactService(null, null, props) {
             @Override

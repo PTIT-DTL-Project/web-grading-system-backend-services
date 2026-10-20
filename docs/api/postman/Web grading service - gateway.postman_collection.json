@@ -3,7 +3,7 @@
     "_postman_id": "fc1a4a1c-da64-4ae6-8d04-003a921cfa53",
     "name": "Web grading service - gateway",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Auth (since 2026-09-30, Keycloak integration):\n- Through the api-gateway (default for this collection): set headers `X-User-Id`, `X-Gateway-Secret` (= GATEWAY_TRUSTED_SECRET from repo .env), `X-User-Roles` on every request. The gateway stamps X-User-Id from the token subject and allowlists roles; the `Authorization: Bearer {{token}}` header is disabled — use direct headers (mode A) or enable it for gateway mode B.\n- Direct to a service (for internal endpoints): send the same headers to the service host directly.\nRoles (since 2026-09-30, slice 2→3): `X-User-Roles: LECTURER` required for assignment/grades endpoints; `STUDENT` for student paths. The lecturer grading view now has BOTH a role gate AND an ownership check (404 for a foreign assignment). The old public route `GET /api/v1/submissions/assignment/{id}` is gone (moved internal).\nRoutes (api-gateway application.yaml):\n- course-service: `/api/v1/classes/**`, `/api/v1/assignments/**`, `/api/v1/docker-images/**`, `/api/v1/student/**`\n- submission-service: `/api/v1/submissions/**`\n- result-service: `/api/v1/results/**` — students are owner-scoped (403 mismatch); LECTURERs may read any submission via the deep-link (exact ROLE_LECTURER, Review: 2026-10-21) · `/api/v1/internal/**` is NOT routed — those requests go direct to the service (see \"Internal\" folder).\nSee docs/api/postman/FULL_FLOW_TESTING_GUIDE.md section 0 and §5.5."
+    "description": "Auth (since 2026-09-30, Keycloak integration):\n- Through the api-gateway (default for this collection): set headers `X-User-Id`, `X-Gateway-Secret` (= GATEWAY_TRUSTED_SECRET from repo .env), `X-User-Roles` on every request. The gateway stamps X-User-Id from the token subject and allowlists roles; the `Authorization: Bearer {{token}}` header is disabled — use direct headers (mode A) or enable it for gateway mode B.\n- Direct to a service (for internal endpoints): send the same headers to the service host directly.\nRoles (since 2026-09-30, slice 2→3): `X-User-Roles: LECTURER` required for assignment/grades endpoints; `STUDENT` for student paths. The lecturer grading view now has BOTH a role gate AND an ownership check (404 for a foreign assignment). The old public route `GET /api/v1/submissions/assignment/{id}` is gone (moved internal).\nRoutes (api-gateway application.yaml):\n- course-service: `/api/v1/classes/**`, `/api/v1/assignments/**`, `/api/v1/student/**`\n- submission-service: `/api/v1/submissions/**`\n- result-service: `/api/v1/results/**` — students are owner-scoped (403 mismatch); LECTURERs may read any submission via the deep-link (exact ROLE_LECTURER, Review: 2026-10-21) · `/api/v1/internal/**` is NOT routed — those requests go direct to the service (see \"Internal\" folder).\nSee docs/api/postman/FULL_FLOW_TESTING_GUIDE.md section 0 and §5.5."
   },
   "item": [
     {
@@ -5287,27 +5287,6 @@
                   ]
                 }
               ]
-            },
-            {
-              "name": "list active docker images (internal)",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{course-service}}/api/v1/internal/docker-images",
-                  "host": [
-                    "{{course-service}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "internal",
-                    "docker-images"
-                  ]
-                },
-                "description": "Internal contract for the executor async pre-pull scanner (UC-13). Returns the active image URLs as a bare list (no envelope) — never exposed via the gateway. Real response requires booting course-service locally."
-              },
-              "response": []
             }
           ]
         },

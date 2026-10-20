@@ -10,21 +10,17 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResponse;
-import vn.edu.ptit.web_grading_system.course_service.dto.response.DockerImageResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.StepResponse;
 import vn.edu.ptit.web_grading_system.course_service.entity.Assignment;
 import vn.edu.ptit.web_grading_system.course_service.entity.ClassStudent;
-import vn.edu.ptit.web_grading_system.course_service.entity.DockerImage;
 import vn.edu.ptit.web_grading_system.course_service.entity.StepType;
 import vn.edu.ptit.web_grading_system.course_service.entity.TestPlan;
 import vn.edu.ptit.web_grading_system.course_service.entity.TestStep;
 import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.course_service.mapper.AssignmentMapper;
-import vn.edu.ptit.web_grading_system.course_service.repository.AssignmentDockerImageRepository;
 import vn.edu.ptit.web_grading_system.course_service.repository.AssignmentRepository;
 import vn.edu.ptit.web_grading_system.course_service.repository.ClassStudentRepository;
-import vn.edu.ptit.web_grading_system.course_service.repository.DockerImageRepository;
 import vn.edu.ptit.web_grading_system.course_service.repository.TestPlanRepository;
 import vn.edu.ptit.web_grading_system.course_service.repository.TestStepRepository;
 
@@ -44,8 +40,6 @@ public class StudentAssignmentService {
 
     private final AssignmentRepository assignmentRepository;
     private final ClassStudentRepository classStudentRepository;
-    private final AssignmentDockerImageRepository assignmentDockerImageRepository;
-    private final DockerImageRepository dockerImageRepository;
     private final TestPlanRepository testPlanRepository;
     private final TestStepRepository testStepRepository;
     private final AssignmentMapper assignmentMapper;
@@ -99,22 +93,6 @@ public class StudentAssignmentService {
                                         && s.getStepType() != StepType.EXTRACT)
                                 .map(this::toSanitizedStep)
                                 .toList())
-                        .build())
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<DockerImageResponse> getStudentImages(UUID studentId, String email, UUID assignmentId) {
-        studentIdentityService.linkStudent(studentId, email);
-        requireVisible(studentId, assignmentId);
-        List<UUID> ids = assignmentDockerImageRepository.findDockerImageIdsByAssignmentId(assignmentId);
-        List<DockerImage> images = dockerImageRepository.findAllByIdIn(ids);
-        return images.stream()
-                .map(d -> DockerImageResponse.builder()
-                        .id(d.getId())
-                        .name(d.getName())
-                        .imageUrl(d.getImageUrl())
-                        .description(d.getDescription())
                         .build())
                 .toList();
     }
