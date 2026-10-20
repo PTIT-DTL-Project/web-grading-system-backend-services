@@ -63,8 +63,8 @@ Most identity endpoints default a missing header to `anonymous` → `400 invalid
 **Identity rule (mode B — gateway, use `Web grading service - gateway.postman_collection.json`):** identity is the token subject. `{{ownerLecturer1}}` / `{{fake_student_id}}` must equal the `sub` of the tokens you use, and any `X-User-Id` header you send is stripped and replaced by the gateway, so sending it changes nothing. The collection's `{{api-gateway}}` variable points at `http://localhost:8080` (local) or `https://web-dev1-api.vucongtuanduong.dpdns.org` (dev host).
 
 **Role rule (2026-09-30, slice 2):** everything that creates or edits grading data — creating/listing/archiving
-classes, importing students, score components, entering scores, transcripts, assignments, plans & steps,
-docker images — plus the lecturer's grading view (`GET /api/v1/assignments/{assignmentId}/results` and
+classes, importing students, score components, entering scores, transcripts, assignments, plans & steps
+— plus the lecturer's grading view (`GET /api/v1/assignments/{assignmentId}/results` and
 `GET /api/v1/assignments/{assignmentId}/submissions`) — requires `LECTURER`. Any other
 role, **or a request carrying no `X-User-Roles` at all**, gets `403` from method security; a request that
 still has no trust secret gets `401` first. In mode A you send the role yourself, so it is worth exactly as

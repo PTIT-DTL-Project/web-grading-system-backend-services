@@ -1,4 +1,4 @@
--- V8__drop_docker_image_state.sql -- Executor Service
+-- V10__drop_docker_image_state.sql -- Executor Service
 -- The course-service image library (and its internal docker-images
 -- endpoint) was removed, so executor's Axis-2 image pre-pull scanner
 -- and grading-time ENSURE_IMAGES gate are gone. The per-pod warmth

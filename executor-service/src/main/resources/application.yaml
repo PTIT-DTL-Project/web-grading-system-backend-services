@@ -31,13 +31,6 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
-  task:
-    scheduling:
-      pool:
-        # long image pulls must not stall StaleJobReaper
-        # (default pool size is 1 thread)
-        size: ${SPRING_TASK_SCHEDULING_POOL_SIZE:4}
-
 executor:
   temp-dir: ${EXECUTOR_TEMP_DIR:/tmp/grading}
   maven:

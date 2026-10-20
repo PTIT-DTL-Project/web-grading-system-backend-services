@@ -125,7 +125,7 @@ Quản lý và tính toán kết quả grading.
 
 ### course-service
 Port: 8081  
-Quản lý lớp học, sinh viên trong lớp, assignments, docker images, test plans và điểm số.
+Quản lý lớp học, sinh viên trong lớp, assignments, test plans và điểm số.
 
 ### ai-assistant-service
 Port: 8086  
