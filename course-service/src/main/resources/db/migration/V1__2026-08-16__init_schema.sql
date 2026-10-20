@@ -62,11 +62,32 @@ CREATE INDEX IF NOT EXISTS idx_assignments_owner ON assignments(owner_id);
 CREATE INDEX IF NOT EXISTS idx_assignments_published ON assignments(published) WHERE deleted_at IS NULL;
 
 -- ============================================================
--- (Removed: docker_images, assignment_docker_images tables
---  Review: 2026-10-21 — lecturer deep-link uses course-service ownership
---  gate + result-service role check, not pre-assigned images.
---  Students submit .zip; executor builds inline.)
+-- docker_images
 -- ============================================================
+CREATE TABLE IF NOT EXISTS docker_images (
+    id UUID PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    image_url VARCHAR(500) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMPTZ
+);
+
+-- ============================================================
+-- assignment_docker_images
+-- ============================================================
+CREATE TABLE IF NOT EXISTS assignment_docker_images (
+    id UUID PRIMARY KEY,
+    assignment_id UUID NOT NULL REFERENCES assignments(id),
+    docker_image_id UUID NOT NULL REFERENCES docker_images(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_assign_docker_unique ON assignment_docker_images(assignment_id, docker_image_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_assign_docker_assign ON assignment_docker_images(assignment_id);
 
 -- ============================================================
 -- test_plans

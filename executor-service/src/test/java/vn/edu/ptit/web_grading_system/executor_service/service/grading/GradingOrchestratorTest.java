@@ -122,8 +122,6 @@ class GradingOrchestratorTest {
             return new DockerComposeRunner.RunningCompose(
                     Mockito.mock(ComposeContainer.class), "localhost", 23456);
         });
-        // slot-B ENSURE_IMAGES gate: present() defaults true so every
-        // existing happy-path test skips pulling and is unaffected.
         AtomicInteger executions = new AtomicInteger();
         java.util.concurrent.atomic.AtomicReference<Map<String, Object>> capturedVars = new java.util.concurrent.atomic.AtomicReference<>();
         StepExecutor stub = new StepExecutor() {
