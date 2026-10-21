@@ -31,6 +31,7 @@ public class ConversationService {
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
     private final RunRepository runRepository;
+    private final vn.edu.ptit.web_grading_system.ai_assistant_service.orchestrator.RunWorker runWorker;
 
     @Transactional
     public ConversationResponse createConversation(UserPrincipal principal, CreateConversationRequest request) {
@@ -97,6 +98,7 @@ public class ConversationService {
                 .sequenceNo(nextSeq)
                 .build();
         message = messageRepository.save(message);
+        runWorker.processRunAsync(run.getId());
 
         return new SendMessageResponse(conversationId, run.getId(), message.getId());
     }

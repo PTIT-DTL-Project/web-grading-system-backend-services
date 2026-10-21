@@ -46,6 +46,14 @@ public class SseBroadcaster {
         }
     }
 
+    public void sendDelta(UUID runId, String delta) {
+        emit(runId, "assistant.delta", delta);
+    }
+
+    public void sendEvent(UUID runId, String eventType, Object payload) {
+        emit(runId, eventType, payload);
+    }
+
     public void complete(UUID runId) {
         List<SseEmitter> list = emitters.remove(runId);
         if (list != null) {

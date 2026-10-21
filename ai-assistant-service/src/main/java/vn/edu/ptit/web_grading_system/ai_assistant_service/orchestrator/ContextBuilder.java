@@ -44,4 +44,15 @@ public class ContextBuilder {
         }
         return allMessages.subList(allMessages.size() - windowSize, allMessages.size());
     }
+
+    public String buildUserPromptWithHistory(List<Message> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Message msg : messages) {
+            sb.append(msg.getRole()).append(": ").append(msg.getContent() != null ? msg.getContent() : "").append("\n");
+        }
+        return sb.toString().trim();
+    }
 }
