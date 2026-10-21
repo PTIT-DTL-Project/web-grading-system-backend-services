@@ -41,4 +41,60 @@ public interface CourseServiceClient {
             @RequestHeader("X-User-Roles") String roles,
             @RequestHeader("X-Gateway-Secret") String gatewaySecret
     );
+
+    @GetMapping("/api/v1/student/classes")
+    vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.PageDto<vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ClassSummaryDto> listStudentClasses(
+            @RequestHeader("X-User-Id") String studentId,
+            @RequestHeader(value = "X-User-Email", required = false) String email,
+            @org.springframework.web.bind.annotation.RequestParam(value = "page", defaultValue = "0") int page,
+            @org.springframework.web.bind.annotation.RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestHeader(value = "X-Gateway-Secret", required = false) String gatewaySecret
+    );
+
+    @GetMapping("/api/v1/classes")
+    vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.PageDto<vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ClassSummaryDto> listLecturerClasses(
+            @RequestHeader("X-User-Id") String lecturerId,
+            @RequestHeader(value = "X-User-Roles", defaultValue = "ROLE_LECTURER") String roles,
+            @org.springframework.web.bind.annotation.RequestParam(value = "page", defaultValue = "0") int page,
+            @org.springframework.web.bind.annotation.RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestHeader(value = "X-Gateway-Secret", required = false) String gatewaySecret
+    );
+
+    @GetMapping("/api/v1/student/assignments")
+    vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.PageDto<vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.AssignmentSummaryDto> listStudentAssignments(
+            @RequestHeader("X-User-Id") String studentId,
+            @RequestHeader(value = "X-User-Email", required = false) String email,
+            @org.springframework.web.bind.annotation.RequestParam(value = "classId", required = false) UUID classId,
+            @org.springframework.web.bind.annotation.RequestParam(value = "page", defaultValue = "0") int page,
+            @org.springframework.web.bind.annotation.RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestHeader(value = "X-Gateway-Secret", required = false) String gatewaySecret
+    );
+
+    @GetMapping("/api/v1/assignments")
+    vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.PageDto<vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.AssignmentSummaryDto> listLecturerAssignments(
+            @RequestHeader("X-User-Id") String lecturerId,
+            @RequestHeader(value = "X-User-Roles", defaultValue = "ROLE_LECTURER") String roles,
+            @org.springframework.web.bind.annotation.RequestParam(value = "classId", required = false) UUID classId,
+            @org.springframework.web.bind.annotation.RequestParam(value = "page", defaultValue = "0") int page,
+            @org.springframework.web.bind.annotation.RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestHeader(value = "X-Gateway-Secret", required = false) String gatewaySecret
+    );
+
+    @GetMapping("/api/v1/assignments/{assignmentId}/submissions")
+    vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.PageDto<vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.SubmissionSummaryDto> listLecturerAssignmentSubmissions(
+            @PathVariable("assignmentId") UUID assignmentId,
+            @RequestHeader("X-User-Id") String lecturerId,
+            @RequestHeader(value = "X-User-Roles", defaultValue = "ROLE_LECTURER") String roles,
+            @org.springframework.web.bind.annotation.RequestParam(value = "page", defaultValue = "0") int page,
+            @org.springframework.web.bind.annotation.RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestHeader(value = "X-Gateway-Secret", required = false) String gatewaySecret
+    );
+
+    @org.springframework.web.bind.annotation.PostMapping("/api/v1/assignments")
+    vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.AssignmentSummaryDto createAssignment(
+            @RequestHeader("X-User-Id") String lecturerId,
+            @RequestHeader(value = "X-User-Roles", defaultValue = "ROLE_LECTURER") String roles,
+            @org.springframework.web.bind.annotation.RequestBody Object request,
+            @RequestHeader(value = "X-Gateway-Secret", required = false) String gatewaySecret
+    );
 }
