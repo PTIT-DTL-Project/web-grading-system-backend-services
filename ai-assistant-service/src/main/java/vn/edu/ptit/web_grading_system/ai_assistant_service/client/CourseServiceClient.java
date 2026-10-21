@@ -90,6 +90,16 @@ public interface CourseServiceClient {
             @RequestHeader(value = "X-Gateway-Secret", required = false) String gatewaySecret
     );
 
+    @GetMapping("/api/v1/classes/{classId}/students")
+    vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.PageDto<Object> listClassStudents(
+            @PathVariable("classId") UUID classId,
+            @RequestHeader("X-User-Id") String lecturerId,
+            @RequestHeader(value = "X-User-Roles", defaultValue = "ROLE_LECTURER") String roles,
+            @org.springframework.web.bind.annotation.RequestParam(value = "page", defaultValue = "0") int page,
+            @org.springframework.web.bind.annotation.RequestParam(value = "size", defaultValue = "50") int size,
+            @RequestHeader(value = "X-Gateway-Secret", required = false) String gatewaySecret
+    );
+
     @org.springframework.web.bind.annotation.PostMapping("/api/v1/assignments")
     vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.AssignmentSummaryDto createAssignment(
             @RequestHeader("X-User-Id") String lecturerId,
