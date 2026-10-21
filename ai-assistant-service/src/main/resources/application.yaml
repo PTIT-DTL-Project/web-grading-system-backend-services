@@ -64,3 +64,20 @@ ai:
     api-key: ${AI_API_KEY:}
     model-name: ${AI_MODEL_NAME:gpt-4o-mini}
     base-url: ${AI_BASE_URL:https://api.openai.com/v1}
+
+agent:
+  limits:
+    max-model-steps: ${AGENT_MAX_MODEL_STEPS:8}
+    max-tool-calls: ${AGENT_MAX_TOOL_CALLS:12}
+    max-model-attempts: ${AGENT_MAX_MODEL_ATTEMPTS:16}
+    max-validation-repairs: ${AGENT_MAX_VALIDATION_REPAIRS:2}
+    active-timeout-seconds: ${AGENT_ACTIVE_TIMEOUT_SECONDS:120}
+  retry:
+    model-max-retries: ${AGENT_MODEL_MAX_RETRIES:2}
+    safe-tool-max-retries: ${AGENT_SAFE_TOOL_MAX_RETRIES:2}
+  context:
+    max-input-tokens: ${AGENT_MAX_INPUT_TOKENS:26000}
+    output-reserve: ${AGENT_OUTPUT_RESERVE:4000}
+    safety-margin: ${AGENT_SAFETY_MARGIN:2000}
+    history-window-size: ${AGENT_HISTORY_WINDOW_SIZE:10}
+
