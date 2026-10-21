@@ -1,12 +1,15 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.run.Run;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.run.RunStatus;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.response.RunResponse;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.orchestrator.SseBroadcaster;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.repository.RunRepository;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.security.UserPrincipal;
 
@@ -18,6 +21,14 @@ import java.util.UUID;
 public class RunController {
 
     private final RunRepository runRepository;
+    private final SseBroadcaster sseBroadcaster;
+
+    @GetMapping(value = "/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter subscribeEvents(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID id) {
+        return sseBroadcaster.subscribe(id);
+    }
 
     @GetMapping("/{id}")
     public ResponseEntity<RunResponse> getRunStatus(
