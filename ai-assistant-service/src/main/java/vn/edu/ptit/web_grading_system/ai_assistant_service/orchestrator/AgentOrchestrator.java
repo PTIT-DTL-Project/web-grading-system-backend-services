@@ -22,13 +22,13 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.ToolRegistry;
 
 import java.time.Instant;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AgentOrchestrator {
 
     private final RunRepository runRepository;
@@ -43,6 +43,35 @@ public class AgentOrchestrator {
     private final ToolRegistry toolRegistry;
     private final GatewayTrustProperties gatewayProperties;
     private final JpaChatMemory jpaChatMemory;
+
+    @Autowired
+    public AgentOrchestrator(
+            RunRepository runRepository,
+            ConversationRepository conversationRepository,
+            MessageRepository messageRepository,
+            TaskRepository taskRepository,
+            RunEventRepository runEventRepository,
+            GuardChecker guardChecker,
+            ContextBuilder contextBuilder,
+            SseBroadcaster sseBroadcaster,
+            LlmClient llmClient,
+            ToolRegistry toolRegistry,
+            GatewayTrustProperties gatewayProperties,
+            JpaChatMemory jpaChatMemory
+    ) {
+        this.runRepository = runRepository;
+        this.conversationRepository = conversationRepository;
+        this.messageRepository = messageRepository;
+        this.taskRepository = taskRepository;
+        this.runEventRepository = runEventRepository;
+        this.guardChecker = guardChecker;
+        this.contextBuilder = contextBuilder;
+        this.sseBroadcaster = sseBroadcaster;
+        this.llmClient = llmClient;
+        this.toolRegistry = toolRegistry;
+        this.gatewayProperties = gatewayProperties;
+        this.jpaChatMemory = jpaChatMemory;
+    }
 
     public AgentOrchestrator(
             RunRepository runRepository,

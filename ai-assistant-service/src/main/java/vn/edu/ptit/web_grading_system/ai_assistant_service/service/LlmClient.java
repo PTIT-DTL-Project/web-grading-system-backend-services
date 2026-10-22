@@ -8,6 +8,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
@@ -108,6 +109,30 @@ public class LlmClient {
             return Flux.just(generateFallbackResponse(fallbackPrompt));
         }
         return streamCompletion(new Prompt(messages));
+    }
+
+    public Flux<String> streamChat(String systemPrompt, List<org.springframework.ai.chat.messages.Message> messages, List<ToolCallback> toolCallbacks) {
+        if (isOfflineMode()) {
+            String fallbackPrompt = (messages != null && !messages.isEmpty())
+                    ? messages.get(messages.size() - 1).getText() : "";
+            return Flux.just(generateFallbackResponse(fallbackPrompt));
+        }
+        try {
+            var spec = chatClient.prompt().system(systemPrompt);
+            if (messages != null && !messages.isEmpty()) {
+                spec.messages(messages);
+            }
+            if (toolCallbacks != null && !toolCallbacks.isEmpty()) {
+                spec.toolCallbacks(toolCallbacks);
+            }
+            return spec.stream().content()
+                    .filter(s -> s != null && !s.isEmpty());
+        } catch (Exception e) {
+            log.error("Failed to stream chat via Spring AI: {}", e.getMessage(), e);
+            String fallbackPrompt = (messages != null && !messages.isEmpty())
+                    ? messages.get(messages.size() - 1).getText() : "";
+            return Flux.just(generateFallbackResponse(fallbackPrompt));
+        }
     }
 
     public Flux<String> streamCompletion(Prompt prompt) {
