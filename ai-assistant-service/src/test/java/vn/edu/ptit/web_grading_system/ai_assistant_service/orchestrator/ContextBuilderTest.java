@@ -40,6 +40,27 @@ public class ContextBuilderTest {
     }
 
     @Test
+    void testBuildSpringAiMessages() {
+        MessageRepository messageRepo = mock(MessageRepository.class);
+        ConversationSummaryRepository summaryRepo = mock(ConversationSummaryRepository.class);
+        AgentProperties properties = new AgentProperties();
+        ContextBuilder builder = new ContextBuilder(messageRepo, summaryRepo, properties);
+
+        List<Message> history = List.of(
+                Message.builder().role("user").content("Hello").build(),
+                Message.builder().role("assistant").content("Hi there!").build()
+        );
+
+        List<org.springframework.ai.chat.messages.Message> springAiMessages =
+                builder.buildSpringAiMessages("System rule", history);
+
+        assertEquals(3, springAiMessages.size());
+        assertEquals(org.springframework.ai.chat.messages.MessageType.SYSTEM, springAiMessages.get(0).getMessageType());
+        assertEquals(org.springframework.ai.chat.messages.MessageType.USER, springAiMessages.get(1).getMessageType());
+        assertEquals(org.springframework.ai.chat.messages.MessageType.ASSISTANT, springAiMessages.get(2).getMessageType());
+    }
+
+    @Test
     void testTokenEstimator() {
         TokenEstimator estimator = new TokenEstimator();
         assertEquals(0, estimator.estimateTokens(""));

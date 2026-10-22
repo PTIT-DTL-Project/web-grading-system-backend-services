@@ -2,6 +2,7 @@ package vn.edu.ptit.web_grading_system.ai_assistant_service.service;
 
 import com.google.gson.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -22,6 +23,7 @@ public class LlmClient {
     private final String modelName;
     private final String baseUrl;
     private final ChatModel chatModel;
+    private final ChatClient chatClient;
     private final Gson gson = new Gson();
 
     public LlmClient(AiModelProperties props, ChatModel chatModel) {
@@ -31,19 +33,34 @@ public class LlmClient {
         String baseUrl = props.baseUrl();
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.chatModel = chatModel;
+        this.chatClient = ChatClient.create(chatModel);
     }
 
     public String generateCompletion(String systemPrompt, String userPrompt) {
-        if (apiKey == null || apiKey.isBlank() || apiKey.startsWith("dummy") || apiKey.equals("your_api_key_here")) {
+        if (isOfflineMode()) {
             log.info("AI API key not configured — generating realistic pedagogical fallback response");
             return generateFallbackResponse(userPrompt);
         }
+        return generateCompletion(new Prompt(List.of(
+                new SystemMessage(systemPrompt),
+                new UserMessage(userPrompt)
+        )));
+    }
 
+    public String generateCompletion(List<org.springframework.ai.chat.messages.Message> messages) {
+        if (isOfflineMode()) {
+            String fallbackPrompt = messages != null && !messages.isEmpty()
+                    ? messages.get(messages.size() - 1).getText() : "";
+            return generateFallbackResponse(fallbackPrompt);
+        }
+        return generateCompletion(new Prompt(messages));
+    }
+
+    public String generateCompletion(Prompt prompt) {
+        if (isOfflineMode()) {
+            return generateFallbackResponse(prompt != null ? prompt.getContents() : "");
+        }
         try {
-            Prompt prompt = new Prompt(List.of(
-                    new SystemMessage(systemPrompt),
-                    new UserMessage(userPrompt)
-            ));
             ChatResponse response = chatModel.call(prompt);
             if (response != null && response.getResult() != null && response.getResult().getOutput() != null) {
                 String content = response.getResult().getOutput().getText();
@@ -52,27 +69,44 @@ public class LlmClient {
         } catch (Exception e) {
             log.error("Failed to call LLM provider via Spring AI: {}", e.getMessage(), e);
         }
-
-        return generateFallbackResponse(userPrompt);
+        return generateFallbackResponse(prompt != null ? prompt.getContents() : "");
     }
 
     public Flux<String> streamCompletion(String systemPrompt, String userPrompt) {
-        if (apiKey == null || apiKey.isBlank() || apiKey.startsWith("dummy") || apiKey.equals("your_api_key_here")) {
+        if (isOfflineMode()) {
             return Flux.just(generateFallbackResponse(userPrompt));
         }
+        return streamCompletion(new Prompt(List.of(
+                new SystemMessage(systemPrompt),
+                new UserMessage(userPrompt)
+        )));
+    }
 
+    public Flux<String> streamCompletion(List<org.springframework.ai.chat.messages.Message> messages) {
+        if (isOfflineMode()) {
+            String fallbackPrompt = messages != null && !messages.isEmpty()
+                    ? messages.get(messages.size() - 1).getText() : "";
+            return Flux.just(generateFallbackResponse(fallbackPrompt));
+        }
+        return streamCompletion(new Prompt(messages));
+    }
+
+    public Flux<String> streamCompletion(Prompt prompt) {
+        if (isOfflineMode()) {
+            return Flux.just(generateFallbackResponse(prompt != null ? prompt.getContents() : ""));
+        }
         try {
-            Prompt prompt = new Prompt(List.of(
-                    new SystemMessage(systemPrompt),
-                    new UserMessage(userPrompt)
-            ));
             return chatModel.stream(prompt)
                     .map(r -> r.getResult() != null && r.getResult().getOutput() != null ? r.getResult().getOutput().getText() : "")
                     .filter(s -> s != null && !s.isEmpty());
         } catch (Exception e) {
             log.error("Failed to stream LLM provider via Spring AI: {}", e.getMessage(), e);
-            return Flux.just(generateFallbackResponse(userPrompt));
+            return Flux.just(generateFallbackResponse(prompt != null ? prompt.getContents() : ""));
         }
+    }
+
+    private boolean isOfflineMode() {
+        return apiKey == null || apiKey.isBlank() || apiKey.startsWith("dummy") || apiKey.equals("your_api_key_here");
     }
 
     private String cleanJsonString(String raw) {
@@ -95,7 +129,7 @@ public class LlmClient {
 
         JsonArray stepsArray = new JsonArray();
         try {
-            int jsonStart = userPrompt.indexOf('{');
+            int jsonStart = userPrompt != null ? userPrompt.indexOf('{') : -1;
             if (jsonStart >= 0) {
                 JsonObject promptObj = JsonParser.parseString(userPrompt.substring(jsonStart)).getAsJsonObject();
                 JsonArray promptSteps = promptObj.getAsJsonArray("steps");

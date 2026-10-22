@@ -43,4 +43,24 @@ public class ToolRegistryTest {
         assertEquals(1, forLecturer.size());
         assertEquals("lecturerTool", forLecturer.getFirst().getName());
     }
+
+    @Test
+    void testAgentToolSpringAiCallbackInterface() {
+        AgentTool tool = new AgentTool() {
+            @Override public String getName() { return "myTool"; }
+            @Override public String getDescription() { return "Description"; }
+            @Override public ToolDefinition getDefinition() {
+                return new ToolDefinition("myTool", "Description", "1.0", "common", "read", "res",
+                        EffectType.READ, Set.of("ROLE_USER"), Duration.ofSeconds(5), 1000);
+            }
+            @Override public ToolResult execute(JsonNode args, AgentContext ctx) {
+                return ToolResult.ok("result-data");
+            }
+        };
+
+        org.springframework.ai.tool.definition.ToolDefinition springAiDef = tool.getToolDefinition();
+        assertEquals("myTool", springAiDef.name());
+        assertEquals("Description", springAiDef.description());
+        assertEquals("\"result-data\"", tool.call("{}"));
+    }
 }

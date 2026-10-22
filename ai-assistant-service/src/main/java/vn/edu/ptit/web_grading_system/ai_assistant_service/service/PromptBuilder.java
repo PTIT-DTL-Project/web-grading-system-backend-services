@@ -101,4 +101,11 @@ public class PromptBuilder {
 
         return "Hãy phân tích toàn diện bài nộp dưới đây theo các chỉ dẫn và xuất ra JSON:\n" + gson.toJson(context);
     }
+
+    public org.springframework.ai.chat.prompt.Prompt buildPrompt(AssignmentDetailDto assignment, ResultDto result) {
+        return new org.springframework.ai.chat.prompt.Prompt(java.util.List.of(
+                new org.springframework.ai.chat.messages.SystemMessage(buildSystemPrompt()),
+                new org.springframework.ai.chat.messages.UserMessage(buildUserPrompt(assignment, result))
+        ));
+    }
 }
