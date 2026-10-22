@@ -132,14 +132,7 @@ public class AgentOrchestrator {
                     break;
                 }
 
-                List<Message> history = messageRepository
-                        .findByConversationIdOrderBySequenceNoAsc(conv.getId(), Pageable.unpaged())
-                        .getContent();
-
                 String systemPrompt = contextBuilder.buildSystemPrompt("ROLE_USER", task);
-                String userPrompt = contextBuilder.buildUserPromptWithHistory(history);
-                List<org.springframework.ai.chat.messages.Message> springAiMessages =
-                        contextBuilder.buildSpringAiMessages(null, history);
 
                 AgentContext agentContext = new AgentContext(
                         conv.getOwnerId(),
@@ -156,7 +149,7 @@ public class AgentOrchestrator {
 
                 StringBuilder responseBuffer = new StringBuilder();
                 Flux<String> stream = (llmClient != null)
-                        ? llmClient.streamChat(systemPrompt, springAiMessages, toolCallbacks)
+                        ? llmClient.streamChatWithMemory(systemPrompt, conv.getId().toString(), jpaChatMemory, toolCallbacks)
                         : null;
 
                 if (stream != null) {
@@ -172,20 +165,28 @@ public class AgentOrchestrator {
 
                 String completion = responseBuffer.toString().trim();
                 if (completion.isEmpty() && llmClient != null) {
-                    completion = llmClient.generateCompletion(systemPrompt, userPrompt);
+                    List<org.springframework.ai.chat.messages.Message> history = (jpaChatMemory != null)
+                            ? jpaChatMemory.get(conv.getId().toString()) : List.of();
+                    String lastUserText = history != null && !history.isEmpty()
+                            ? history.get(history.size() - 1).getText() : "";
+                    completion = llmClient.generateCompletion(systemPrompt, lastUserText);
                     sseBroadcaster.sendDelta(runId, completion);
                 }
 
-                // Persist assistant message
-                int nextSeq = messageRepository.findMaxSequenceNo(conv.getId()) + 1;
-                Message assistantMsg = Message.builder()
-                        .conversationId(conv.getId())
-                        .runId(runId)
-                        .role("assistant")
-                        .content(completion)
-                        .sequenceNo(nextSeq)
-                        .build();
-                messageRepository.save(assistantMsg);
+                // Persist assistant message into jpaChatMemory
+                if (jpaChatMemory != null && !completion.isEmpty()) {
+                    jpaChatMemory.add(conv.getId().toString(), List.of(new org.springframework.ai.chat.messages.AssistantMessage(completion)));
+                } else if (!completion.isEmpty()) {
+                    int nextSeq = messageRepository.findMaxSequenceNo(conv.getId()) + 1;
+                    Message assistantMsg = Message.builder()
+                            .conversationId(conv.getId())
+                            .runId(runId)
+                            .role("assistant")
+                            .content(completion)
+                            .sequenceNo(nextSeq)
+                            .build();
+                    messageRepository.save(assistantMsg);
+                }
 
                 completed = true;
             }

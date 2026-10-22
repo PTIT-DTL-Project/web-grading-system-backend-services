@@ -135,6 +135,40 @@ public class LlmClient {
         }
     }
 
+    public Flux<String> streamChatWithMemory(
+            String systemPrompt,
+            String conversationId,
+            org.springframework.ai.chat.memory.ChatMemory chatMemory,
+            List<ToolCallback> toolCallbacks
+    ) {
+        if (isOfflineMode()) {
+            List<org.springframework.ai.chat.messages.Message> history = (chatMemory != null && conversationId != null)
+                    ? chatMemory.get(conversationId) : List.of();
+            String fallbackPrompt = (history != null && !history.isEmpty())
+                    ? history.get(history.size() - 1).getText() : "";
+            return Flux.just(generateFallbackResponse(fallbackPrompt));
+        }
+        try {
+            var spec = chatClient.prompt().system(systemPrompt);
+            if (chatMemory != null && conversationId != null) {
+                spec.advisors(org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor.builder(chatMemory).build());
+                spec.advisors(a -> a.param("chat_memory_conversation_id", conversationId));
+            }
+            if (toolCallbacks != null && !toolCallbacks.isEmpty()) {
+                spec.toolCallbacks(toolCallbacks);
+            }
+            return spec.stream().content()
+                    .filter(s -> s != null && !s.isEmpty());
+        } catch (Exception e) {
+            log.error("Failed to stream chat with memory via Spring AI: {}", e.getMessage(), e);
+            List<org.springframework.ai.chat.messages.Message> history = (chatMemory != null && conversationId != null)
+                    ? chatMemory.get(conversationId) : List.of();
+            String fallbackPrompt = (history != null && !history.isEmpty())
+                    ? history.get(history.size() - 1).getText() : "";
+            return Flux.just(generateFallbackResponse(fallbackPrompt));
+        }
+    }
+
     public Flux<String> streamCompletion(Prompt prompt) {
         if (isOfflineMode()) {
             return Flux.just(generateFallbackResponse(prompt != null ? prompt.getContents() : ""));

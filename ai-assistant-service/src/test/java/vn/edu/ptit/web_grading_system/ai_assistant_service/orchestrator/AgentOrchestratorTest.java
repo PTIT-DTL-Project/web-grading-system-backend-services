@@ -84,10 +84,8 @@ public class AgentOrchestratorTest {
         when(runRepository.save(any(Run.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(conversationRepository.findById(convId)).thenReturn(Optional.of(conv));
         when(guardChecker.canContinue(any(), eq(0))).thenReturn(true);
-        when(messageRepository.findByConversationIdOrderBySequenceNoAsc(eq(convId), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of()));
         when(contextBuilder.buildSystemPrompt(any(), any())).thenReturn("System prompt");
-        when(contextBuilder.buildUserPromptWithHistory(any())).thenReturn("User prompt");
+        when(llmClient.streamChatWithMemory(any(), any(), any(), any())).thenReturn(null);
         when(llmClient.generateCompletion(any(), any())).thenReturn("Xin chào!");
         when(messageRepository.findMaxSequenceNo(convId)).thenReturn(1);
 
@@ -121,11 +119,8 @@ public class AgentOrchestratorTest {
         when(runRepository.save(any(Run.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(conversationRepository.findById(convId)).thenReturn(Optional.of(conv));
         when(guardChecker.canContinue(any(), eq(0))).thenReturn(true);
-        when(messageRepository.findByConversationIdOrderBySequenceNoAsc(eq(convId), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of()));
         when(contextBuilder.buildSystemPrompt(any(), any())).thenReturn("System prompt");
-        when(contextBuilder.buildSpringAiMessages(any(), any())).thenReturn(List.of());
-        when(llmClient.streamChat(any(), any(), any())).thenReturn(reactor.core.publisher.Flux.just("Chunk 1", " Chunk 2"));
+        when(llmClient.streamChatWithMemory(any(), any(), any(), any())).thenReturn(reactor.core.publisher.Flux.just("Chunk 1", " Chunk 2"));
         when(messageRepository.findMaxSequenceNo(convId)).thenReturn(1);
 
         orchestrator.executeRun(runId);
