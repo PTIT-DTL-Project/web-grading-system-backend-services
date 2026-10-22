@@ -2,21 +2,28 @@ package vn.edu.ptit.web_grading_system.ai_assistant_service.orchestrator;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.config.GatewayTrustProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Conversation;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.run.Run;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.run.RunEvent;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.run.RunStatus;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.task.Task;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.memory.JpaChatMemory;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.repository.*;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.service.LlmClient;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.AgentContext;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.ToolRegistry;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -33,6 +40,25 @@ public class AgentOrchestrator {
     private final ContextBuilder contextBuilder;
     private final SseBroadcaster sseBroadcaster;
     private final LlmClient llmClient;
+    private final ToolRegistry toolRegistry;
+    private final GatewayTrustProperties gatewayProperties;
+    private final JpaChatMemory jpaChatMemory;
+
+    public AgentOrchestrator(
+            RunRepository runRepository,
+            ConversationRepository conversationRepository,
+            MessageRepository messageRepository,
+            TaskRepository taskRepository,
+            RunEventRepository runEventRepository,
+            GuardChecker guardChecker,
+            ContextBuilder contextBuilder,
+            SseBroadcaster sseBroadcaster,
+            LlmClient llmClient
+    ) {
+        this(runRepository, conversationRepository, messageRepository, taskRepository,
+                runEventRepository, guardChecker, contextBuilder, sseBroadcaster, llmClient,
+                null, null, null);
+    }
 
     @Transactional
     public void executeRun(UUID runId) {
@@ -83,11 +109,43 @@ public class AgentOrchestrator {
 
                 String systemPrompt = contextBuilder.buildSystemPrompt("ROLE_USER", task);
                 String userPrompt = contextBuilder.buildUserPromptWithHistory(history);
+                List<org.springframework.ai.chat.messages.Message> springAiMessages =
+                        contextBuilder.buildSpringAiMessages(null, history);
 
-                String completion = llmClient.generateCompletion(systemPrompt, userPrompt);
+                AgentContext agentContext = new AgentContext(
+                        conv.getOwnerId(),
+                        "",
+                        Set.of("ROLE_STUDENT", "ROLE_LECTURER"),
+                        conv.getId(),
+                        runId,
+                        gatewayProperties != null ? gatewayProperties.secret() : ""
+                );
 
-                // Stream response tokens / chunk
-                sseBroadcaster.sendDelta(runId, completion);
+                List<ToolCallback> toolCallbacks = (toolRegistry != null)
+                        ? toolRegistry.getToolCallbacksForRoles(agentContext.roles(), agentContext)
+                        : List.of();
+
+                StringBuilder responseBuffer = new StringBuilder();
+                Flux<String> stream = (llmClient != null)
+                        ? llmClient.streamChat(systemPrompt, springAiMessages, toolCallbacks)
+                        : null;
+
+                if (stream != null) {
+                    try {
+                        stream.doOnNext(delta -> {
+                            responseBuffer.append(delta);
+                            sseBroadcaster.sendDelta(runId, delta);
+                        }).blockLast();
+                    } catch (Exception ex) {
+                        log.warn("Streaming encountered error: {}", ex.getMessage());
+                    }
+                }
+
+                String completion = responseBuffer.toString().trim();
+                if (completion.isEmpty() && llmClient != null) {
+                    completion = llmClient.generateCompletion(systemPrompt, userPrompt);
+                    sseBroadcaster.sendDelta(runId, completion);
+                }
 
                 // Persist assistant message
                 int nextSeq = messageRepository.findMaxSequenceNo(conv.getId()) + 1;

@@ -99,4 +99,42 @@ public class AgentOrchestratorTest {
         verify(sseBroadcaster).complete(eq(runId));
         verify(messageRepository).save(any(Message.class));
     }
+
+    @Test
+    void executeRun_streamingExecution() {
+        UUID runId = UUID.randomUUID();
+        UUID convId = UUID.randomUUID();
+
+        Run run = Run.builder()
+                .id(runId)
+                .conversationId(convId)
+                .status(RunStatus.QUEUED)
+                .build();
+
+        Conversation conv = Conversation.builder()
+                .id(convId)
+                .ownerId(UUID.randomUUID())
+                .title("Test Streaming")
+                .build();
+
+        when(runRepository.findById(runId)).thenReturn(Optional.of(run));
+        when(runRepository.save(any(Run.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(conversationRepository.findById(convId)).thenReturn(Optional.of(conv));
+        when(guardChecker.canContinue(any(), eq(0))).thenReturn(true);
+        when(messageRepository.findByConversationIdOrderBySequenceNoAsc(eq(convId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+        when(contextBuilder.buildSystemPrompt(any(), any())).thenReturn("System prompt");
+        when(contextBuilder.buildSpringAiMessages(any(), any())).thenReturn(List.of());
+        when(llmClient.streamChat(any(), any(), any())).thenReturn(reactor.core.publisher.Flux.just("Chunk 1", " Chunk 2"));
+        when(messageRepository.findMaxSequenceNo(convId)).thenReturn(1);
+
+        orchestrator.executeRun(runId);
+
+        assertEquals(RunStatus.SUCCEEDED, run.getStatus());
+        verify(sseBroadcaster).sendDelta(eq(runId), eq("Chunk 1"));
+        verify(sseBroadcaster).sendDelta(eq(runId), eq(" Chunk 2"));
+        verify(sseBroadcaster).sendEvent(eq(runId), eq("run.completed"), any());
+        verify(sseBroadcaster).complete(eq(runId));
+        verify(messageRepository).save(any(Message.class));
+    }
 }
