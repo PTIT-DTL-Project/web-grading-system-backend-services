@@ -20,6 +20,7 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ResultDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.GatewayTrustProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.AiExplanationResponse;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.AiExplanationResultDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.StepAnalysis;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.entity.AiExplanation;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.repository.AiExplanationRepository;
@@ -269,28 +270,33 @@ public class AiExplanationService {
         // 4. Build prompt & call LLM
         String systemPrompt = promptBuilder.buildSystemPrompt();
         String userPrompt = promptBuilder.buildUserPrompt(assignment, result);
-        String rawLlmResponse = llmClient.generateCompletion(systemPrompt, userPrompt);
-
-        // 5. Parse LLM response
-        String overallSummary = "Bài nộp đã được phân tích toàn diện.";
-        String diagnosis = "Phân tích tự động.";
-        List<StepAnalysis> stepAnalyses = new ArrayList<>();
-
-        try {
-            JsonObject json = JsonParser.parseString(rawLlmResponse).getAsJsonObject();
-            if (json.has("overallSummary")) {
-                overallSummary = json.get("overallSummary").getAsString();
-                diagnosis = overallSummary;
-            }
-            if (json.has("stepAnalyses") && json.get("stepAnalyses").isJsonArray()) {
-                JsonArray array = json.getAsJsonArray("stepAnalyses");
-                for (var elem : array) {
-                    stepAnalyses.add(gson.fromJson(elem, StepAnalysis.class));
+        AiExplanationResultDto structuredOutput = llmClient.generateEntity(systemPrompt, userPrompt, AiExplanationResultDto.class);
+        if (structuredOutput == null) {
+            String rawLlmResponse = llmClient.generateCompletion(systemPrompt, userPrompt);
+            if (rawLlmResponse != null && !rawLlmResponse.isBlank()) {
+                try {
+                    JsonObject json = JsonParser.parseString(rawLlmResponse).getAsJsonObject();
+                    String summary = json.has("overallSummary") ? json.get("overallSummary").getAsString() : null;
+                    List<StepAnalysis> steps = new ArrayList<>();
+                    if (json.has("stepAnalyses") && json.get("stepAnalyses").isJsonArray()) {
+                        for (var elem : json.getAsJsonArray("stepAnalyses")) {
+                            steps.add(gson.fromJson(elem, StepAnalysis.class));
+                        }
+                    }
+                    structuredOutput = new AiExplanationResultDto(summary, steps);
+                } catch (Exception ignored) {
                 }
             }
-        } catch (Exception ex) {
-            log.error("Failed to parse LLM structured output: {}", ex.getMessage());
         }
+
+        // 5. Extract structured output
+        String overallSummary = (structuredOutput != null && structuredOutput.overallSummary() != null)
+                ? structuredOutput.overallSummary()
+                : "Bài nộp đã được phân tích toàn diện.";
+        String diagnosis = overallSummary;
+        List<StepAnalysis> stepAnalyses = (structuredOutput != null && structuredOutput.stepAnalyses() != null)
+                ? structuredOutput.stepAnalyses()
+                : new ArrayList<>();
 
         // 6. Save in DB cache
         AiExplanation entity = AiExplanation.builder()
