@@ -36,6 +36,13 @@ spring:
           result-service:
             connectTimeout: 2000
             readTimeout: 3000
+  ai:
+    openai:
+      api-key: ${AI_API_KEY:dummy-key-for-local-and-test}
+      base-url: ${AI_BASE_URL:https://api.openai.com/v1}
+      chat:
+        options:
+          model: ${AI_MODEL_NAME:gpt-4o-mini}
 
 management:
   endpoints:
