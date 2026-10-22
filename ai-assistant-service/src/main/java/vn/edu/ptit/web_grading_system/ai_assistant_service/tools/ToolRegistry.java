@@ -35,4 +35,38 @@ public class ToolRegistry {
     public List<AgentTool> getAllTools() {
         return new ArrayList<>(toolsByName.values());
     }
+
+    public List<org.springframework.ai.tool.ToolCallback> getToolCallbacksForRoles(Set<String> userRoles, AgentContext context) {
+        List<AgentTool> authorizedTools = getToolsForRoles(userRoles);
+        List<org.springframework.ai.tool.ToolCallback> callbacks = new ArrayList<>();
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+        for (AgentTool tool : authorizedTools) {
+            callbacks.add(new org.springframework.ai.tool.ToolCallback() {
+                @Override
+                public org.springframework.ai.tool.definition.ToolDefinition getToolDefinition() {
+                    return tool.getToolDefinition();
+                }
+
+                @Override
+                public String call(String toolInput) {
+                    return call(toolInput, null);
+                }
+
+                @Override
+                public String call(String toolInput, org.springframework.ai.chat.model.ToolContext toolContext) {
+                    try {
+                        com.fasterxml.jackson.databind.JsonNode args = (toolInput != null && !toolInput.isBlank())
+                                ? mapper.readTree(toolInput)
+                                : mapper.createObjectNode();
+                        ToolResult res = tool.execute(args, context);
+                        return res != null && res.getData() != null ? mapper.writeValueAsString(res.getData()) : "{}";
+                    } catch (Exception e) {
+                        return "{\"error\":\"" + e.getMessage() + "\"}";
+                    }
+                }
+            });
+        }
+        return callbacks;
+    }
 }

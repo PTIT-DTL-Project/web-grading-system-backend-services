@@ -63,4 +63,28 @@ public class ToolRegistryTest {
         assertEquals("Description", springAiDef.description());
         assertEquals("\"result-data\"", tool.call("{}"));
     }
+
+    @Test
+    void getToolCallbacksForRoles_shouldReturnExecutableToolCallbacks() {
+        AgentTool lecturerTool = new AgentTool() {
+            @Override public String getName() { return "lecturerTool"; }
+            @Override public String getDescription() { return "Lecturer only"; }
+            @Override public ToolDefinition getDefinition() {
+                return new ToolDefinition("lecturerTool", "Lecturer only", "1.0", "lecturer", "write", "ass",
+                        EffectType.DOMAIN_WRITE, Set.of("ROLE_LECTURER"), Duration.ofSeconds(5), 10000);
+            }
+            @Override public ToolResult execute(JsonNode args, AgentContext ctx) { return ToolResult.ok("ok"); }
+        };
+
+        ToolRegistry registry = new ToolRegistry(List.of(lecturerTool));
+        AgentContext context = new AgentContext(java.util.UUID.randomUUID(), "test@ptit.edu.vn", Set.of("ROLE_LECTURER"), java.util.UUID.randomUUID(), java.util.UUID.randomUUID(), "secret");
+        List<org.springframework.ai.tool.ToolCallback> callbacks = registry.getToolCallbacksForRoles(Set.of("ROLE_LECTURER"), context);
+
+        org.junit.jupiter.api.Assertions.assertNotNull(callbacks);
+        org.junit.jupiter.api.Assertions.assertEquals(1, callbacks.size());
+        org.springframework.ai.tool.ToolCallback cb = callbacks.get(0);
+        org.junit.jupiter.api.Assertions.assertEquals("lecturerTool", cb.getToolDefinition().name());
+        org.junit.jupiter.api.Assertions.assertEquals("Lecturer only", cb.getToolDefinition().description());
+        org.junit.jupiter.api.Assertions.assertEquals("\"ok\"", cb.call("{}"));
+    }
 }
