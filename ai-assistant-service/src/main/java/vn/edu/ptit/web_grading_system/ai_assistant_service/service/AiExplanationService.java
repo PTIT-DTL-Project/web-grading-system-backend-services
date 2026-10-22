@@ -60,6 +60,8 @@ public class AiExplanationService {
     private final GatewayTrustProperties gatewayProperties;
     private final AiModelProperties aiModelProperties;
     private final Gson gson = new Gson();
+    private final org.springframework.ai.converter.BeanOutputConverter<AiExplanationResultDto> outputConverter =
+            new org.springframework.ai.converter.BeanOutputConverter<>(AiExplanationResultDto.class);
 
     // --- student audience -------------------------------------------------------
 
@@ -275,16 +277,9 @@ public class AiExplanationService {
             String rawLlmResponse = llmClient.generateCompletion(systemPrompt, userPrompt);
             if (rawLlmResponse != null && !rawLlmResponse.isBlank()) {
                 try {
-                    JsonObject json = JsonParser.parseString(rawLlmResponse).getAsJsonObject();
-                    String summary = json.has("overallSummary") ? json.get("overallSummary").getAsString() : null;
-                    List<StepAnalysis> steps = new ArrayList<>();
-                    if (json.has("stepAnalyses") && json.get("stepAnalyses").isJsonArray()) {
-                        for (var elem : json.getAsJsonArray("stepAnalyses")) {
-                            steps.add(gson.fromJson(elem, StepAnalysis.class));
-                        }
-                    }
-                    structuredOutput = new AiExplanationResultDto(summary, steps);
-                } catch (Exception ignored) {
+                    structuredOutput = outputConverter.convert(rawLlmResponse);
+                } catch (Exception e) {
+                    log.warn("BeanOutputConverter could not parse LLM fallback response: {}", e.getMessage());
                 }
             }
         }
