@@ -6,14 +6,19 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import reactor.core.publisher.Flux;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
 
 import java.util.List;
+import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -81,5 +86,27 @@ class LlmClientTest {
         assertEquals(2, deltas.size());
         assertEquals("Xin ", deltas.get(0));
         assertEquals("chào!", deltas.get(1));
+    }
+
+    @Test
+    void streamChatWithMemoryDoesNotPersistTheUserMessageAgain() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        ChatMemory memory = mock(ChatMemory.class);
+        String conversationId = "conversation-1";
+        when(memory.get(conversationId)).thenReturn(List.of(new UserMessage("Danh sách lớp của tôi")));
+        when(chatModel.getOptions()).thenReturn(ChatOptions.builder().build());
+        when(chatModel.stream(any(Prompt.class))).thenReturn(Flux.just(
+                new ChatResponse(List.of(new Generation(new AssistantMessage("Có một lớp"))))));
+
+        List<String> output = client.streamChatWithMemory("System prompt", conversationId, memory, List.of())
+                .collectList().block();
+
+        assertEquals(List.of("Có một lớp"), output);
+        ArgumentCaptor<Prompt> promptCaptor = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel, times(1)).stream(promptCaptor.capture());
+        assertEquals(1, promptCaptor.getValue().getInstructions().stream()
+                .filter(message -> message.getMessageType() == MessageType.USER).count());
+        verify(memory, never()).add(eq(conversationId), any(org.springframework.ai.chat.messages.Message.class));
+        verify(memory, never()).add(eq(conversationId), anyList());
     }
 }

@@ -151,8 +151,12 @@ public class LlmClient {
         try {
             var spec = chatClient.prompt().system(systemPrompt);
             if (chatMemory != null && conversationId != null) {
-                spec.advisors(org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor.builder(chatMemory).build());
-                spec.advisors(a -> a.param("chat_memory_conversation_id", conversationId));
+                // ConversationService persists the user message and AgentOrchestrator
+                // persists the reply. The memory advisor would save both again.
+                List<org.springframework.ai.chat.messages.Message> history = chatMemory.get(conversationId);
+                if (history != null && !history.isEmpty()) {
+                    spec.messages(history);
+                }
             }
             if (toolCallbacks != null && !toolCallbacks.isEmpty()) {
                 spec.toolCallbacks(toolCallbacks);

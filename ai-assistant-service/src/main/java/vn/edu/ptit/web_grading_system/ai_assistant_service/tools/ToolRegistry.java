@@ -1,5 +1,6 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.tools;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -9,8 +10,10 @@ import java.util.stream.Collectors;
 public class ToolRegistry {
 
     private final Map<String, AgentTool> toolsByName = new HashMap<>();
+    private final ObjectMapper mapper;
 
-    public ToolRegistry(List<AgentTool> tools) {
+    public ToolRegistry(List<AgentTool> tools, ObjectMapper mapper) {
+        this.mapper = mapper;
         if (tools != null) {
             for (AgentTool tool : tools) {
                 toolsByName.put(tool.getName(), tool);
@@ -39,8 +42,6 @@ public class ToolRegistry {
     public List<org.springframework.ai.tool.ToolCallback> getToolCallbacksForRoles(Set<String> userRoles, AgentContext context) {
         List<AgentTool> authorizedTools = getToolsForRoles(userRoles);
         List<org.springframework.ai.tool.ToolCallback> callbacks = new ArrayList<>();
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-
         for (AgentTool tool : authorizedTools) {
             callbacks.add(new org.springframework.ai.tool.ToolCallback() {
                 @Override

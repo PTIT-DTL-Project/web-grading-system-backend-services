@@ -164,13 +164,8 @@ public class AgentOrchestrator {
                 }
 
                 String completion = responseBuffer.toString().trim();
-                if (completion.isEmpty() && llmClient != null) {
-                    List<org.springframework.ai.chat.messages.Message> history = (jpaChatMemory != null)
-                            ? jpaChatMemory.get(conv.getId().toString()) : List.of();
-                    String lastUserText = history != null && !history.isEmpty()
-                            ? history.get(history.size() - 1).getText() : "";
-                    completion = llmClient.generateCompletion(systemPrompt, lastUserText);
-                    sseBroadcaster.sendDelta(runId, completion);
+                if (completion.isEmpty()) {
+                    throw new IllegalStateException("AI returned no response");
                 }
 
                 // Persist assistant message into jpaChatMemory

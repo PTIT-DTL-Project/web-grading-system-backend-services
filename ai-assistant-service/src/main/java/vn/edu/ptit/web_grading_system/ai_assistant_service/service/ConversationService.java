@@ -98,7 +98,20 @@ public class ConversationService {
                 .sequenceNo(nextSeq)
                 .build();
         message = messageRepository.save(message);
-        runWorker.processRunAsync(run.getId());
+
+        UUID finalRunId = run.getId();
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            runWorker.processRunAsync(finalRunId);
+                        }
+                    }
+            );
+        } else {
+            runWorker.processRunAsync(finalRunId);
+        }
 
         return new SendMessageResponse(conversationId, run.getId(), message.getId());
     }

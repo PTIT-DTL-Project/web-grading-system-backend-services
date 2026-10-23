@@ -24,7 +24,13 @@ public class CommonToolsTest {
         CourseServiceClient client = mock(CourseServiceClient.class);
         ListMyClassesTool tool = new ListMyClassesTool(client);
 
-        ClassSummaryDto cls = new ClassSummaryDto(UUID.randomUUID(), "INT1434", "Kiến trúc máy tính", "Mô tả", "ACTIVE");
+        ClassSummaryDto cls = ClassSummaryDto.builder()
+                .id(UUID.randomUUID())
+                .code("INT1434")
+                .name("Kiến trúc máy tính")
+                .description("Mô tả")
+                .status("ACTIVE")
+                .build();
         PageDto<ClassSummaryDto> page = new PageDto<>(List.of(cls), 1, 1, 20, 0);
 
         when(client.listStudentClasses(any(), any(), anyInt(), anyInt(), any())).thenReturn(page);

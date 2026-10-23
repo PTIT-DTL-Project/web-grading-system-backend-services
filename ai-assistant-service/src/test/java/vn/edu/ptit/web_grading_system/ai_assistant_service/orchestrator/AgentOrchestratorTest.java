@@ -64,7 +64,7 @@ public class AgentOrchestratorTest {
     }
 
     @Test
-    void executeRun_successfulExecution() {
+    void executeRun_emptyStreamDoesNotSendSecondPrompt() {
         UUID runId = UUID.randomUUID();
         UUID convId = UUID.randomUUID();
 
@@ -85,17 +85,16 @@ public class AgentOrchestratorTest {
         when(conversationRepository.findById(convId)).thenReturn(Optional.of(conv));
         when(guardChecker.canContinue(any(), eq(0))).thenReturn(true);
         when(contextBuilder.buildSystemPrompt(any(), any())).thenReturn("System prompt");
-        when(llmClient.streamChatWithMemory(any(), any(), any(), any())).thenReturn(null);
-        when(llmClient.generateCompletion(any(), any())).thenReturn("Xin chào!");
-        when(messageRepository.findMaxSequenceNo(convId)).thenReturn(1);
+        when(llmClient.streamChatWithMemory(any(), any(), any(), any()))
+                .thenReturn(reactor.core.publisher.Flux.empty());
 
         orchestrator.executeRun(runId);
 
-        assertEquals(RunStatus.SUCCEEDED, run.getStatus());
-        verify(sseBroadcaster).sendDelta(eq(runId), eq("Xin chào!"));
-        verify(sseBroadcaster).sendEvent(eq(runId), eq("run.completed"), any());
+        assertEquals(RunStatus.FAILED, run.getStatus());
+        verify(llmClient, never()).generateCompletion(any(), any());
+        verify(sseBroadcaster).sendEvent(eq(runId), eq("run.failed"), any());
         verify(sseBroadcaster).complete(eq(runId));
-        verify(messageRepository).save(any(Message.class));
+        verify(messageRepository, never()).save(any(Message.class));
     }
 
     @Test
