@@ -71,13 +71,20 @@ public class ContextPreflight {
         }
         if (page.getTotalElements() > recent.size()) {
             try {
-                summary = extendSummary(conversationId, roleScope, recent.getFirst().getSequenceNo(), previous, summary);
+                previous = extendSummary(conversationId, roleScope, recent.getFirst().getSequenceNo(), previous, summary);
+                summary = previous == null ? summary : previous.getSummary();
             } catch (Exception ignored) {
                 // Retain the last valid checkpoint. The search tool can recover older originals.
             }
         }
         while (recent.size() > 1 && estimateEntities(recent) + estimator.estimateTokens(summary) > historyBudget) {
             recent.removeFirst();
+            try {
+                previous = extendSummary(conversationId, roleScope, recent.getFirst().getSequenceNo(), previous, summary);
+                summary = previous == null ? summary : previous.getSummary();
+            } catch (Exception ignored) {
+                // The original remains searchable if summary generation fails.
+            }
         }
         int historyTokens = estimateEntities(recent) + estimator.estimateTokens(summary);
         if (historyTokens > historyBudget) throw new InputTooLargeException("History exceeds context budget");
@@ -92,7 +99,7 @@ public class ContextPreflight {
                 systemTokens + historyTokens + toolTokens);
     }
 
-    private String extendSummary(UUID conversationId, String roleScope, int beforeSequence,
+    private ConversationSummary extendSummary(UUID conversationId, String roleScope, int beforeSequence,
                                  ConversationSummary previous, String oldSummary) {
         int throughSequence = previous == null ? 0 : messageRepository.findById(previous.getThroughMessageId())
                 .map(Message::getSequenceNo).orElse(0);
@@ -109,13 +116,14 @@ public class ContextPreflight {
             if (reachedCheckpoint || page.getContent().size() < 50) break;
             cursor = page.getContent().getLast().getSequenceNo();
         }
-        if (unsummarized.isEmpty()) return oldSummary;
+        if (unsummarized.isEmpty()) return previous;
         unsummarized.sort(Comparator.comparing(Message::getSequenceNo));
         String next = summarizer.summarize(oldSummary, unsummarized, 2000);
-        summaryRepository.save(ConversationSummary.builder().conversationId(conversationId)
+        ConversationSummary checkpoint = ConversationSummary.builder().conversationId(conversationId)
                 .roleScope(roleScope).throughMessageId(unsummarized.getLast().getId())
-                .summary(next).build());
-        return next;
+                .summary(next).build();
+        summaryRepository.save(checkpoint);
+        return checkpoint;
     }
 
     private int estimateEntities(List<Message> messages) {
