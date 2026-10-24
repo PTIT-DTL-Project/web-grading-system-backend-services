@@ -29,4 +29,10 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     Page<Message> findScopedBefore(@Param("conversationId") UUID conversationId,
                                    @Param("roleScope") String roleScope,
                                    @Param("beforeSequence") int beforeSequence, Pageable pageable);
+
+    @Query("SELECT m FROM Message m JOIN Run r ON r.id = m.runId WHERE m.conversationId = :conversationId AND r.callerRoles = :roleScope AND m.role IN ('user', 'assistant') AND m.sequenceNo < :beforeSequence AND LOWER(m.content) LIKE LOWER(CONCAT('%', :query, '%')) ORDER BY m.sequenceNo DESC")
+    Page<Message> searchScoped(@Param("conversationId") UUID conversationId,
+                               @Param("roleScope") String roleScope,
+                               @Param("query") String query,
+                               @Param("beforeSequence") int beforeSequence, Pageable pageable);
 }
