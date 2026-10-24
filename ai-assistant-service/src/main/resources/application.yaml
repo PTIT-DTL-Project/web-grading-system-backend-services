@@ -43,6 +43,7 @@ spring:
       chat:
         options:
           model: ${AI_MODEL_NAME:gpt-4o-mini}
+          max-completion-tokens: ${AI_MAX_COMPLETION_TOKENS:2048}
 
 management:
   endpoints:

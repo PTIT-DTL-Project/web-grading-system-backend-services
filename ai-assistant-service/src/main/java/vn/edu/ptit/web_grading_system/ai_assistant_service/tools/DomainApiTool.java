@@ -105,7 +105,7 @@ public class DomainApiTool implements AgentTool {
             }
             return ToolResult.ok(result);
         } catch (org.springframework.web.client.HttpClientErrorException e) {
-            return ToolResult.error("DOMAIN_REJECTED", "API từ chối: " + e.getStatusCode(), false);
+            return ToolResult.error("DOMAIN_REJECTED", rejectionMessage(e), false);
         } catch (org.springframework.web.client.ResourceAccessException e) {
             return method.equals("GET")
                     ? ToolResult.error("DOMAIN_API_UNAVAILABLE", "Không kết nối được API để tra cứu", true)
@@ -113,6 +113,22 @@ public class DomainApiTool implements AgentTool {
         } catch (Exception e) {
             return ToolResult.error("DOMAIN_API_ERROR", "Không xác nhận được kết quả từ API: " + e.getMessage(), false);
         }
+    }
+
+    private String rejectionMessage(org.springframework.web.client.HttpClientErrorException e) {
+        String message = "API từ chối (" + e.getStatusCode() + ")";
+        try {
+            JsonNode body = mapper.readTree(e.getResponseBodyAsString());
+            String reason = body.path("message").asText("").trim();
+            if (reason.isBlank()) reason = body.path("error").asText("").trim();
+            if (!reason.isBlank() && !reason.equals("null")) {
+                reason = reason.replaceAll("[\\p{Cntrl}]+", " ");
+                return message + ": " + reason.substring(0, Math.min(reason.length(), 400));
+            }
+        } catch (Exception ignored) {
+            // A non-JSON response should not be copied into a user-facing chat message.
+        }
+        return message;
     }
 
     public ToolResult validateArguments(JsonNode args) {
@@ -130,7 +146,31 @@ public class DomainApiTool implements AgentTool {
                         ? !args.path("payload").isArray() : !args.path("payload").isObject()))) {
             return ToolResult.error("INVALID_ARGUMENTS", "payload không đúng cấu trúc JSON", false);
         }
+        if (name.equals("createTestQuestion")) {
+            JsonNode steps = args.path("payload").path("steps");
+            if (steps.isArray()) {
+                for (int i = 0; i < steps.size(); i++) {
+                    ToolResult invalid = validateStepConfig(steps.get(i), "payload.steps[" + i + "]");
+                    if (invalid != null) return invalid;
+                }
+            }
+        } else if (name.equals("createTestStep")) {
+            return validateStepConfig(args.path("payload"), "payload");
+        }
         return null;
+    }
+
+    private ToolResult validateStepConfig(JsonNode step, String location) {
+        String stepType = step.path("stepType").asText();
+        JsonNode config = step.path("config");
+        String missing = switch (stepType) {
+            case "HTTP_REQUEST" -> config.path("method").asText().isBlank() ? "method"
+                    : config.path("path").asText().isBlank() ? "path" : null;
+            case "DB_QUERY" -> config.path("query").asText().isBlank() ? "query" : null;
+            default -> null;
+        };
+        return missing == null ? null : ToolResult.error("INVALID_ARGUMENTS",
+                location + ".config thiếu '" + missing + "' cho " + stepType, false);
     }
 
     private Map<String, Object> payloadSchema() {
@@ -142,7 +182,7 @@ public class DomainApiTool implements AgentTool {
         Map<String, Object> step = Map.of("type", "object", "properties", Map.of(
                 "stepOrder", integer, "name", text, "description", text,
                 "stepType", Map.of("type", "string", "enum", List.of("HTTP_REQUEST", "DB_QUERY", "DB_SCHEMA_CHECK", "DB_MIGRATION")),
-                "config", Map.of("type", "object"), "weight", integer, "timeoutMs", integer,
+                "config", stepConfigSchema(), "weight", integer, "timeoutMs", integer,
                 "required", Map.of("type", "boolean"), "expectedResult", Map.of("type", "object")),
                 "required", List.of("stepOrder", "name", "stepType", "config"));
         return switch (name) {
@@ -156,7 +196,7 @@ public class DomainApiTool implements AgentTool {
                     "required", List.of("name"));
             case "updateTestStep" -> Map.of("type", "object", "properties", Map.of(
                     "name", text, "description", text, "stepOrder", integer, "stepType", text,
-                    "config", Map.of("type", "object"), "weight", integer), "required", List.of("name"));
+                    "config", stepConfigSchema(), "weight", integer), "required", List.of("name"));
             case "updateAssignment" -> Map.of("type", "object", "properties", Map.of(
                     "title", text, "description", text, "classId", text, "gradingStrategy", text),
                     "required", List.of("title"));
@@ -168,5 +208,13 @@ public class DomainApiTool implements AgentTool {
                     "required", List.of("componentType", "score")));
             default -> Map.of("type", "object");
         };
+    }
+
+    private Map<String, Object> stepConfigSchema() {
+        return Map.of("type", "object", "description",
+                "Theo stepType: HTTP_REQUEST cần method và path (đường dẫn bắt đầu bằng /, không dùng url); "
+                        + "DB_QUERY cần query (câu SQL, không dùng sql); "
+                        + "DB_SCHEMA_CHECK cần checks (mảng không rỗng); "
+                        + "DB_MIGRATION cần statements (mảng không rỗng).");
     }
 }

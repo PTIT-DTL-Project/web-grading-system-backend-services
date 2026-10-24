@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.support.TransactionTemplate;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.task.PendingAction;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.repository.ConversationRepository;
@@ -17,6 +19,7 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -24,6 +27,12 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class WriteApprovalService {
+    public record ChatPendingAction(UUID id, String toolName, String description, JsonNode arguments) {
+        public String summary() {
+            return description + " (" + toolName + ") với tham số " + arguments;
+        }
+    }
+
     private final PendingActionRepository pendingActions;
     private final RunRepository runs;
     private final ConversationRepository conversations;
@@ -32,7 +41,7 @@ public class WriteApprovalService {
     private final vn.edu.ptit.web_grading_system.ai_assistant_service.config.GatewayTrustProperties gateway;
     private final PlatformTransactionManager transactionManager;
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ToolResult propose(AgentTool tool, JsonNode args, AgentContext context) {
         if (context.runId() == null || context.userId() == null) {
             return ToolResult.error("APPROVAL_CONTEXT_MISSING", "Không thể tạo yêu cầu duyệt", false);
@@ -45,6 +54,11 @@ public class WriteApprovalService {
         if (tool instanceof vn.edu.ptit.web_grading_system.ai_assistant_service.tools.DomainApiTool domainTool) {
             ToolResult invalid = domainTool.validateArguments(args);
             if (invalid != null) return invalid;
+        }
+        if (pendingActions.findPendingByConversationId(context.conversationId()).stream()
+                .anyMatch(action -> action.getExpiresAt() != null && action.getExpiresAt().isAfter(Instant.now()))) {
+            return ToolResult.error("PENDING_ACTION_EXISTS",
+                    "Đang có thao tác chờ đồng ý trong chat; hãy trả lời thao tác đó trước", false);
         }
         try {
             String payload = mapper.writeValueAsString(args);
@@ -75,16 +89,59 @@ public class WriteApprovalService {
         return pendingActions.findPendingByConversationId(conversationId).stream().map(this::view).toList();
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
+    public Optional<ChatPendingAction> pendingForChat(AgentContext context) {
+        conversations.findByIdAndOwnerId(context.conversationId(), context.userId())
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy cuộc trò chuyện"));
+        return pendingActions.findPendingByConversationId(context.conversationId()).stream()
+                .filter(action -> !action.getRunId().equals(context.runId()))
+                .filter(action -> action.getExpiresAt() != null && action.getExpiresAt().isAfter(Instant.now()))
+                .findFirst().map(action -> {
+                    try {
+                        String toolName = mapper.readTree(action.getOptionsJson()).path("toolName").asText();
+                        String description = tools.stream().filter(tool -> tool.getName().equals(toolName))
+                                .map(AgentTool::getDescription).findFirst().orElse(toolName);
+                        return new ChatPendingAction(action.getId(), toolName, description,
+                                mapper.readTree(action.getQuestionJson()));
+                    } catch (Exception e) {
+                        throw new IllegalStateException("Yêu cầu chờ duyệt không hợp lệ", e);
+                    }
+                });
+    }
+
+    public Object confirmFromChat(UUID id, AgentContext context) {
+        ChatPendingAction pending = pendingForChat(context)
+                .filter(action -> action.id().equals(id))
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thao tác chờ trong cuộc trò chuyện"));
+        return confirm(pending.id(), principal(context));
+    }
+
+    public Object rejectFromChat(UUID id, AgentContext context) {
+        ChatPendingAction pending = pendingForChat(context)
+                .filter(action -> action.id().equals(id))
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thao tác chờ trong cuộc trò chuyện"));
+        return reject(pending.id(), principal(context));
+    }
+
+    private UserPrincipal principal(AgentContext context) {
+        return new UserPrincipal(context.userId(), context.email(), context.roles().stream()
+                .map(org.springframework.security.core.authority.SimpleGrantedAuthority::new).toList());
+    }
+
     public Object reject(UUID id, UserPrincipal principal) {
-        PendingAction action = lockedOwned(id, principal);
-        if (!"PENDING".equals(action.getStatus())) throw new IllegalStateException("Yêu cầu không còn chờ duyệt");
-        action.setStatus("REJECTED");
-        return view(action);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return transaction.execute(status -> {
+            PendingAction action = lockedOwned(id, principal);
+            if (!"PENDING".equals(action.getStatus())) throw new IllegalStateException("Yêu cầu không còn chờ duyệt");
+            action.setStatus("REJECTED");
+            return view(action);
+        });
     }
 
     public Object confirm(UUID id, UserPrincipal principal) {
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         Reservation reservation = transaction.execute(status -> {
             PendingAction action = lockedOwned(id, principal);
             if (!"PENDING".equals(action.getStatus()) || action.getExpiresAt().isBefore(Instant.now()))

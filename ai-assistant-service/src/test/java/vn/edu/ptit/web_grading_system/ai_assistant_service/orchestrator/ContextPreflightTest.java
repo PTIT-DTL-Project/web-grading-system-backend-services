@@ -77,11 +77,12 @@ class ContextPreflightTest {
                 .thenReturn(new PageImpl<>(List.of(middle, older)));
         when(summaries.findTopByConversationIdAndRoleScopeOrderByCreatedAtDesc(conversationId, "ROLE_STUDENT"))
                 .thenReturn(Optional.empty());
-        when(summarizer.summarize(eq(""), anyList(), eq(2000))).thenReturn("a summary that uses many tokens");
+        when(summarizer.summarize(eq(""), anyList(), eq(17))).thenReturn("a summary that uses many tokens");
 
         new ContextPreflight(messages, summaries, summarizer, props, new TokenEstimator())
                 .prepare(conversationId, ownerId, Set.of("ROLE_STUDENT"), "system", List.of(), List.of());
 
+        verify(summarizer).summarize(eq(""), anyList(), eq(17));
         verify(summaries).save(argThat(saved -> saved.getThroughMessageId().equals(middle.getId())));
     }
 

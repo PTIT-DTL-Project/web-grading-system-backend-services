@@ -159,4 +159,28 @@ class LlmClientTest {
         assertTrue(String.join("", output).contains("found-tool"), "output=" + output);
         verify(chatModel, times(1)).stream(any(Prompt.class));
     }
+
+    @Test
+    void classifiesExplicitChatConsentForThePendingAction() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        when(chatModel.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(
+                new Generation(new AssistantMessage("CONFIRM")))));
+
+        assertEquals(LlmClient.ApprovalDecision.CONFIRM,
+                client.classifyPendingActionReply("đồng ý, tạo đi", "Tạo câu kiểm tra Q1"));
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel).call(prompt.capture());
+        assertTrue(prompt.getValue().getContents().contains("Tạo câu kiểm tra Q1"));
+        assertTrue(prompt.getValue().getContents().contains("đồng ý, tạo đi"));
+    }
+
+    @Test
+    void ambiguousClassifierOutputCannotAuthorizeAWrite() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        when(chatModel.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(
+                new Generation(new AssistantMessage("CONFIRM, nếu hợp lệ")))));
+
+        assertEquals(LlmClient.ApprovalDecision.OTHER,
+                client.classifyPendingActionReply("có thể xem lại không", "Tạo câu kiểm tra Q1"));
+    }
 }

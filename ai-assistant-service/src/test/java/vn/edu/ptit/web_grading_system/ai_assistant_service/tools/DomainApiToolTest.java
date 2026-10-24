@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -36,10 +37,29 @@ class DomainApiToolTest {
     void questionSchemaRequiresPlanAndStepsAndDirectCallbackCannotWrite() throws Exception {
         var schema = mapper.readTree(createQuestion.getToolDefinition().inputSchema());
         assertTrue(schema.path("properties").path("payload").path("required").toString().contains("steps"));
+        String configDescription = schema.path("properties").path("payload").path("properties")
+                .path("steps").path("items").path("properties").path("config")
+                .path("description").asText();
+        assertTrue(configDescription.contains("path"));
+        assertTrue(configDescription.contains("query"));
         assertEquals("APPROVAL_REQUIRED", mapper.readTree(createQuestion.call("{}"))
                 .path("code").asText());
         assertEquals("INVALID_ARGUMENTS", createQuestion.validateArguments(mapper.readTree("{}"))
                 .getCode());
+    }
+
+    @Test
+    void invalidStepConfigIsRejectedBeforeAskingForConsent() throws Exception {
+        var args = mapper.readTree("{\"assignmentId\":\"" + UUID.randomUUID()
+                + "\",\"payload\":{\"plan\":{\"name\":\"Q1\",\"sequenceOrder\":1},"
+                + "\"steps\":[{\"name\":\"HTTP\",\"stepType\":\"HTTP_REQUEST\",\"stepOrder\":1,"
+                + "\"config\":{\"method\":\"POST\",\"url\":\"/api/books\"}}]}}");
+
+        ToolResult result = createQuestion.validateArguments(args);
+
+        assertNotNull(result);
+        assertEquals("INVALID_ARGUMENTS", result.getCode());
+        assertTrue(result.getMessage().contains("path"));
     }
 
     @Test
@@ -62,6 +82,30 @@ class DomainApiToolTest {
         ToolResult result = tool.execute(mapper.readTree("{\"assignmentId\":\"" + assignmentId + "\"}"), context);
 
         assertTrue(result.isSuccess(), result.getMessage());
+        server.verify();
+    }
+
+    @Test
+    void writeRejectionPreservesSafeValidationMessageFromCourseService() throws Exception {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://course.local");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        UUID assignmentId = UUID.randomUUID();
+        server.expect(requestTo("http://course.local/api/v1/assignments/" + assignmentId + "/plans/with-steps"))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                        .withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"status\":400,\"message\":\"HTTP_REQUEST: missing or empty 'path'\"}"));
+        DomainApiTool tool = new DomainApiTool("createTestQuestion", "Tạo câu kiểm tra", "ROLE_LECTURER",
+                "POST", "/api/v1/assignments/{assignmentId}/plans/with-steps",
+                new String[]{"assignmentId"}, new String[]{}, true, null, builder.build(), mapper);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                UUID.randomUUID(), UUID.randomUUID(), "secret");
+
+        ToolResult result = tool.execute(mapper.readTree("{\"assignmentId\":\"" + assignmentId
+                + "\",\"payload\":{\"plan\":{},\"steps\":[]}}"), context);
+
+        assertEquals("DOMAIN_REJECTED", result.getCode());
+        assertTrue(result.getMessage().contains("HTTP_REQUEST: missing or empty 'path'"));
         server.verify();
     }
 }

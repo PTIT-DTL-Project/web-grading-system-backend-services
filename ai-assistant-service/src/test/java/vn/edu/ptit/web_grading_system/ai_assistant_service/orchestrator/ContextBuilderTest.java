@@ -15,6 +15,8 @@ public class ContextBuilderTest {
         String prompt = builder.buildSystemPrompt("ROLE_STUDENT", null);
         assertTrue(prompt.contains("WGS"), "Prompt should mention WGS");
         assertTrue(prompt.contains("ROLE_STUDENT"), "Prompt should mention role");
+        assertTrue(prompt.contains("đồng ý trong chat"));
+        assertTrue(!prompt.contains("bấm xác nhận trên giao diện"));
     }
 
     @Test

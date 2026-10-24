@@ -59,6 +59,7 @@ public class ContextPreflight {
             throw new InputTooLargeException("System and tool context exceed input budget");
         }
         int historyBudget = Math.min(limits.getHistoryMaxTokens(), availableOverall - systemTokens - toolTokens);
+        int summaryBudget = Math.min(1000, Math.max(1, historyBudget / 2));
         if (estimator.estimateTokens(recent.getLast().getContent()) > historyBudget) {
             throw new InputTooLargeException("Newest message exceeds history budget");
         }
@@ -71,7 +72,8 @@ public class ContextPreflight {
         }
         if (page.getTotalElements() > recent.size()) {
             try {
-                previous = extendSummary(conversationId, roleScope, recent.getFirst().getSequenceNo(), previous, summary);
+                previous = extendSummary(conversationId, roleScope, recent.getFirst().getSequenceNo(), previous,
+                        summary, summaryBudget);
                 summary = previous == null ? summary : previous.getSummary();
             } catch (Exception ignored) {
                 // Retain the last valid checkpoint. The search tool can recover older originals.
@@ -80,7 +82,8 @@ public class ContextPreflight {
         while (recent.size() > 1 && estimateEntities(recent) + estimator.estimateTokens(summary) > historyBudget) {
             recent.removeFirst();
             try {
-                previous = extendSummary(conversationId, roleScope, recent.getFirst().getSequenceNo(), previous, summary);
+                previous = extendSummary(conversationId, roleScope, recent.getFirst().getSequenceNo(), previous,
+                        summary, summaryBudget);
                 summary = previous == null ? summary : previous.getSummary();
             } catch (Exception ignored) {
                 // The original remains searchable if summary generation fails.
@@ -100,7 +103,7 @@ public class ContextPreflight {
     }
 
     private ConversationSummary extendSummary(UUID conversationId, String roleScope, int beforeSequence,
-                                 ConversationSummary previous, String oldSummary) {
+                                 ConversationSummary previous, String oldSummary, int summaryBudget) {
         int throughSequence = previous == null ? 0 : messageRepository.findById(previous.getThroughMessageId())
                 .map(Message::getSequenceNo).orElse(0);
         List<Message> unsummarized = new ArrayList<>();
@@ -118,7 +121,7 @@ public class ContextPreflight {
         }
         if (unsummarized.isEmpty()) return previous;
         unsummarized.sort(Comparator.comparing(Message::getSequenceNo));
-        String next = summarizer.summarize(oldSummary, unsummarized, 2000);
+        String next = summarizer.summarize(oldSummary, unsummarized, summaryBudget);
         ConversationSummary checkpoint = ConversationSummary.builder().conversationId(conversationId)
                 .roleScope(roleScope).throughMessageId(unsummarized.getLast().getId())
                 .summary(next).build();
