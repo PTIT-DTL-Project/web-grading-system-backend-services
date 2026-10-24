@@ -55,11 +55,11 @@
 - Produces: `ToolSelector.selectInitial(String userText, Set<String> roles, int limit): List<String>`; `ToolRegistry.searchAuthorized(String query, Set<String> roles, int limit): List<ToolDefinition>`; `ToolRegistry.callbacksForNames(Set<String> names, AgentContext context, BiConsumer<AgentTool,ToolResult> onResult): List<ToolCallback>`.
 - `SearchToolsTool` accepts `{query:string}` and reports only authorized matching tool metadata. It records discovered names in a per-run selection object supplied by orchestration; it never invokes a discovered domain tool.
 
-- [ ] **Step 1: Write failing tests** for capped deterministic Vietnamese selection, zero-match selection, role filtering, and discovering an additional tool after the initial selection.
-- [ ] **Step 2: Run** `mvn -Dtest=ToolSelectorTest,ToolRegistryTest test` in `ai-assistant-service`; confirm new assertions fail.
-- [ ] **Step 3: Implement** the interfaces above, with stable metadata scoring and a small explicit Vietnamese synonym table; add configurable `initialToolLimit=4`, `toolSearchLimit=5`.
-- [ ] **Step 4: Rerun** the focused tests; expect zero failures.
-- [ ] **Step 5: Commit** only Task 1 code and tests.
+- [x] **Step 1: Write failing tests** for capped deterministic Vietnamese selection, zero-match selection, role filtering, and discovering an additional tool after the initial selection.
+- [x] **Step 2: Run** `mvn -Dtest=ToolSelectorTest,ToolRegistryTest test` in `ai-assistant-service`; confirm new assertions fail.
+- [x] **Step 3: Implement** the interfaces above, with stable metadata scoring and a small explicit Vietnamese synonym table; add configurable `initialToolLimit=4`, `toolSearchLimit=5`.
+- [x] **Step 4: Rerun** the focused tests; expect zero failures.
+- [x] **Step 5: Commit** only Task 1 code and tests.
 
 ### Task 2: Complete-message context and rolling summary
 
@@ -80,11 +80,11 @@
 - Produces: `ContextPreflight.prepare(UUID conversationId, UUID ownerId, Set<String> roles, String systemPrompt, List<ToolCallback> tools, List<Message> inFlight): PreparedContext`; `PreparedContext` holds complete chronological Spring AI messages plus summary and budget totals.
 - `ConversationSummarizer.summarize(String priorSummary, List<Message> completeMessages, int maxSummaryTokens): String` processes bounded chunks. Repository queries filter by conversation ID and normalized saved run roles; summary lookup uses the same role scope and `throughMessageId` checkpoint.
 
-- [ ] **Step 1: Write failing tests** for ten-message selection, intact messages, separate history/tool/overall budget checks, whole-message eviction and summary before prompt construction, role changes, failed summary, and oversized newest message.
-- [ ] **Step 2: Run** `mvn -Dtest=ContextPreflightTest,JpaChatMemoryTest test`; confirm new assertions fail.
-- [ ] **Step 3: Implement** bounded reverse-page message reads, role-scoped summary storage via V5 migration, and preflight. Set `historyMaxTokens=12000` and `toolMaxTokens=6000` under the existing 26000-token configured maximum and reserves. Keep original messages untouched; never call the unbounded `JpaChatMemory.get()` on the agent path.
-- [ ] **Step 4: Rerun** focused tests; expect zero failures.
-- [ ] **Step 5: Commit** Task 2 files.
+- [x] **Step 1: Write failing tests** for ten-message selection, intact messages, separate history/tool/overall budget checks, whole-message eviction and summary before prompt construction, role changes, failed summary, and oversized newest message.
+- [x] **Step 2: Run** `mvn -Dtest=ContextPreflightTest,JpaChatMemoryTest test`; confirm new assertions fail.
+- [x] **Step 3: Implement** bounded reverse-page message reads, role-scoped summary storage via V5 migration, and preflight. Set `historyMaxTokens=12000` and `toolMaxTokens=6000` under the existing 26000-token configured maximum and reserves. Keep original messages untouched; never call the unbounded `JpaChatMemory.get()` on the agent path.
+- [x] **Step 4: Rerun** focused tests; expect zero failures.
+- [x] **Step 5: Commit** Task 2 files.
 
 ### Task 3: Search old decisions in the current conversation
 
@@ -97,11 +97,11 @@
 **Interfaces:**
 - Produces: `search_conversation({query:string,cursor?:string})` returning a bounded page of original message ID, role, sequence number, and excerpt. Query always uses `AgentContext.conversationId`, verifies the conversation owner against `AgentContext.userId`, and applies current run role scope.
 
-- [ ] **Step 1: Write failing tests** for retrieval of an old decision, other-conversation and changed-role exclusion, invalid owner, empty query, and bounded pagination.
-- [ ] **Step 2: Run** `mvn -Dtest=SearchConversationToolTest test`; confirm new assertions fail.
-- [ ] **Step 3: Implement** the scoped repository search, cursor, and callback. Add a PostgreSQL text-search index in V6 if the chosen query needs one; keep tests compatible with H2.
-- [ ] **Step 4: Rerun** focused tests; expect zero failures.
-- [ ] **Step 5: Commit** Task 3 files.
+- [x] **Step 1: Write failing tests** for retrieval of an old decision, other-conversation and changed-role exclusion, invalid owner, empty query, and bounded pagination.
+- [x] **Step 2: Run** `mvn -Dtest=SearchConversationToolTest test`; confirm new assertions fail.
+- [x] **Step 3: Implement** the scoped repository search, cursor, and callback. Add a PostgreSQL text-search index in V6 if the chosen query needs one; keep tests compatible with H2.
+- [x] **Step 4: Rerun** focused tests; expect zero failures.
+- [x] **Step 5: Commit** Task 3 files.
 
 ### Task 4: Preserve and page oversized tool results
 
@@ -118,11 +118,11 @@
 - Produces: `ToolResultStore.offer(String fullResult, AgentContext context, int availableToolTokens): ToolResultDelivery` and `ToolResultStore.page(UUID storedId, String cursor, AgentContext context, int availableToolTokens): ToolResultPage`; `get_tool_result_page` delegates to `page`.
 - Config: `historyMaxTokens=12000`, `toolMaxTokens=6000`, and `storedToolResultTtlMinutes=60` under the existing overall limit. Document them in YAML.
 
-- [ ] **Step 1: Write failing tests** for whole fitting result, exact multi-page reconstruction of 100 JSON records and long Unicode text, oversized single element, expiry, owner/run/role isolation, and no domain re-execution.
-- [ ] **Step 2: Run** `mvn -Dtest=ToolResultStoreTest test`; confirm new assertions fail.
-- [ ] **Step 3: Implement** full-result persistence, exact page boundaries, cursor validation, and bounded cleanup. Use `ai_tool_execution` only for redacted audit data.
-- [ ] **Step 4: Rerun** focused tests; expect zero failures.
-- [ ] **Step 5: Commit** Task 4 files.
+- [x] **Step 1: Write failing tests** for whole fitting result, exact multi-page reconstruction of 100 JSON records and long Unicode text, oversized single element, expiry, owner/run/role isolation, and no domain re-execution.
+- [x] **Step 2: Run** `mvn -Dtest=ToolResultStoreTest test`; confirm new assertions fail.
+- [x] **Step 3: Implement** full-result persistence, exact page boundaries, cursor validation, and bounded cleanup. Use `ai_tool_execution` only for redacted audit data.
+- [x] **Step 4: Rerun** focused tests; expect zero failures.
+- [x] **Step 5: Commit** Task 4 files.
 
 ### Task 5: Wire dynamic continuation and preflight into the run
 
@@ -137,9 +137,9 @@
 - Consumes: `ToolSelector.selectInitial`, `ToolRegistry.callbacksForNames`, `ContextPreflight.prepare`, `ToolResultStore.offer`, and the three model-facing utility tools from Tasks 1, 3, and 4.
 - Produces: one bounded model continuation that rebuilds callbacks and context before each provider request. A `search_tools` result updates the selected-name set for the next request; tool outputs enter the tool budget through full delivery or stored pages. Preserve the existing run limits, SSE events, reply persistence, and write approval.
 
-- [ ] **Step 1: Write failing tests** for the first callback cap, discovering and calling another tool after an intermediate call, second discovery in one run, preflight on every model request, full fitting tool output, and exactly one pending write proposal.
-- [ ] **Step 2: Run** `mvn -Dtest=AgentOrchestratorTest,LlmClientTest test`; confirm new assertions fail.
-- [ ] **Step 3: Implement** a controlled model/tool continuation using the local Spring AI 2.0 API so callback changes take effect on the next request. Do not depend on a fixed callback list inside one `ChatClient` stream; do not emit an intermediate final answer as the run's reply.
-- [ ] **Step 4: Rerun** focused tests; expect zero failures.
-- [ ] **Step 5: Run** `mvn test` in `ai-assistant-service`; expect the whole module suite to pass, and inspect one multi-step trace with a second discovery.
-- [ ] **Step 6: Commit** Task 5 files and any completed spec/plan documentation.
+- [x] **Step 1: Write failing tests** for the first callback cap, discovering and calling another tool after an intermediate call, second discovery in one run, preflight on every model request, full fitting tool output, and exactly one pending write proposal.
+- [x] **Step 2: Run** `mvn -Dtest=AgentOrchestratorTest,LlmClientTest test`; confirm new assertions fail.
+- [x] **Step 3: Implement** a controlled model/tool continuation using the local Spring AI 2.0 API so callback changes take effect on the next request. Do not depend on a fixed callback list inside one `ChatClient` stream; do not emit an intermediate final answer as the run's reply.
+- [x] **Step 4: Rerun** focused tests; expect zero failures.
+- [x] **Step 5: Run** `mvn test` in `ai-assistant-service`; expect the whole module suite to pass, and inspect one multi-step trace with a second discovery.
+- [x] **Step 6: Commit** Task 5 files and any completed spec/plan documentation.
