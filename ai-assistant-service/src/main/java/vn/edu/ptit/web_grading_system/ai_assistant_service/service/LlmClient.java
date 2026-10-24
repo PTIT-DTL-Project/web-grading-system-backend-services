@@ -48,6 +48,23 @@ public class LlmClient {
         )));
     }
 
+    /** Summary path: a provider error must not become the explanation fallback JSON. */
+    public String generateStrictCompletion(String systemPrompt, String userPrompt) {
+        if (isOfflineMode()) return null;
+        try {
+            ChatResponse response = chatModel.call(new Prompt(List.of(
+                    new SystemMessage(systemPrompt), new UserMessage(userPrompt))));
+            if (response == null || response.getResult() == null || response.getResult().getOutput() == null) {
+                throw new AiProviderException(new IllegalStateException("Empty summary response"));
+            }
+            return response.getResult().getOutput().getText();
+        } catch (AiProviderException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AiProviderException(e);
+        }
+    }
+
     /** Generate a short title without the structured JSON fallback used by explanations. */
     public String generateConversationTitle(String firstQuestion) {
         String question = firstQuestion == null ? "" : firstQuestion.strip();
@@ -188,6 +205,24 @@ public class LlmClient {
                     .onErrorMap(AiProviderException::new);
         } catch (Exception e) {
             log.error("Failed to stream chat with memory via Spring AI: {}", e.getMessage(), e);
+            return Flux.error(new AiProviderException(e));
+        }
+    }
+
+    public Flux<String> streamAgentTurn(String systemPrompt,
+            List<org.springframework.ai.chat.messages.Message> messages,
+            List<ToolCallback> toolCallbacks) {
+        if (isOfflineMode()) {
+            String last = messages == null || messages.isEmpty() ? "" : messages.getLast().getText();
+            return Flux.just(generateFallbackResponse(last));
+        }
+        try {
+            var spec = chatClient.prompt().system(systemPrompt);
+            if (messages != null && !messages.isEmpty()) spec.messages(messages);
+            if (toolCallbacks != null && !toolCallbacks.isEmpty()) spec.toolCallbacks(toolCallbacks);
+            return spec.stream().content().filter(s -> s != null && !s.isEmpty())
+                    .onErrorMap(AiProviderException::new);
+        } catch (Exception e) {
             return Flux.error(new AiProviderException(e));
         }
     }

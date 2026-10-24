@@ -22,6 +22,9 @@ public class SearchToolsTool {
 
     public ToolCallback callback(AgentContext context, Set<String> discoveredNames) {
         return new ToolCallback() {
+            @Override public org.springframework.ai.tool.metadata.ToolMetadata getToolMetadata() {
+                return org.springframework.ai.tool.metadata.ToolMetadata.builder().returnDirect(true).build();
+            }
             @Override public org.springframework.ai.tool.definition.ToolDefinition getToolDefinition() {
                 return org.springframework.ai.tool.definition.ToolDefinition.builder()
                         .name("search_tools")

@@ -203,4 +203,38 @@ public class AgentOrchestratorTest {
         org.junit.jupiter.api.Assertions.assertEquals(run.getErrorMessage(), saved.getValue().getContent());
         verify(sseBroadcaster).sendEvent(eq(runId), eq("assistant.replace"), eq(run.getErrorMessage()));
     }
+
+    @Test
+    void productionPathUsesAgentRuntimeAndPersistsReplyWithRunId() {
+        UUID runId = UUID.randomUUID(), convId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        Run run = Run.builder().id(runId).conversationId(convId).callerRoles("ROLE_STUDENT")
+                .status(RunStatus.QUEUED).build();
+        Conversation conv = Conversation.builder().id(convId).ownerId(ownerId).build();
+        AgentRuntime runtime = mock(AgentRuntime.class);
+        vn.edu.ptit.web_grading_system.ai_assistant_service.memory.JpaChatMemory memory =
+                mock(vn.edu.ptit.web_grading_system.ai_assistant_service.memory.JpaChatMemory.class);
+        orchestrator = new AgentOrchestrator(runRepository, conversationRepository, messageRepository,
+                taskRepository, runEventRepository, guardChecker, contextBuilder, sseBroadcaster,
+                llmClient, mock(ToolRegistry.class), null, memory, runtime);
+        when(runRepository.findById(runId)).thenReturn(Optional.of(run));
+        when(runRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        when(conversationRepository.findById(convId)).thenReturn(Optional.of(conv));
+        when(guardChecker.canContinue(any(), eq(0))).thenReturn(true);
+        when(contextBuilder.buildSystemPrompt(any(), any())).thenReturn("system");
+        when(messageRepository.findFirstByRunIdAndRoleOrderBySequenceNoAsc(runId, "user"))
+                .thenReturn(Optional.of(Message.builder().content("Xem bài nộp").build()));
+        when(runtime.execute(any(), eq("system"), eq("Xem bài nộp"), eq(llmClient), any(), any()))
+                .thenAnswer(call -> {
+                    java.util.function.Consumer<String> delta = call.getArgument(4);
+                    delta.accept("Đây là bài nộp");
+                    return "Đây là bài nộp";
+                });
+
+        orchestrator.executeRun(runId);
+
+        verify(runtime).execute(any(), eq("system"), eq("Xem bài nộp"), eq(llmClient), any(), any());
+        verify(memory).addForRun(eq(convId.toString()), eq(runId), anyList());
+        assertEquals(RunStatus.SUCCEEDED, run.getStatus());
+    }
 }

@@ -60,4 +60,22 @@ class ToolSelectorTest {
                 Set.of("listMySubmissions", "getClassTranscript"), context, (tool, result) -> {})
                 .stream().map(callback -> callback.getToolDefinition().name()).toList());
     }
+
+    @Test
+    void searchCallbackReturnsDirectSoNextRequestCanExposeDiscoveredTools() {
+        ToolRegistry registry = new ToolRegistry(List.of(tool("listMySubmissions", "Liệt kê bài nộp", "ROLE_STUDENT")), mapper);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_STUDENT"), UUID.randomUUID(), UUID.randomUUID(), "");
+        Set<String> selected = new java.util.HashSet<>();
+        var callback = new SearchToolsTool(registry, mapper, 5).callback(context, selected);
+        assertTrue(callback.getToolMetadata().returnDirect());
+        assertTrue(callback.call("{\"query\":\"bài nộp\"}").contains("listMySubmissions"));
+        assertTrue(selected.contains("listMySubmissions"));
+    }
+
+    @Test
+    void englishQueryCanMatchCamelCaseToolName() {
+        ToolRegistry registry = new ToolRegistry(List.of(tool("listMySubmissions", "Liệt kê bài nộp", "ROLE_STUDENT")), mapper);
+        assertEquals(List.of("listMySubmissions"),
+                new ToolSelector(registry).selectInitial("my submissions", Set.of("ROLE_STUDENT"), 4));
+    }
 }

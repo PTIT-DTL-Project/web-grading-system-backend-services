@@ -47,6 +47,7 @@ public class AgentOrchestrator {
     private final ToolRegistry toolRegistry;
     private final GatewayTrustProperties gatewayProperties;
     private final JpaChatMemory jpaChatMemory;
+    private final AgentRuntime agentRuntime;
 
     @Autowired
     public AgentOrchestrator(
@@ -61,7 +62,8 @@ public class AgentOrchestrator {
             LlmClient llmClient,
             ToolRegistry toolRegistry,
             GatewayTrustProperties gatewayProperties,
-            JpaChatMemory jpaChatMemory
+            JpaChatMemory jpaChatMemory,
+            AgentRuntime agentRuntime
     ) {
         this.runRepository = runRepository;
         this.conversationRepository = conversationRepository;
@@ -75,6 +77,18 @@ public class AgentOrchestrator {
         this.toolRegistry = toolRegistry;
         this.gatewayProperties = gatewayProperties;
         this.jpaChatMemory = jpaChatMemory;
+        this.agentRuntime = agentRuntime;
+    }
+
+    public AgentOrchestrator(
+            RunRepository runRepository, ConversationRepository conversationRepository,
+            MessageRepository messageRepository, TaskRepository taskRepository,
+            RunEventRepository runEventRepository, GuardChecker guardChecker,
+            ContextBuilder contextBuilder, SseBroadcaster sseBroadcaster, LlmClient llmClient,
+            ToolRegistry toolRegistry, GatewayTrustProperties gatewayProperties, JpaChatMemory jpaChatMemory) {
+        this(runRepository, conversationRepository, messageRepository, taskRepository,
+                runEventRepository, guardChecker, contextBuilder, sseBroadcaster, llmClient,
+                toolRegistry, gatewayProperties, jpaChatMemory, null);
     }
 
     public AgentOrchestrator(
@@ -90,7 +104,7 @@ public class AgentOrchestrator {
     ) {
         this(runRepository, conversationRepository, messageRepository, taskRepository,
                 runEventRepository, guardChecker, contextBuilder, sseBroadcaster, llmClient,
-                null, null, null);
+                null, null, null, null);
     }
 
     @Transactional
@@ -152,28 +166,44 @@ public class AgentOrchestrator {
                 );
 
                 AtomicReference<ToolResult> failedWrite = new AtomicReference<>();
-                List<ToolCallback> toolCallbacks = (toolRegistry != null)
-                        ? toolRegistry.getToolCallbacksForRoles(agentContext.roles(), agentContext, (tool, result) -> {
-                            if (tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE) {
-                                failedWrite.set(result.isSuccess() ? null : result);
-                            }
-                        })
-                        : List.of();
-
                 StringBuilder responseBuffer = new StringBuilder();
-                Flux<String> stream = (llmClient != null)
-                        ? llmClient.streamChatWithMemory(systemPrompt, conv.getId().toString(), jpaChatMemory, toolCallbacks)
-                        : null;
-
-                if (stream != null) {
+                if (agentRuntime != null) {
+                    String latestUserText = messageRepository.findFirstByRunIdAndRoleOrderBySequenceNoAsc(runId, "user")
+                            .map(Message::getContent).orElse("");
                     try {
-                        stream.doOnNext(delta -> {
-                            responseBuffer.append(delta);
-                            sseBroadcaster.sendDelta(runId, delta);
-                        }).blockLast();
+                        agentRuntime.execute(agentContext, systemPrompt, latestUserText, llmClient,
+                                delta -> {
+                                    responseBuffer.append(delta);
+                                    sseBroadcaster.sendDelta(runId, delta);
+                                }, (tool, result) -> {
+                                    if (tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE) {
+                                        failedWrite.set(result.isSuccess() ? null : result);
+                                    }
+                                });
                     } catch (Exception ex) {
-                        log.warn("Streaming encountered error: {}", ex.getMessage());
+                        log.warn("Agent execution error: {}", ex.getMessage());
                         if (failedWrite.get() == null) throw new AiProviderException(ex);
+                    }
+                } else {
+                    List<ToolCallback> toolCallbacks = (toolRegistry != null)
+                            ? toolRegistry.getToolCallbacksForRoles(agentContext.roles(), agentContext, (tool, result) -> {
+                                if (tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE) {
+                                    failedWrite.set(result.isSuccess() ? null : result);
+                                }
+                            }) : List.of();
+                    Flux<String> stream = (llmClient != null)
+                            ? llmClient.streamChatWithMemory(systemPrompt, conv.getId().toString(), jpaChatMemory, toolCallbacks)
+                            : null;
+                    if (stream != null) {
+                        try {
+                            stream.doOnNext(delta -> {
+                                responseBuffer.append(delta);
+                                sseBroadcaster.sendDelta(runId, delta);
+                            }).blockLast();
+                        } catch (Exception ex) {
+                            log.warn("Streaming encountered error: {}", ex.getMessage());
+                            if (failedWrite.get() == null) throw new AiProviderException(ex);
+                        }
                     }
                 }
 
@@ -189,7 +219,8 @@ public class AgentOrchestrator {
 
                 // Persist assistant message into jpaChatMemory
                 if (jpaChatMemory != null && !completion.isEmpty()) {
-                    jpaChatMemory.add(conv.getId().toString(), List.of(new org.springframework.ai.chat.messages.AssistantMessage(completion)));
+                    jpaChatMemory.addForRun(conv.getId().toString(), runId,
+                            List.of(new org.springframework.ai.chat.messages.AssistantMessage(completion)));
                 } else if (!completion.isEmpty()) {
                     int nextSeq = messageRepository.findMaxSequenceNo(conv.getId()) + 1;
                     Message assistantMsg = Message.builder()

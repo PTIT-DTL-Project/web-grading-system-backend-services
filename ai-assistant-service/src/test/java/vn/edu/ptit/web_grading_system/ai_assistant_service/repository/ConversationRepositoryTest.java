@@ -99,4 +99,26 @@ public class ConversationRepositoryTest {
         entityManager.clear();
         assertEquals("Tên người dùng", conversationRepository.findById(conv.getId()).orElseThrow().getTitle());
     }
+
+    @Test
+    void scopedHistoryAndSearchExcludeEarlierLecturerRun() {
+        Conversation conv = conversationRepository.save(Conversation.builder().ownerId(UUID.randomUUID()).build());
+        Run lecturer = runRepository.save(Run.builder().conversationId(conv.getId())
+                .callerRoles("ROLE_LECTURER").build());
+        Run student = runRepository.save(Run.builder().conversationId(conv.getId())
+                .callerRoles("ROLE_STUDENT").build());
+        messageRepository.save(Message.builder().conversationId(conv.getId()).runId(lecturer.getId())
+                .role("assistant").content("Quyết định về đáp án ẩn").sequenceNo(1).build());
+        messageRepository.save(Message.builder().conversationId(conv.getId()).runId(student.getId())
+                .role("user").content("Quyết định hạn nộp thứ Sáu").sequenceNo(2).build());
+        messageRepository.flush();
+
+        assertEquals(List.of("Quyết định hạn nộp thứ Sáu"),
+                messageRepository.findScopedRecent(conv.getId(), "ROLE_STUDENT", PageRequest.of(0, 10))
+                        .getContent().stream().map(Message::getContent).toList());
+        assertTrue(messageRepository.searchScoped(conv.getId(), "ROLE_STUDENT", "đáp án", Integer.MAX_VALUE,
+                PageRequest.of(0, 5)).isEmpty());
+        assertEquals(1, messageRepository.searchScoped(conv.getId(), "ROLE_STUDENT", "hạn nộp", Integer.MAX_VALUE,
+                PageRequest.of(0, 5)).getTotalElements());
+    }
 }

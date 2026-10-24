@@ -106,4 +106,44 @@ class ToolResultStoreTest {
             assertEquals(original, reconstructed.toString());
         }
     }
+
+    @Test
+    void previouslyDeliveredWholeResultCanBeStoredWhenLaterContextFills() {
+        StoredToolResultRepository repository = mock(StoredToolResultRepository.class);
+        when(repository.save(any())).thenAnswer(call -> call.getArgument(0));
+        ToolResultStore store = new ToolResultStore(repository, new TokenEstimator(), new AgentProperties());
+        UUID id = store.reference("complete earlier tool result", context);
+        var capture = org.mockito.ArgumentCaptor.forClass(StoredToolResult.class);
+        verify(repository).save(capture.capture());
+        assertEquals("complete earlier tool result", capture.getValue().getFullResult());
+        assertEquals(id, capture.getValue().getId());
+    }
+
+    @Test
+    void storedPageEnvelopeFitsTheTokenAllowance() throws Exception {
+        StoredToolResultRepository repository = mock(StoredToolResultRepository.class);
+        when(repository.save(any())).thenAnswer(call -> call.getArgument(0));
+        TokenEstimator estimator = new TokenEstimator();
+        ToolResultStore store = new ToolResultStore(repository, estimator, new AgentProperties());
+        String result = "[" + java.util.stream.IntStream.range(0, 1000)
+                .mapToObj(i -> "{\"id\":" + i + ",\"name\":\"submission\"}")
+                .collect(java.util.stream.Collectors.joining(",")) + "]";
+        var delivery = store.offer(result, context, 3000);
+        int actual = estimator.estimateTokens(new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsString(delivery));
+        assertTrue(actual <= 3000, "estimated page tokens=" + actual);
+    }
+
+    @Test
+    void heavilyEscapedJsonStillFitsPageBudget() throws Exception {
+        StoredToolResultRepository repository = mock(StoredToolResultRepository.class);
+        when(repository.save(any())).thenAnswer(call -> call.getArgument(0));
+        TokenEstimator estimator = new TokenEstimator();
+        ToolResultStore store = new ToolResultStore(repository, estimator, new AgentProperties());
+        String escaped = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString("\\\"".repeat(500));
+        String result = "[" + escaped + "," + escaped + "]";
+        var delivery = store.offer(result, context, 3000);
+        int tokens = estimator.estimateTokens(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(delivery));
+        assertTrue(tokens <= 3000, "estimated page tokens=" + tokens);
+    }
 }

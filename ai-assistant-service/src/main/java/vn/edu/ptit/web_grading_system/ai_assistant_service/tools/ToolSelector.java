@@ -6,8 +6,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.stereotype.Component;
 
 /** Deterministic, bounded first-turn selection. Discovery remains available for misses. */
+@Component
 public class ToolSelector {
     private static final Set<String> STOP = Set.of("cua", "toi", "minh", "cho", "trong", "va", "la", "nhung", "cac", "mot", "duoc");
     private final ToolRegistry registry;
@@ -36,8 +38,9 @@ public class ToolSelector {
 
     static Set<String> terms(String input) {
         if (input == null || input.isBlank()) return Set.of();
-        String normalized = Normalizer.normalize(input.toLowerCase().replace('đ', 'd'), Normalizer.Form.NFD)
-                .replaceAll("\\p{M}+", "").replaceAll("([a-z])([A-Z])", "$1 $2");
+        String normalized = Normalizer.normalize(input.replaceAll("([a-z])([A-Z])", "$1 $2")
+                        .toLowerCase().replace('đ', 'd'), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
         return Arrays.stream(normalized.split("[^a-z0-9]+"))
                 .filter(term -> term.length() > 1 && !STOP.contains(term))
                 .collect(Collectors.toSet());

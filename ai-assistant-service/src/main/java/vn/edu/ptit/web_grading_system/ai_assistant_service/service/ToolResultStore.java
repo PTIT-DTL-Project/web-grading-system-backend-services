@@ -42,13 +42,22 @@ public class ToolResultStore {
         if (estimator.estimateTokens(fullResult) <= availableToolTokens) {
             return new ToolResultDelivery(fullResult, true, null, null, "full", 0);
         }
+        StoredToolResult saved = saveFull(fullResult, context);
+        return slice(saved, "i:0", availableToolTokens);
+    }
+
+    @Transactional
+    public UUID reference(String fullResult, AgentContext context) {
+        return saveFull(fullResult, context).getId();
+    }
+
+    private StoredToolResult saveFull(String fullResult, AgentContext context) {
         requireContext(context);
-        StoredToolResult saved = repository.save(StoredToolResult.builder().id(UUID.randomUUID())
+        return repository.save(StoredToolResult.builder().id(UUID.randomUUID())
                 .runId(context.runId()).conversationId(context.conversationId()).ownerId(context.userId())
                 .roleScope(roleScope(context.roles())).fullResult(fullResult)
                 .expiresAt(Instant.now().plus(properties.getContext().getStoredToolResultTtlMinutes(), ChronoUnit.MINUTES))
                 .build());
-        return slice(saved, "i:0", availableToolTokens);
     }
 
     @Transactional(readOnly = true)
@@ -69,8 +78,23 @@ public class ToolResultStore {
     }
 
     private ToolResultDelivery slice(StoredToolResult saved, String cursor, int tokenBudget) {
-        int maxChars = tokenBudget * 3 - 100;
-        if (maxChars < 30) throw new IllegalArgumentException("Tool page budget too small");
+        int reserveTokens = Math.min(800, Math.max(20, tokenBudget / 3));
+        int maxChars = Math.max(1, (tokenBudget - reserveTokens) * 3);
+        while (true) {
+            ToolResultDelivery delivery = sliceAtSize(saved, cursor, maxChars);
+            try {
+                if (estimator.estimateTokens(mapper.writeValueAsString(delivery)) <= tokenBudget) {
+                    return delivery;
+                }
+            } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+                throw new IllegalStateException("Cannot encode tool result page", exception);
+            }
+            if (maxChars == 1) throw new IllegalArgumentException("Tool page budget too small");
+            maxChars = Math.max(1, maxChars * 3 / 4);
+        }
+    }
+
+    private ToolResultDelivery sliceAtSize(StoredToolResult saved, String cursor, int maxChars) {
         String full = saved.getFullResult();
         if (cursor != null && cursor.startsWith("t:")) {
             return chunk(saved.getId(), full, Integer.parseInt(cursor.substring(2)), maxChars, "t:", null, 0);

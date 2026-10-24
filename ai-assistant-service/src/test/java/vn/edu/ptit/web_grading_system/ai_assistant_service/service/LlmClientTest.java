@@ -123,4 +123,40 @@ class LlmClientTest {
 
         assertInstanceOf(AiProviderException.class, error);
     }
+
+    @Test
+    void strictSummaryCompletionDoesNotReplaceProviderFailureWithPedagogicalJson() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        when(chatModel.call(any(Prompt.class))).thenThrow(new RuntimeException("provider unavailable"));
+        assertThrows(AiProviderException.class,
+                () -> client.generateStrictCompletion("Summarize decisions", "Decision: Friday"));
+    }
+
+    @Test
+    void directToolResultEndsCurrentProviderTurnForPreflight() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        when(chatModel.getOptions()).thenReturn(org.springframework.ai.model.tool.ToolCallingChatOptions.builder().build());
+        AssistantMessage toolCall = AssistantMessage.builder().content("").toolCalls(List.of(
+                new AssistantMessage.ToolCall("call-1", "function", "search_tools", "{\"query\":\"bài nộp\"}")))
+                .build();
+        when(chatModel.stream(any(Prompt.class))).thenReturn(Flux.just(new ChatResponse(List.of(new Generation(toolCall)))));
+        java.util.concurrent.atomic.AtomicInteger invoked = new java.util.concurrent.atomic.AtomicInteger();
+        org.springframework.ai.tool.ToolCallback callback = new org.springframework.ai.tool.ToolCallback() {
+            public org.springframework.ai.tool.definition.ToolDefinition getToolDefinition() {
+                return org.springframework.ai.tool.definition.ToolDefinition.builder().name("search_tools")
+                        .description("search").inputSchema("{\"type\":\"object\"}").build();
+            }
+            public org.springframework.ai.tool.metadata.ToolMetadata getToolMetadata() {
+                return org.springframework.ai.tool.metadata.ToolMetadata.builder().returnDirect(true).build();
+            }
+            public String call(String input) { invoked.incrementAndGet(); return "found-tool"; }
+        };
+
+        List<String> output = client.streamAgentTurn("system", List.of(new UserMessage("question")), List.of(callback))
+                .collectList().block();
+        assertNotNull(output);
+        assertEquals(1, invoked.get(), "output=" + output);
+        assertTrue(String.join("", output).contains("found-tool"), "output=" + output);
+        verify(chatModel, times(1)).stream(any(Prompt.class));
+    }
 }

@@ -17,6 +17,7 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     List<Message> findByConversationIdOrderBySequenceNoAsc(UUID conversationId);
     Page<Message> findByConversationIdOrderBySequenceNoAsc(UUID conversationId, Pageable pageable);
     Optional<Message> findByConversationIdAndClientMessageId(UUID conversationId, String clientMessageId);
+    Optional<Message> findFirstByRunIdAndRoleOrderBySequenceNoAsc(UUID runId, String role);
 
     @Query("SELECT COALESCE(MAX(m.sequenceNo), 0) FROM Message m WHERE m.conversationId = :conversationId")
     int findMaxSequenceNo(@Param("conversationId") UUID conversationId);
