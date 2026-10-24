@@ -38,5 +38,6 @@ public class AgentProperties {
         private int toolSearchLimit = 5;
         private int historyMaxTokens = 12000;
         private int toolMaxTokens = 6000;
+        private int storedToolResultTtlMinutes = 60;
     }
 }

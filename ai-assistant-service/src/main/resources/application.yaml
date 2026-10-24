@@ -91,4 +91,5 @@ agent:
     tool-search-limit: ${AGENT_TOOL_SEARCH_LIMIT:5}
     history-max-tokens: ${AGENT_HISTORY_MAX_TOKENS:12000}
     tool-max-tokens: ${AGENT_TOOL_MAX_TOKENS:6000}
+    stored-tool-result-ttl-minutes: ${AGENT_STORED_TOOL_RESULT_TTL_MINUTES:60}
 
