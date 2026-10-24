@@ -92,11 +92,7 @@ public class ContextBuilder {
     public String buildSystemPrompt(String role, Task task) {
         Set<String> roles = (role == null || role.isBlank()) ? Set.of("ROLE_USER")
                 : Arrays.stream(role.split(",")).map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet());
-        return buildSystemPrompt(roles, task);
-    }
-
-    public String buildSystemPrompt(Set<String> roles, Task task) {
-        String roleStr = (roles == null || roles.isEmpty()) ? "ROLE_USER" : String.join(", ", roles);
+        String roleStr = (roles.isEmpty()) ? "ROLE_USER" : String.join(", ", roles);
         String taskSection = "";
         if (task != null && task.getStateJson() != null) {
             taskSection = "\nTRẠNG THÁI NHIỆM VỤ HIỆN TẠI:\n" + task.getStateJson() + "\n";

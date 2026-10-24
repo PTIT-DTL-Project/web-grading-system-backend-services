@@ -72,7 +72,7 @@ public class ContextBuilderTest {
         assertTrue(catalog.contains("Kiểm thử & Bước chấm"));
         assertTrue(catalog.contains("Quản lý Bài tập"));
 
-        String prompt = builder.buildSystemPrompt(java.util.Set.of("ROLE_LECTURER"), null);
+        String prompt = builder.buildSystemPrompt("ROLE_LECTURER", null);
         assertTrue(prompt.contains("DANH MỤC CÔNG CỤ KHẢ DỤNG CHO VAI TRÒ"));
         assertTrue(prompt.contains("createTestQuestion"));
         assertTrue(prompt.contains("search_tools"));

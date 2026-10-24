@@ -185,6 +185,34 @@ class AgentRuntimeTest {
         verify(preflight, times(4)).prepare(any(), any(), anySet(), anyString(), anyList(), anyList());
     }
 
+    @Test
+    void promptContainsEnforcedSearchToolsInstructions() {
+        var mapper = new vn.edu.ptit.web_grading_system.ai_assistant_service.config.JacksonConfig().objectMapper();
+        ToolRegistry registry = new ToolRegistry(List.of(tool("listMyClasses", "Liệt kê lớp học")), mapper);
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenAnswer(call -> new ContextPreflight.PreparedContext(
+                        List.of(new UserMessage("Xem lớp")), "", 100, 100, 300));
+        ToolResultStore store = mock(ToolResultStore.class);
+        LlmClient llm = mock(LlmClient.class);
+        java.util.concurrent.atomic.AtomicReference<String> passedPrompt = new java.util.concurrent.atomic.AtomicReference<>();
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
+            passedPrompt.set(call.getArgument(0));
+            return Flux.just("done");
+        });
+
+        AgentProperties properties = new AgentProperties();
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight, store,
+                mock(ConversationRepository.class), mock(MessageRepository.class), mapper, properties);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_STUDENT"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+        runtime.execute(context, "System prompt", "Xem lớp", llm, delta -> {}, (tool, result) -> {});
+
+        assertNotNull(passedPrompt.get());
+        assertTrue(passedPrompt.get().contains("BẮT BUỘC"));
+        assertTrue(passedPrompt.get().contains("search_tools"));
+    }
+
     private AgentTool tool(String name, String description) {
         return new AgentTool() {
             public String getName() { return name; }
