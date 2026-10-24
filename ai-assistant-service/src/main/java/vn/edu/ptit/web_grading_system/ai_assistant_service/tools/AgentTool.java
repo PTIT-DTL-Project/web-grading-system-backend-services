@@ -39,6 +39,9 @@ public interface AgentTool extends ToolCallback {
 
     @Override
     default String call(String toolInput, ToolContext toolContext) {
+        if (getDefinition().effectType() == EffectType.DOMAIN_WRITE) {
+            return "{\"success\":false,\"code\":\"APPROVAL_REQUIRED\",\"message\":\"Thao tác ghi phải qua ToolRegistry và bước duyệt\"}";
+        }
         UUID uid = null;
         if (toolContext != null && toolContext.getContext().get("userId") != null) {
             try {

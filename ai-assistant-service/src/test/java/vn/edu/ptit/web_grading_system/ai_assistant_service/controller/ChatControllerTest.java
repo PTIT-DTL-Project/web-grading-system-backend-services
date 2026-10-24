@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -89,5 +90,32 @@ public class ChatControllerTest {
                         .content("{\"text\":\"Tìm bài tập cho tôi\",\"clientMessageId\":\"c1\"}"))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.runId").value(runId.toString()));
+    }
+
+    @Test
+    void updateTitle_returnsRenamedConversation() throws Exception {
+        UUID convId = UUID.randomUUID();
+        when(conversationService.updateTitle(any(), eq(convId), eq("Bài tập Java")))
+                .thenReturn(new ConversationResponse(convId, UUID.fromString(USER_ID), "Bài tập Java", null, Instant.now(), Instant.now()));
+
+        mockMvc.perform(put("/api/v1/ai/conversations/{id}", convId)
+                        .header("X-Gateway-Secret", SECRET)
+                        .header("X-User-Id", USER_ID)
+                        .header("X-User-Roles", "ROLE_STUDENT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Bài tập Java\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Bài tập Java"));
+    }
+
+    @Test
+    void updateTitle_rejectsBlankTitle() throws Exception {
+        mockMvc.perform(put("/api/v1/ai/conversations/{id}", UUID.randomUUID())
+                        .header("X-Gateway-Secret", SECRET)
+                        .header("X-User-Id", USER_ID)
+                        .header("X-User-Roles", "ROLE_STUDENT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"\"}"))
+                .andExpect(status().isBadRequest());
     }
 }

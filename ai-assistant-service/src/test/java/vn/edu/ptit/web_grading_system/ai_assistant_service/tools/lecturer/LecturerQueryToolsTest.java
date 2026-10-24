@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.AgentContext;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.ToolResult;
 
-import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -19,8 +19,8 @@ public class LecturerQueryToolsTest {
         ToolResult result = tool.execute(null, ctx);
 
         assertTrue(result.isSuccess());
-        List<?> steps = (List<?>) result.getData();
-        assertTrue(steps.contains("HTTP_REQUEST"));
-        assertTrue(steps.contains("DB_QUERY"));
+        Map<?, ?> steps = (Map<?, ?>) result.getData();
+        assertTrue(steps.containsKey("HTTP_REQUEST"));
+        assertTrue(steps.containsKey("DB_QUERY"));
     }
 }

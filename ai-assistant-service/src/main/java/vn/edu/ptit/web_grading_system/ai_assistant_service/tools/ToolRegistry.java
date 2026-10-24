@@ -2,18 +2,28 @@ package vn.edu.ptit.web_grading_system.ai_assistant_service.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.service.WriteApprovalService;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.function.BiConsumer;
 
 @Component
 public class ToolRegistry {
 
     private final Map<String, AgentTool> toolsByName = new HashMap<>();
     private final ObjectMapper mapper;
+    private final WriteApprovalService writeApprovalService;
 
     public ToolRegistry(List<AgentTool> tools, ObjectMapper mapper) {
+        this(tools, mapper, null);
+    }
+
+    @Autowired
+    public ToolRegistry(List<AgentTool> tools, ObjectMapper mapper, WriteApprovalService writeApprovalService) {
         this.mapper = mapper;
+        this.writeApprovalService = writeApprovalService;
         if (tools != null) {
             for (AgentTool tool : tools) {
                 toolsByName.put(tool.getName(), tool);
@@ -40,6 +50,11 @@ public class ToolRegistry {
     }
 
     public List<org.springframework.ai.tool.ToolCallback> getToolCallbacksForRoles(Set<String> userRoles, AgentContext context) {
+        return getToolCallbacksForRoles(userRoles, context, (tool, result) -> {});
+    }
+
+    public List<org.springframework.ai.tool.ToolCallback> getToolCallbacksForRoles(
+            Set<String> userRoles, AgentContext context, BiConsumer<AgentTool, ToolResult> onResult) {
         List<AgentTool> authorizedTools = getToolsForRoles(userRoles);
         List<org.springframework.ai.tool.ToolCallback> callbacks = new ArrayList<>();
         for (AgentTool tool : authorizedTools) {
@@ -60,10 +75,24 @@ public class ToolRegistry {
                         com.fasterxml.jackson.databind.JsonNode args = (toolInput != null && !toolInput.isBlank())
                                 ? mapper.readTree(toolInput)
                                 : mapper.createObjectNode();
-                        ToolResult res = tool.execute(args, context);
-                        return res != null && res.getData() != null ? mapper.writeValueAsString(res.getData()) : "{}";
+                        ToolResult res = tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE
+                                ? (writeApprovalService == null
+                                        ? ToolResult.error("APPROVAL_UNAVAILABLE", "Chưa có dịch vụ duyệt thao tác", false)
+                                        : writeApprovalService.propose(tool, args, context))
+                                : tool.execute(args, context);
+                        if (res == null) res = ToolResult.error("EMPTY_TOOL_RESULT", "Tool không trả về kết quả", false);
+                        onResult.accept(tool, res);
+                        return res.isSuccess() && res.getData() != null
+                                ? mapper.writeValueAsString(res.getData())
+                                : mapper.writeValueAsString(res);
                     } catch (Exception e) {
-                        return "{\"error\":\"" + e.getMessage() + "\"}";
+                        ToolResult error = ToolResult.error("TOOL_EXECUTION_ERROR", e.getMessage(), false);
+                        onResult.accept(tool, error);
+                        try {
+                            return mapper.writeValueAsString(error);
+                        } catch (Exception serializationError) {
+                            return "{\"success\":false,\"code\":\"TOOL_EXECUTION_ERROR\"}";
+                        }
                     }
                 }
             });

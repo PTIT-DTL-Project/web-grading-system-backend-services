@@ -1,5 +1,6 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.repository;
 
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,6 +37,9 @@ public class ConversationRepositoryTest {
 
     @Autowired
     private RunRepository runRepository;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Test
     void testConversationAndMessageQueries() {
@@ -75,5 +79,24 @@ public class ConversationRepositoryTest {
 
         List<Run> queuedRuns = runRepository.findByStatusIn(List.of(RunStatus.QUEUED, RunStatus.RUNNING));
         assertEquals(1, queuedRuns.size());
+    }
+
+    @Test
+    void generatedTitleIsOnlySavedWhileConversationIsUntitled() {
+        Conversation conv = conversationRepository.saveAndFlush(Conversation.builder()
+                .ownerId(UUID.randomUUID())
+                .build());
+
+        assertEquals(1, conversationRepository.setGeneratedTitleIfUntitled(conv.getId(), "Tên AI"));
+        entityManager.clear();
+        assertEquals("Tên AI", conversationRepository.findById(conv.getId()).orElseThrow().getTitle());
+
+        Conversation renamed = conversationRepository.findById(conv.getId()).orElseThrow();
+        renamed.setTitle("Tên người dùng");
+        conversationRepository.saveAndFlush(renamed);
+
+        assertEquals(0, conversationRepository.setGeneratedTitleIfUntitled(conv.getId(), "Tên AI khác"));
+        entityManager.clear();
+        assertEquals("Tên người dùng", conversationRepository.findById(conv.getId()).orElseThrow().getTitle());
     }
 }

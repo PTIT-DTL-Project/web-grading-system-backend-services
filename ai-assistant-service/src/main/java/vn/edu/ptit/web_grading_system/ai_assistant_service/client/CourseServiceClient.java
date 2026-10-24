@@ -100,11 +100,11 @@ public interface CourseServiceClient {
             @RequestHeader(value = "X-Gateway-Secret", required = false) String gatewaySecret
     );
 
-    @org.springframework.web.bind.annotation.PostMapping("/api/v1/assignments")
-    vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.AssignmentSummaryDto createAssignment(
+    @org.springframework.web.bind.annotation.PostMapping(value = "/api/v1/assignments", consumes = "application/json")
+    ApiEnvelope<vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.AssignmentSummaryDto> createAssignment(
             @RequestHeader("X-User-Id") String lecturerId,
             @RequestHeader(value = "X-User-Roles", defaultValue = "ROLE_LECTURER") String roles,
-            @org.springframework.web.bind.annotation.RequestBody Object request,
+            @org.springframework.web.bind.annotation.RequestBody vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.CreateAssignmentCommand request,
             @RequestHeader(value = "X-Gateway-Secret", required = false) String gatewaySecret
     );
 }

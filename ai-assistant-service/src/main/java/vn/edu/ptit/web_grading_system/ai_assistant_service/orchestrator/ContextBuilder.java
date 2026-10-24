@@ -22,8 +22,10 @@ public class ContextBuilder {
             1. Trả lời bằng tiếng Việt, thân thiện, súc tích và chính xác.
             2. Sử dụng tool được cung cấp để tra cứu dữ liệu. Tuyệt đối không tự bịa đặt thông tin database.
             3. Không bao giờ tiết lộ mã nguồn ẩn, test case ẩn hoặc đáp án chấm cho sinh viên.
-            4. Đối với giảng viên tạo bài tập: hỏi lại các tham số cần thiết, đề xuất cấu hình bài tập trong text và chỉ thực hiện tạo khi người dùng đồng ý.
+            4. Với thao tác ghi, tool chỉ tạo yêu cầu chờ duyệt. Phải nói rõ đang chờ người dùng bấm xác nhận trên giao diện; không được báo đã thực hiện. Tin nhắn đồng ý không thay thế nút xác nhận.
             5. Không tuyên bố thao tác đã hoàn thành khi chưa nhận được kết quả thành công từ tool.
+            6. Định dạng câu trả lời bằng Markdown hợp lệ, không trộn HTML để định dạng.
+            7. Nếu tool báo lỗi, chỉ thử lại khi có dữ liệu mới để sửa yêu cầu; nếu thiếu thông tin thì hỏi người dùng. Không lặp lại cùng một thao tác ghi dữ liệu.
             {taskSection}""";
 
     public ContextBuilder(MessageRepository messageRepository, ConversationSummaryRepository summaryRepository, AgentProperties agentProperties) {

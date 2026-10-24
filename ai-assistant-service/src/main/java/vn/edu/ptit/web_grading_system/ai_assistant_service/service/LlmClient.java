@@ -48,6 +48,28 @@ public class LlmClient {
         )));
     }
 
+    /** Generate a short title without the structured JSON fallback used by explanations. */
+    public String generateConversationTitle(String firstQuestion) {
+        String question = firstQuestion == null ? "" : firstQuestion.strip();
+        String fallback = question.replaceAll("\\s+", " ");
+        if (fallback.length() > 80) fallback = fallback.substring(0, 80).stripTrailing() + "…";
+        if (fallback.isBlank()) return "Hội thoại mới";
+        if (isOfflineMode()) return fallback;
+        try {
+            String title = chatClient.prompt()
+                    .system("Đặt tiêu đề ngắn gọn (tối đa 8 từ) cho cuộc trò chuyện dựa trên câu hỏi đầu tiên. Chỉ trả về tiêu đề, không thêm dấu ngoặc kép hay giải thích. Dùng cùng ngôn ngữ với câu hỏi.")
+                    .user(question.length() > 1500 ? question.substring(0, 1500) : question)
+                    .call().content();
+            if (title != null) {
+                title = title.strip().replaceAll("^[\\\"'`]+|[\\\"'`]+$", "").strip();
+                if (!title.isBlank()) return title.length() > 100 ? title.substring(0, 100).stripTrailing() : title;
+            }
+        } catch (Exception e) {
+            log.warn("Could not generate conversation title: {}", e.getMessage());
+        }
+        return fallback;
+    }
+
     public <T> T generateEntity(String systemPrompt, String userPrompt, Class<T> entityClass) {
         if (isOfflineMode()) {
             log.info("AI API key not configured — generating fallback structured entity");
@@ -162,14 +184,11 @@ public class LlmClient {
                 spec.toolCallbacks(toolCallbacks);
             }
             return spec.stream().content()
-                    .filter(s -> s != null && !s.isEmpty());
+                    .filter(s -> s != null && !s.isEmpty())
+                    .onErrorMap(AiProviderException::new);
         } catch (Exception e) {
             log.error("Failed to stream chat with memory via Spring AI: {}", e.getMessage(), e);
-            List<org.springframework.ai.chat.messages.Message> history = (chatMemory != null && conversationId != null)
-                    ? chatMemory.get(conversationId) : List.of();
-            String fallbackPrompt = (history != null && !history.isEmpty())
-                    ? history.get(history.size() - 1).getText() : "";
-            return Flux.just(generateFallbackResponse(fallbackPrompt));
+            return Flux.error(new AiProviderException(e));
         }
     }
 

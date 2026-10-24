@@ -1,6 +1,7 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.tools;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ClassSummaryDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.JacksonConfig;
@@ -73,8 +74,8 @@ public class ToolRegistryTest {
             @Override public String getName() { return "lecturerTool"; }
             @Override public String getDescription() { return "Lecturer only"; }
             @Override public ToolDefinition getDefinition() {
-                return new ToolDefinition("lecturerTool", "Lecturer only", "1.0", "lecturer", "write", "ass",
-                        EffectType.DOMAIN_WRITE, Set.of("ROLE_LECTURER"), Duration.ofSeconds(5), 10000);
+                return new ToolDefinition("lecturerTool", "Lecturer only", "1.0", "lecturer", "read", "ass",
+                        EffectType.READ, Set.of("ROLE_LECTURER"), Duration.ofSeconds(5), 10000);
             }
             @Override public ToolResult execute(JsonNode args, AgentContext ctx) { return ToolResult.ok("ok"); }
         };
@@ -119,5 +120,28 @@ public class ToolRegistryTest {
                 firstClass.get("createdAt").asText());
         JsonNode directClass = new JacksonConfig().objectMapper().readTree(classesTool.call("{}")).get(0);
         assertEquals("2026-10-23T07:00:00+07:00", directClass.get("createdAt").asText());
+    }
+
+    @Test
+    void callbackFailsClosedForWriteWithoutApprovalService() throws Exception {
+        AgentTool writeTool = new AgentTool() {
+            @Override public String getName() { return "createAssignment"; }
+            @Override public String getDescription() { return "Create assignment"; }
+            @Override public ToolDefinition getDefinition() {
+                return new ToolDefinition("createAssignment", getDescription(), "1.0", "lecturer", "write", "assignment",
+                        EffectType.DOMAIN_WRITE, Set.of("ROLE_LECTURER"), Duration.ofSeconds(10), 1000);
+            }
+            @Override public ToolResult execute(JsonNode args, AgentContext ctx) {
+                return ToolResult.error("VALIDATION_ERROR", "Thiếu gradingStrategy", false);
+            }
+        };
+        ObjectMapper mapper = new JacksonConfig().objectMapper();
+        ToolRegistry registry = new ToolRegistry(List.of(writeTool), mapper);
+        AgentContext context = new AgentContext(java.util.UUID.randomUUID(), "", Set.of("ROLE_LECTURER"), null, null, "secret");
+
+        JsonNode output = mapper.readTree(registry.getToolCallbacksForRoles(Set.of("ROLE_LECTURER"), context).getFirst().call("{}"));
+
+        org.junit.jupiter.api.Assertions.assertFalse(output.get("success").asBoolean());
+        assertEquals("APPROVAL_UNAVAILABLE", output.get("code").asText());
     }
 }

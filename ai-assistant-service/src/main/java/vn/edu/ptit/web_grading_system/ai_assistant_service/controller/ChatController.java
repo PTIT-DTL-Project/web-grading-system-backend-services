@@ -11,6 +11,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.request.CreateConversationRequest;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.request.SendMessageRequest;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.request.UpdateConversationTitleRequest;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.response.ConversationResponse;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.response.MessageResponse;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.response.SendMessageResponse;
@@ -48,6 +49,14 @@ public class ChatController {
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable UUID id) {
         return ResponseEntity.ok(conversationService.getConversation(principal, id));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ConversationResponse> updateConversationTitle(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateConversationTitleRequest request) {
+        return ResponseEntity.ok(conversationService.updateTitle(principal, id, request.title()));
     }
 
     @DeleteMapping("/{id}")

@@ -17,8 +17,11 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.task.Task;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.memory.JpaChatMemory;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.repository.*;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.service.LlmClient;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.service.AiProviderException;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.AgentContext;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.EffectType;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.ToolRegistry;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.ToolResult;
 
 import java.time.Instant;
 import java.util.List;
@@ -26,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Service
@@ -132,19 +136,28 @@ public class AgentOrchestrator {
                     break;
                 }
 
-                String systemPrompt = contextBuilder.buildSystemPrompt("ROLE_USER", task);
+                Set<String> callerRoles = run.getCallerRoles() == null ? Set.of()
+                        : java.util.Arrays.stream(run.getCallerRoles().split(","))
+                                .filter(role -> role.equals("ROLE_STUDENT") || role.equals("ROLE_LECTURER"))
+                                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+                String systemPrompt = contextBuilder.buildSystemPrompt(String.join(", ", callerRoles), task);
 
                 AgentContext agentContext = new AgentContext(
                         conv.getOwnerId(),
-                        "",
-                        Set.of("ROLE_STUDENT", "ROLE_LECTURER"),
+                        run.getCallerEmail(),
+                        callerRoles,
                         conv.getId(),
                         runId,
                         gatewayProperties != null ? gatewayProperties.secret() : ""
                 );
 
+                AtomicReference<ToolResult> failedWrite = new AtomicReference<>();
                 List<ToolCallback> toolCallbacks = (toolRegistry != null)
-                        ? toolRegistry.getToolCallbacksForRoles(agentContext.roles(), agentContext)
+                        ? toolRegistry.getToolCallbacksForRoles(agentContext.roles(), agentContext, (tool, result) -> {
+                            if (tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE) {
+                                failedWrite.set(result.isSuccess() ? null : result);
+                            }
+                        })
                         : List.of();
 
                 StringBuilder responseBuffer = new StringBuilder();
@@ -160,10 +173,16 @@ public class AgentOrchestrator {
                         }).blockLast();
                     } catch (Exception ex) {
                         log.warn("Streaming encountered error: {}", ex.getMessage());
+                        if (failedWrite.get() == null) throw new AiProviderException(ex);
                     }
                 }
 
                 String completion = responseBuffer.toString().trim();
+                ToolResult writeFailure = failedWrite.get();
+                if (writeFailure != null) {
+                    completion = "Không thể hoàn tất thao tác: " + writeFailure.getMessage();
+                    sseBroadcaster.sendEvent(runId, "assistant.replace", completion);
+                }
                 if (completion.isEmpty()) {
                     throw new IllegalStateException("AI returned no response");
                 }
@@ -184,30 +203,60 @@ public class AgentOrchestrator {
                 }
 
                 completed = true;
+                if (writeFailure != null) {
+                    run.setStatus(RunStatus.FAILED);
+                    run.setErrorCode(writeFailure.getCode());
+                    run.setErrorMessage(writeFailure.getMessage());
+                }
             }
 
             Run finishedRun = runRepository.findById(runId).orElse(run);
-            if (finishedRun.getStatus() != RunStatus.CANCELLED) {
+            if (finishedRun.getStatus() != RunStatus.CANCELLED && finishedRun.getStatus() != RunStatus.FAILED) {
                 finishedRun.setStatus(RunStatus.SUCCEEDED);
                 finishedRun.setFinishedAt(Instant.now());
                 runRepository.save(finishedRun);
 
                 recordEvent(runId, eventSeq++, "run.completed", Map.of("runId", runId.toString(), "status", "SUCCEEDED"));
                 sseBroadcaster.sendEvent(runId, "run.completed", Map.of("runId", runId.toString(), "status", "SUCCEEDED"));
+            } else if (finishedRun.getStatus() == RunStatus.FAILED) {
+                finishedRun.setFinishedAt(Instant.now());
+                runRepository.save(finishedRun);
+                recordEvent(runId, eventSeq++, "run.failed", Map.of("runId", runId.toString(), "error", finishedRun.getErrorMessage()));
+                sseBroadcaster.sendEvent(runId, "run.failed", Map.of("runId", runId.toString(), "error", finishedRun.getErrorMessage()));
             }
             sseBroadcaster.complete(runId);
 
         } catch (Exception e) {
             log.error("Execution failed for run {}", runId, e);
+            boolean providerFailure = hasProviderFailure(e);
+            String userMessage = providerFailure
+                    ? "Trợ lý AI tạm thời chưa thể xử lý yêu cầu. Vui lòng thử lại sau."
+                    : "Đã xảy ra lỗi khi xử lý yêu cầu. Vui lòng thử lại sau.";
             run.setStatus(RunStatus.FAILED);
-            run.setErrorMessage(e.getMessage());
+            run.setErrorCode(providerFailure ? "AI_PROVIDER_UNAVAILABLE" : "RUN_ERROR");
+            run.setErrorMessage(userMessage);
             run.setFinishedAt(Instant.now());
             runRepository.save(run);
 
-            recordEvent(runId, 999, "run.failed", Map.of("runId", runId.toString(), "error", e.getMessage() != null ? e.getMessage() : "Unknown error"));
-            sseBroadcaster.sendEvent(runId, "run.failed", Map.of("runId", runId.toString(), "error", e.getMessage() != null ? e.getMessage() : "Unknown error"));
+            try {
+                int nextSeq = messageRepository.findMaxSequenceNo(conversationId) + 1;
+                messageRepository.save(Message.builder().conversationId(conversationId).runId(runId)
+                        .role("assistant").content(userMessage).sequenceNo(nextSeq).build());
+            } catch (Exception saveError) {
+                log.warn("Could not persist user-facing failure for run {}", runId, saveError);
+            }
+            sseBroadcaster.sendEvent(runId, "assistant.replace", userMessage);
+            recordEvent(runId, 999, "run.failed", Map.of("runId", runId.toString(), "error", userMessage));
+            sseBroadcaster.sendEvent(runId, "run.failed", Map.of("runId", runId.toString(), "error", userMessage));
             sseBroadcaster.complete(runId);
         }
+    }
+
+    private boolean hasProviderFailure(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof AiProviderException) return true;
+        }
+        return false;
     }
 
     private final com.google.gson.Gson gson = new com.google.gson.Gson();

@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.*;
 
 import java.time.Duration;
-import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Component
@@ -43,11 +43,15 @@ public class GetTestStepCapabilitiesTool implements AgentTool {
             return ToolResult.error("FORBIDDEN", "Chỉ giảng viên mới có quyền sử dụng công cụ này", false);
         }
 
-        return ToolResult.ok(List.of(
-                "HTTP_REQUEST",
-                "DB_QUERY",
-                "DB_SCHEMA_CHECK",
-                "DB_MIGRATION"
+        return ToolResult.ok(Map.of(
+                "HTTP_REQUEST", Map.of("required", java.util.List.of("method", "path"),
+                        "methods", java.util.List.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"),
+                        "optional", java.util.List.of("headers", "query_params", "expected_status", "assertions", "extract")),
+                "DB_QUERY", Map.of("required", java.util.List.of("query"), "optional", java.util.List.of("connection", "expected")),
+                "DB_SCHEMA_CHECK", Map.of("required", java.util.List.of("checks"),
+                        "checkKinds", java.util.List.of("TABLE_EXISTS", "COLUMN_EXISTS", "INDEX_EXISTS", "PRIMARY_KEY")),
+                "DB_MIGRATION", Map.of("required", java.util.List.of("statements"),
+                        "optional", java.util.List.of("connection"))
         ));
     }
 }

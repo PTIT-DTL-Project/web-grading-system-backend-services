@@ -25,6 +25,12 @@ public class Run {
     @Column(name = "conversation_id", nullable = false)
     private UUID conversationId;
 
+    @Column(name = "caller_email")
+    private String callerEmail;
+
+    @Column(name = "caller_roles", length = 500)
+    private String callerRoles;
+
     @Enumerated(EnumType.STRING)
     @Builder.Default
     @Column(name = "status", nullable = false, length = 30)

@@ -32,12 +32,13 @@ public class ConversationService {
     private final MessageRepository messageRepository;
     private final RunRepository runRepository;
     private final vn.edu.ptit.web_grading_system.ai_assistant_service.orchestrator.RunWorker runWorker;
+    private final ConversationTitleWorker titleWorker;
 
     @Transactional
     public ConversationResponse createConversation(UserPrincipal principal, CreateConversationRequest request) {
         String title = (request != null && request.getTitle() != null && !request.getTitle().isBlank())
                 ? request.getTitle().trim()
-                : "Hội thoại mới";
+                : null;
 
         Conversation conv = Conversation.builder()
                 .ownerId(principal.userId())
@@ -61,6 +62,14 @@ public class ConversationService {
     }
 
     @Transactional
+    public ConversationResponse updateTitle(UserPrincipal principal, UUID conversationId, String title) {
+        Conversation conv = conversationRepository.findByIdAndOwnerId(conversationId, principal.userId())
+                .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
+        conv.setTitle(title.trim());
+        return mapToResponse(conversationRepository.save(conv));
+    }
+
+    @Transactional
     public void deleteConversation(UserPrincipal principal, UUID conversationId) {
         Conversation conv = conversationRepository.findByIdAndOwnerId(conversationId, principal.userId())
                 .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
@@ -81,9 +90,15 @@ public class ConversationService {
         }
 
         int nextSeq = messageRepository.findMaxSequenceNo(conversationId) + 1;
+        boolean needsTitle = nextSeq == 1 && conv.getTitle() == null;
 
         Run run = Run.builder()
                 .conversationId(conversationId)
+                .callerEmail(principal.email())
+                .callerRoles(principal.authorities().stream()
+                        .map(org.springframework.security.core.GrantedAuthority::getAuthority)
+                        .filter(role -> role.equals("ROLE_STUDENT") || role.equals("ROLE_LECTURER"))
+                        .distinct().sorted().collect(java.util.stream.Collectors.joining(",")))
                 .status(RunStatus.QUEUED)
                 .version(1)
                 .build();
@@ -100,17 +115,20 @@ public class ConversationService {
         message = messageRepository.save(message);
 
         UUID finalRunId = run.getId();
+        String firstQuestion = request.getText();
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
             org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
                     new org.springframework.transaction.support.TransactionSynchronization() {
                         @Override
                         public void afterCommit() {
                             runWorker.processRunAsync(finalRunId);
+                            if (needsTitle) titleWorker.generateAsync(conversationId, firstQuestion);
                         }
                     }
             );
         } else {
             runWorker.processRunAsync(finalRunId);
+            if (needsTitle) titleWorker.generateAsync(conversationId, firstQuestion);
         }
 
         return new SendMessageResponse(conversationId, run.getId(), message.getId());

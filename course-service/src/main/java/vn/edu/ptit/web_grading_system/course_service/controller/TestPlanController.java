@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreatePlanRequest;
+import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateQuestionRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateStepRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdatePlanRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateStepRequest;
@@ -28,6 +29,17 @@ public class TestPlanController {
     private final TestPlanService testPlanService;
 
     // ---------- plans ----------
+
+    @PreAuthorize("hasRole('LECTURER')")
+    @PostMapping("/plans/with-steps")
+    @ApiMessage("Question created")
+    public ResponseEntity<PlanResponse> createQuestion(
+            @PathVariable UUID assignmentId,
+            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId,
+            @Valid @RequestBody CreateQuestionRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(testPlanService.createQuestion(assignmentId, UUID.fromString(ownerId), request));
+    }
 
     @PreAuthorize("hasRole('LECTURER')")
     @PostMapping("/plans")

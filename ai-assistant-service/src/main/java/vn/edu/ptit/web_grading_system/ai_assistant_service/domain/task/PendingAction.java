@@ -39,6 +39,10 @@ public class PendingAction {
     @Column(name = "options_json", columnDefinition = "jsonb")
     private String optionsJson;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "result_json", columnDefinition = "jsonb")
+    private String resultJson;
+
     @Builder.Default
     @Column(name = "status", nullable = false, length = 20)
     private String status = "PENDING";

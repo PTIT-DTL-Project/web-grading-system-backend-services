@@ -109,4 +109,18 @@ class LlmClientTest {
         verify(memory, never()).add(eq(conversationId), any(org.springframework.ai.chat.messages.Message.class));
         verify(memory, never()).add(eq(conversationId), anyList());
     }
+
+    @Test
+    void streamChatWithMemoryPropagatesProviderFailureInsteadOfFakeFallback() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        when(chatModel.getOptions()).thenReturn(ChatOptions.builder().build());
+        when(chatModel.stream(any(Prompt.class))).thenReturn(Flux.error(
+                new RuntimeException("413 TPM Limit 8000 Requested 8163")));
+
+        RuntimeException error = assertThrows(RuntimeException.class,
+                () -> client.streamChatWithMemory("System prompt", "conversation-1", null, List.of())
+                        .collectList().block());
+
+        assertInstanceOf(AiProviderException.class, error);
+    }
 }
