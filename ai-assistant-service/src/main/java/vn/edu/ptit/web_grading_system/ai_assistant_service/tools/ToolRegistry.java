@@ -49,6 +49,24 @@ public class ToolRegistry {
         return new ArrayList<>(toolsByName.values());
     }
 
+    public List<ToolDefinition> searchAuthorized(String query, Set<String> roles, int limit) {
+        if (limit <= 0 || ToolSelector.terms(query).isEmpty()) return List.of();
+        Set<String> terms = ToolSelector.terms(query);
+        return getToolsForRoles(roles).stream()
+                .filter(tool -> ToolSelector.score(terms, tool) > 0)
+                .sorted(Comparator.comparingInt((AgentTool tool) -> ToolSelector.score(terms, tool)).reversed()
+                        .thenComparing(AgentTool::getName))
+                .limit(limit).map(AgentTool::getDefinition).toList();
+    }
+
+    public List<org.springframework.ai.tool.ToolCallback> callbacksForNames(
+            Set<String> names, AgentContext context, BiConsumer<AgentTool, ToolResult> onResult) {
+        if (names == null || names.isEmpty() || context == null) return List.of();
+        Set<String> allowed = getToolsForRoles(context.roles()).stream().map(AgentTool::getName).collect(Collectors.toSet());
+        return names.stream().filter(allowed::contains).sorted().map(toolsByName::get)
+                .map(tool -> callbackFor(tool, context, onResult)).toList();
+    }
+
     public List<org.springframework.ai.tool.ToolCallback> getToolCallbacksForRoles(Set<String> userRoles, AgentContext context) {
         return getToolCallbacksForRoles(userRoles, context, (tool, result) -> {});
     }
@@ -58,7 +76,14 @@ public class ToolRegistry {
         List<AgentTool> authorizedTools = getToolsForRoles(userRoles);
         List<org.springframework.ai.tool.ToolCallback> callbacks = new ArrayList<>();
         for (AgentTool tool : authorizedTools) {
-            callbacks.add(new org.springframework.ai.tool.ToolCallback() {
+            callbacks.add(callbackFor(tool, context, onResult));
+        }
+        return callbacks;
+    }
+
+    private org.springframework.ai.tool.ToolCallback callbackFor(
+            AgentTool tool, AgentContext context, BiConsumer<AgentTool, ToolResult> onResult) {
+            return new org.springframework.ai.tool.ToolCallback() {
                 @Override
                 public org.springframework.ai.tool.definition.ToolDefinition getToolDefinition() {
                     return tool.getToolDefinition();
@@ -95,8 +120,6 @@ public class ToolRegistry {
                         }
                     }
                 }
-            });
-        }
-        return callbacks;
+            };
     }
 }

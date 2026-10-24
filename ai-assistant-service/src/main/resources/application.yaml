@@ -87,4 +87,6 @@ agent:
     output-reserve: ${AGENT_OUTPUT_RESERVE:4000}
     safety-margin: ${AGENT_SAFETY_MARGIN:2000}
     history-window-size: ${AGENT_HISTORY_WINDOW_SIZE:10}
+    initial-tool-limit: ${AGENT_INITIAL_TOOL_LIMIT:4}
+    tool-search-limit: ${AGENT_TOOL_SEARCH_LIMIT:5}
 

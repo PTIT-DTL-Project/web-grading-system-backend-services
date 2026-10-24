@@ -34,5 +34,7 @@ public class AgentProperties {
         private int outputReserve = 4000;
         private int safetyMargin = 2000;
         private int historyWindowSize = 10;
+        private int initialToolLimit = 4;
+        private int toolSearchLimit = 5;
     }
 }
