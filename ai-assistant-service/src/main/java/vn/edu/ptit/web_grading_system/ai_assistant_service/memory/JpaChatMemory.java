@@ -26,6 +26,11 @@ public class JpaChatMemory implements ChatMemory {
     @Override
     @Transactional
     public void add(String conversationId, List<Message> messages) {
+        addForRun(conversationId, null, messages);
+    }
+
+    @Transactional
+    public void addForRun(String conversationId, UUID runId, List<Message> messages) {
         if (conversationId == null || messages == null || messages.isEmpty()) {
             return;
         }
@@ -43,6 +48,7 @@ public class JpaChatMemory implements ChatMemory {
                 vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message entity =
                         vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message.builder()
                                 .conversationId(convId)
+                                .runId(runId)
                                 .role(role)
                                 .content(msg.getText())
                                 .sequenceNo(seq)

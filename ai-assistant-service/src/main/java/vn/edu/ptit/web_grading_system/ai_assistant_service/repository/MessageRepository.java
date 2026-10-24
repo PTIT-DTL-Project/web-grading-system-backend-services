@@ -20,4 +20,13 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     @Query("SELECT COALESCE(MAX(m.sequenceNo), 0) FROM Message m WHERE m.conversationId = :conversationId")
     int findMaxSequenceNo(@Param("conversationId") UUID conversationId);
+
+    @Query("SELECT m FROM Message m JOIN Run r ON r.id = m.runId WHERE m.conversationId = :conversationId AND r.callerRoles = :roleScope AND m.role IN ('user', 'assistant') ORDER BY m.sequenceNo DESC")
+    Page<Message> findScopedRecent(@Param("conversationId") UUID conversationId,
+                                   @Param("roleScope") String roleScope, Pageable pageable);
+
+    @Query("SELECT m FROM Message m JOIN Run r ON r.id = m.runId WHERE m.conversationId = :conversationId AND r.callerRoles = :roleScope AND m.role IN ('user', 'assistant') AND m.sequenceNo < :beforeSequence ORDER BY m.sequenceNo DESC")
+    Page<Message> findScopedBefore(@Param("conversationId") UUID conversationId,
+                                   @Param("roleScope") String roleScope,
+                                   @Param("beforeSequence") int beforeSequence, Pageable pageable);
 }

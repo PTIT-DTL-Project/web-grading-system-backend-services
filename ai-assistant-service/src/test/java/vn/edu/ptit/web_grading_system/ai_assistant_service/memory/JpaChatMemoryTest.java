@@ -85,4 +85,17 @@ class JpaChatMemoryTest {
         assertEquals(org.springframework.ai.chat.messages.MessageType.ASSISTANT, messages.get(1).getMessageType());
         assertEquals("Trả lời 1", messages.get(1).getText());
     }
+
+    @Test
+    void assistantReplyKeepsRunIdForRoleScopedHistory() {
+        UUID conversationId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        when(messageRepository.findMaxSequenceNo(conversationId)).thenReturn(4);
+        chatMemory.addForRun(conversationId.toString(), runId, List.of(new AssistantMessage("Trả lời nguyên vẹn")));
+        ArgumentCaptor<vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message> captor =
+                ArgumentCaptor.forClass(vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message.class);
+        verify(messageRepository).save(captor.capture());
+        assertEquals(runId, captor.getValue().getRunId());
+        assertEquals("Trả lời nguyên vẹn", captor.getValue().getContent());
+    }
 }

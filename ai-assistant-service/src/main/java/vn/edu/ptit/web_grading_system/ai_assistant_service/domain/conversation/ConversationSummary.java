@@ -26,6 +26,9 @@ public class ConversationSummary {
     @Column(name = "through_message_id", nullable = false)
     private UUID throughMessageId;
 
+    @Column(name = "role_scope", nullable = false, length = 100)
+    private String roleScope;
+
     @Column(name = "summary", nullable = false, columnDefinition = "TEXT")
     private String summary;
 

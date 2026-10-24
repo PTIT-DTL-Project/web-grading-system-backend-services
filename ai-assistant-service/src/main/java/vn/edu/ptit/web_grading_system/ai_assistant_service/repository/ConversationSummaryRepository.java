@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface ConversationSummaryRepository extends JpaRepository<ConversationSummary, UUID> {
     Optional<ConversationSummary> findTopByConversationIdOrderByCreatedAtDesc(UUID conversationId);
+    Optional<ConversationSummary> findTopByConversationIdAndRoleScopeOrderByCreatedAtDesc(UUID conversationId, String roleScope);
 }

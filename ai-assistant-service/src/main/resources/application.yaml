@@ -89,4 +89,6 @@ agent:
     history-window-size: ${AGENT_HISTORY_WINDOW_SIZE:10}
     initial-tool-limit: ${AGENT_INITIAL_TOOL_LIMIT:4}
     tool-search-limit: ${AGENT_TOOL_SEARCH_LIMIT:5}
+    history-max-tokens: ${AGENT_HISTORY_MAX_TOKENS:12000}
+    tool-max-tokens: ${AGENT_TOOL_MAX_TOKENS:6000}
 
