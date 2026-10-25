@@ -1,5 +1,6 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.config;
 
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -44,6 +45,11 @@ public class SecurityConfig {
                 .cors(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // An SSE emitter finishes on an ASYNC dispatch after its 200
+                        // response has been committed. The initial REQUEST was already
+                        // authenticated; re-authorizing here can turn completion into
+                        // a 401 and close the gateway's upstream connection mid-stream.
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         .anyRequest().authenticated()
                 )

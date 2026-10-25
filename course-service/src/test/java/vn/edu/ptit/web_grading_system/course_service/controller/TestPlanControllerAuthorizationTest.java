@@ -23,6 +23,7 @@ import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -101,6 +102,15 @@ class TestPlanControllerAuthorizationTest {
     }
 
     // --- write -----------------------------------------------------------------
+
+    @Test
+    void studentMayNotCreateQuestionWithSteps() throws Exception {
+        mockMvc.perform(asCaller(post("/api/v1/assignments/{id}/plans/with-steps", ASSIGNMENT_ID)
+                        .contentType("application/json")
+                        .content("{\"plan\":{\"name\":\"Q1\",\"sequenceOrder\":0},\"steps\":[{\"name\":\"check\",\"stepOrder\":0,\"stepType\":\"HTTP_REQUEST\",\"config\":{\"method\":\"GET\",\"path\":\"/\"}}]}"),
+                        "STUDENT"))
+                .andExpect(status().isForbidden());
+    }
 
     @Test
     void studentMayNotDeleteATestPlan() throws Exception {

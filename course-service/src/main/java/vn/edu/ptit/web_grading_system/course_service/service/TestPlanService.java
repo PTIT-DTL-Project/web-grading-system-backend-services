@@ -13,6 +13,7 @@ import vn.edu.ptit.web_grading_system.course_service.dto.internal.InternalPlanDt
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.InternalStepDto;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreatePlanRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateStepRequest;
+import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateQuestionRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdatePlanRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateStepRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
@@ -60,6 +61,17 @@ public class TestPlanService {
     }
 
     // ---------- plans (lecturer) ----------
+
+    @Transactional
+    public PlanResponse createQuestion(UUID assignmentId, UUID ownerId, CreateQuestionRequest request) {
+        PlanResponse created = createPlan(assignmentId, ownerId, request.getPlan());
+        for (CreateStepRequest step : request.getSteps()) {
+            createStep(assignmentId, ownerId, created.getId(), step);
+        }
+        return listPlans(assignmentId, ownerId).stream()
+                .filter(plan -> plan.getId().equals(created.getId()))
+                .findFirst().orElseThrow();
+    }
 
     @Transactional
     public PlanResponse createPlan(UUID assignmentId, UUID ownerId, CreatePlanRequest request) {
