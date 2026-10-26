@@ -62,7 +62,9 @@ public class StudentAssignmentService {
         AssignmentPurpose effective = purpose != null ? purpose : AssignmentPurpose.GRADED;
         String t = StringUtils.hasText(topic) ? topic.trim() : null;
 
-        // Bài tập luyện tập độc lập lớp: hiển thị cho mọi sinh viên, không cần enrollment.
+        // Review: 2026-10-26, practice-exercises feature
+        // Practice assignments are class-independent: visible to every student, no enrollment
+        // required (class_id is NULL). Skip the enrolled-class lookup entirely.
         if (effective == AssignmentPurpose.PRACTICE) {
             return assignmentRepository.findPublishedPractice(t, search, pageable)
                     .map(assignmentMapper::toResponse);
@@ -152,7 +154,9 @@ public class StudentAssignmentService {
         if (!Boolean.TRUE.equals(assignment.getPublished())) {
             throw new ResourceNotFoundException("Assignment not found: " + assignmentId);
         }
-        // Bài tập luyện tập độc lập lớp: hiển thị cho mọi sinh viên, không cần enrollment.
+        // Review: 2026-10-26, practice-exercises feature
+        // Practice assignments are class-independent: visible to every student regardless of
+        // enrollment (class_id is NULL). No enrolled-class check needed.
         if (assignment.getPurpose() == AssignmentPurpose.PRACTICE) {
             return assignment;
         }

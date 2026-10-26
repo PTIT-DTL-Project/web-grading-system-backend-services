@@ -69,8 +69,8 @@ public class AssignmentGradingService {
     }
 
     /**
-     * Lấy bản mã định danh (code/name) cho các student_user_id, dùng khi assignment
-     * không thuộc lớp nào (practice) nên không có roster để enrich.
+     * Looks up the identifying fields (code/name) for the given student_user_id values, used when
+     * the assignment belongs to no class (practice) so there is no roster to enrich from.
      */
     private Map<UUID, ClassStudent> identityByUserId(Collection<UUID> userIds) {
         if (userIds == null || userIds.isEmpty()) {
@@ -137,8 +137,9 @@ public class AssignmentGradingService {
         List<StudentResultResponse> groups =
                 resultServiceClient.assignmentResults(assignmentId, studentUserId, includeSteps);
 
-        // Bài tập luyện tập (classId NULL) không có roster lớp: enrich code/name từ
-        // bảng class_students theo student_user_id (học viên đã từng học ít nhất một lớp).
+        // Practice assignments have classId == NULL, so no class roster exists: enrich student
+        // code/name from class_students by student_user_id (students who have taken at least one
+        // class).
         Map<UUID, ClassStudent> identity = classId == null
                 ? identityByUserId(groups.stream()
                         .map(StudentResultResponse::getStudentUserId)
@@ -227,8 +228,8 @@ public class AssignmentGradingService {
         Page<SubmissionResponse> fetched = submissionInternalClient.listByAssignment(
                 assignmentId, page, size);
         List<SubmissionResponse> rows = fetched.getContent();
-        // Bài tập luyện tập (classId NULL) không có roster lớp: enrich code/name từ
-        // bảng class_students theo student_user_id của các bản nộp.
+        // Practice assignments have classId == NULL, so no class roster exists: enrich code/name from
+        // class_students by student_user_id of the submissions.
         Map<UUID, ClassStudent> identity = classId == null
                 ? identityByUserId(rows.stream()
                         .map(SubmissionResponse::getStudentId)

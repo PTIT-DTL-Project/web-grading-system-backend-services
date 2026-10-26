@@ -201,7 +201,9 @@ public class ScoreService {
         if (studentUserId == null) {
             return null; // no user mapping yet — auto grading unavailable
         }
-        // Bài tập luyện tập (PRACTICE) không vào điểm thành phần EXERCISE.
+        // Review: 2026-10-26, practice-exercises feature
+        // Practice assignments (purpose=PRACTICE) never feed the class EXERCISE score component:
+        // they are auto-graded for learner feedback only. Aggregate GRADED assignments alone.
         List<UUID> assignmentIds = assignmentRepository.findAllByClassIdAndPurpose(classId, AssignmentPurpose.GRADED).stream()
                 .map(Assignment::getId)
                 .toList();

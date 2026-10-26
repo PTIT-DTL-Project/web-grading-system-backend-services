@@ -49,6 +49,9 @@ public class AssignmentController {
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
+        // Review: 2026-10-26, practice-exercises feature
+        // purpose filters GRADED vs PRACTICE; topic is an exact (case-insensitive) match,
+        // search matches title or topic. All filters are combinable.
         Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(
                 assignmentService.listMine(UUID.fromString(ownerId), classId, purpose, topic, published, search, pageable));
@@ -59,6 +62,8 @@ public class AssignmentController {
     public ResponseEntity<List<String>> listTopics(
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId,
             @RequestParam AssignmentPurpose purpose) {
+        // Review: 2026-10-26, practice-exercises feature
+        // Distinct topics for the owner scoped to a purpose, used by the FE topic filter.
         return ResponseEntity.ok(assignmentService.listTopics(UUID.fromString(ownerId), purpose));
     }
 

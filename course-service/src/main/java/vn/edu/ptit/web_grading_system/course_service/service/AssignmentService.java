@@ -58,6 +58,10 @@ public class AssignmentService {
         UUID classId = request.getClassId();
         String topic = StringUtils.hasText(request.getTopic()) ? request.getTopic().trim() : null;
 
+        // Review: 2026-10-26, practice-exercises feature
+        // GRADED exercises belong to a class the lecturer owns; PRACTICE exercises are class-independent
+        // (classId must be NULL) so that, once published, they are visible to every student regardless of
+        // enrollment. Enforcing this at creation keeps the class/practice boundary immutable.
         if (purpose == AssignmentPurpose.GRADED) {
             if (classId == null) {
                 throw new BadRequestException("classId is required for GRADED assignments");
@@ -68,6 +72,9 @@ public class AssignmentService {
         }
 
         String title = request.getTitle().trim();
+        // Review: 2026-10-26, practice-exercises feature
+        // Title uniqueness is owner-scoped across BOTH purposes (GRADED and PRACTICE), not per-class, so a
+        // lecturer cannot reuse the same title for a graded exercise and a practice exercise.
         if (assignmentRepository.existsByOwnerIdAndTitleIgnoreCase(ownerId, title)) {
             log.warn("Duplicate assignment creation rejected: owner={}, title={}, purpose={}",
                     ownerId, title, purpose);
@@ -115,6 +122,10 @@ public class AssignmentService {
     @Transactional
     public AssignmentResponse update(UUID id, UUID ownerId, UpdateAssignmentRequest request) {
         Assignment assignment = requireOwnedAssignment(id, ownerId);
+        // Review: 2026-10-26, practice-exercises feature
+        // classId is immutable after creation: moving an assignment between classes (or into/out of
+        // practice) would break the class/practice boundary and orphan scores/results. The effective
+        // class is always the stored one.
         if (request.getClassId() != null && !request.getClassId().equals(assignment.getClassId())) {
             throw new BadRequestException("class_id cannot be changed after creation");
         }
@@ -135,6 +146,9 @@ public class AssignmentService {
                 : assignment.getGradingStrategy();
 
         assignment.setTitle(title);
+        // Review: 2026-10-26, practice-exercises feature
+        // topic is mandatory for every assignment (GRADED and PRACTICE). Legacy rows were backfilled to
+        // 'Chung' in V7 migration so every row has a non-null topic; updates must keep it non-blank.
         assignment.setTopic(StringUtils.hasText(request.getTopic()) ? request.getTopic().trim() : null);
         assignment.setDescription(request.getDescription() != null ? request.getDescription() : assignment.getDescription());
         if (request.getClassId() != null) {

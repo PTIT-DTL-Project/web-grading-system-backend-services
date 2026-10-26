@@ -31,6 +31,9 @@ public class StudentAssignmentController {
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
+        // Review: 2026-10-26, practice-exercises feature
+        // purpose defaults to GRADED. Passing purpose=PRACTICE lists published class-independent
+        // exercises visible to every student (no enrollment check); topic/search are combinable filters.
         Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(studentAssignmentService.listAssignments(
                 UUID.fromString(studentId), email, classId, purpose, topic, search, pageable));
@@ -38,6 +41,8 @@ public class StudentAssignmentController {
 
     @GetMapping("/topics")
     public ResponseEntity<List<String>> listTopics() {
+        // Review: 2026-10-26, practice-exercises feature
+        // Distinct topics among published practice exercises, for the student topic filter.
         return ResponseEntity.ok(studentAssignmentService.listTopics());
     }
 
