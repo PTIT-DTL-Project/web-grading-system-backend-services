@@ -17,7 +17,8 @@ import java.util.UUID;
 @SuperBuilder
 public class Assignment extends BaseEntity {
 
-    @Column(name = "class_id", nullable = false)
+    // class_id nullable để hỗ trợ bài tập luyện tập (PRACTICE) độc lập ngoài lớp.
+    @Column(name = "class_id")
     private UUID classId;
 
     @Column(name = "owner_id", nullable = false)
@@ -27,6 +28,14 @@ public class Assignment extends BaseEntity {
     private String title;
 
     private String description;
+
+    @Column(nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private AssignmentPurpose purpose = AssignmentPurpose.GRADED;
+
+    @Column(length = 255)
+    private String topic;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "grading_strategy", nullable = false, length = 30)

@@ -11,6 +11,7 @@ import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateAssignmen
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateAssignmentRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResponse;
 import vn.edu.ptit.web_grading_system.course_service.entity.Assignment;
+import vn.edu.ptit.web_grading_system.course_service.entity.AssignmentPurpose;
 import vn.edu.ptit.web_grading_system.course_service.entity.CourseClass;
 import vn.edu.ptit.web_grading_system.course_service.entity.GradingStrategy;
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
@@ -53,21 +54,35 @@ public class AssignmentService {
 
     @Transactional
     public AssignmentResponse create(UUID ownerId, CreateAssignmentRequest request) {
-        requireOwnedClass(ownerId, request.getClassId());
+        AssignmentPurpose purpose = request.getPurpose() != null ? request.getPurpose() : AssignmentPurpose.GRADED;
+        UUID classId = request.getClassId();
+        String topic = StringUtils.hasText(request.getTopic()) ? request.getTopic().trim() : null;
+
+        if (purpose == AssignmentPurpose.GRADED) {
+            if (classId == null) {
+                throw new BadRequestException("classId is required for GRADED assignments");
+            }
+            requireOwnedClass(ownerId, classId);
+        } else if (classId != null) {
+            throw new BadRequestException("classId must be null for PRACTICE assignments");
+        }
+
         String title = request.getTitle().trim();
-        if (assignmentRepository.existsByOwnerIdAndClassIdAndTitle(ownerId, request.getClassId(), title)) {
-            log.warn("Duplicate assignment creation rejected: owner={}, class={}, title={}",
-                    ownerId, request.getClassId(), title);
+        if (assignmentRepository.existsByOwnerIdAndTitleIgnoreCase(ownerId, title)) {
+            log.warn("Duplicate assignment creation rejected: owner={}, title={}, purpose={}",
+                    ownerId, title, purpose);
             throw new BadRequestException(
-                    "Assignment '%s' already exists in this class".formatted(title));
+                    "Assignment '%s' already exists".formatted(title));
         }
         validateStrategy(request.getGradingStrategy(), request.getDockerComposeTemplate());
 
         Assignment assignment = assignmentRepository.save(Assignment.builder()
-                .classId(request.getClassId())
+                .classId(classId)
                 .ownerId(ownerId)
                 .title(title)
                 .description(request.getDescription())
+                .purpose(purpose)
+                .topic(topic)
                 .gradingStrategy(request.getGradingStrategy())
                 .dockerComposeTemplate(request.getDockerComposeTemplate())
                 .dockerComposePort(request.getDockerComposePort())
@@ -77,15 +92,20 @@ public class AssignmentService {
                 .maxCpu(request.getMaxCpu())
                 .published(false)
                 .build());
-        log.info("Assignment created: id={}, title={}, class={}", assignment.getId(), title, request.getClassId());
+        log.info("Assignment created: id={}, title={}, class={}, purpose={}", assignment.getId(), title, classId, purpose);
         return assignmentMapper.toResponse(assignment);
     }
 
-    public Page<AssignmentResponse> listMine(UUID ownerId, UUID classId, Boolean published,
-                                             String search, Pageable pageable) {
+    public Page<AssignmentResponse> listMine(UUID ownerId, UUID classId, AssignmentPurpose purpose,
+                                             String topic, Boolean published, String search, Pageable pageable) {
         String q = StringUtils.hasText(search) ? search.trim() : null;
-        return assignmentRepository.findMine(ownerId, classId, published, q, pageable)
+        String t = StringUtils.hasText(topic) ? topic.trim() : null;
+        return assignmentRepository.findMine(ownerId, classId, purpose, t, published, q, pageable)
                 .map(assignmentMapper::toResponse);
+    }
+
+    public List<String> listTopics(UUID ownerId, AssignmentPurpose purpose) {
+        return assignmentRepository.findDistinctTopics(ownerId, purpose);
     }
 
     public AssignmentResponse getById(UUID id, UUID ownerId) {
@@ -105,16 +125,17 @@ public class AssignmentService {
                         : assignment.getDockerComposeTemplate());
 
         String title = request.getTitle().trim();
-        UUID effectiveClassId = request.getClassId() != null ? request.getClassId() : assignment.getClassId();
-        if (assignmentRepository.existsByOwnerIdAndClassIdAndTitleAndIdNot(ownerId, effectiveClassId, title, id)) {
+        // class_id cannot change, so effective class is always the stored one.
+        if (assignmentRepository.existsByOwnerIdAndTitleIgnoreCaseAndIdNot(ownerId, title, id)) {
             throw new BadRequestException(
-                    "Assignment '%s' already exists in this class".formatted(title));
+                    "Assignment '%s' already exists".formatted(title));
         }
         GradingStrategy strategy = request.getGradingStrategy() != null
                 ? request.getGradingStrategy()
                 : assignment.getGradingStrategy();
 
         assignment.setTitle(title);
+        assignment.setTopic(StringUtils.hasText(request.getTopic()) ? request.getTopic().trim() : null);
         assignment.setDescription(request.getDescription() != null ? request.getDescription() : assignment.getDescription());
         if (request.getClassId() != null) {
             assignment.setClassId(request.getClassId());

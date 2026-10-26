@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
+import vn.edu.ptit.web_grading_system.course_service.entity.AssignmentPurpose;
 import vn.edu.ptit.web_grading_system.course_service.service.StudentAssignmentService;
 
 import java.util.List;
@@ -25,12 +26,19 @@ public class StudentAssignmentController {
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String studentId,
             @RequestHeader(value = "X-User-Email", defaultValue = "") String email,
             @RequestParam(required = false) UUID classId,
+            @RequestParam(required = false) AssignmentPurpose purpose,
+            @RequestParam(required = false) String topic,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(studentAssignmentService.listAssignments(
-                UUID.fromString(studentId), email, classId, search, pageable));
+                UUID.fromString(studentId), email, classId, purpose, topic, search, pageable));
+    }
+
+    @GetMapping("/topics")
+    public ResponseEntity<List<String>> listTopics() {
+        return ResponseEntity.ok(studentAssignmentService.listTopics());
     }
 
     @GetMapping("/{id}")

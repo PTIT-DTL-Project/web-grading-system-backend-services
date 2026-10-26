@@ -6,6 +6,7 @@ import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateAssignmen
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateAssignmentRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResponse;
 import vn.edu.ptit.web_grading_system.course_service.entity.Assignment;
+import vn.edu.ptit.web_grading_system.course_service.entity.AssignmentPurpose;
 import vn.edu.ptit.web_grading_system.course_service.entity.CourseClass;
 import vn.edu.ptit.web_grading_system.course_service.entity.GradingStrategy;
 import vn.edu.ptit.web_grading_system.course_service.exception.BadRequestException;
@@ -69,7 +70,7 @@ class AssignmentServiceTest {
     @Test
     void create_trimsTitle_andPersistsUnpublished() {
         stubOwnedClass();
-        Mockito.when(assignmentRepo.existsByOwnerIdAndClassIdAndTitle(OWNER, CLASS_ID, "Lab 01 Docker"))
+        Mockito.when(assignmentRepo.existsByOwnerIdAndTitleIgnoreCase(OWNER, "Lab 01 Docker"))
                 .thenReturn(false);
         Mockito.when(mapper.toResponse(Mockito.any())).thenReturn(AssignmentResponse.builder().build());
 
@@ -77,6 +78,7 @@ class AssignmentServiceTest {
 
         Mockito.verify(assignmentRepo).save(Mockito.argThat(a ->
                 "Lab 01 Docker".equals(a.getTitle())
+                        && AssignmentPurpose.GRADED.equals(a.getPurpose())
                         && Boolean.FALSE.equals(a.getPublished())
                         && OWNER.equals(a.getOwnerId())));
     }
@@ -84,12 +86,12 @@ class AssignmentServiceTest {
     @Test
     void create_duplicateTitleInSameClass_throwsDescriptive400() {
         stubOwnedClass();
-        Mockito.when(assignmentRepo.existsByOwnerIdAndClassIdAndTitle(OWNER, CLASS_ID, "Lab 01 Docker"))
+        Mockito.when(assignmentRepo.existsByOwnerIdAndTitleIgnoreCase(OWNER, "Lab 01 Docker"))
                 .thenReturn(true);
 
         BadRequestException e = assertThrows(BadRequestException.class,
                 () -> service.create(OWNER, createRequest(GradingStrategy.STUDENT_DOCKER_COMPOSE)));
-        assertEquals("Assignment 'Lab 01 Docker' already exists in this class", e.getMessage());
+        assertEquals("Assignment 'Lab 01 Docker' already exists", e.getMessage());
         Mockito.verify(assignmentRepo, Mockito.never()).save(Mockito.any());
     }
 
@@ -105,7 +107,7 @@ class AssignmentServiceTest {
     @Test
     void create_lecturerStrategyRequiresTemplate() {
         stubOwnedClass();
-        Mockito.when(assignmentRepo.existsByOwnerIdAndClassIdAndTitle(Mockito.any(), Mockito.any(), Mockito.any()))
+        Mockito.when(assignmentRepo.existsByOwnerIdAndTitleIgnoreCase(Mockito.any(), Mockito.any()))
                 .thenReturn(false);
 
         CreateAssignmentRequest req = createRequest(GradingStrategy.LECTURER_DOCKER_COMPOSE);
@@ -132,7 +134,7 @@ class AssignmentServiceTest {
     @Test
     void update_duplicateTitleExcludingSelf_throws400() {
         stubOwnedAssignment(false);
-        Mockito.when(assignmentRepo.existsByOwnerIdAndClassIdAndTitleAndIdNot(OWNER, CLASS_ID, "Dup", ASSIGNMENT_ID))
+        Mockito.when(assignmentRepo.existsByOwnerIdAndTitleIgnoreCaseAndIdNot(OWNER, "Dup", ASSIGNMENT_ID))
                 .thenReturn(true);
 
         assertThrows(BadRequestException.class,

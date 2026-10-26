@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.UpdateAssignmentRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreateAssignmentRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResponse;
+import vn.edu.ptit.web_grading_system.course_service.entity.AssignmentPurpose;
 import vn.edu.ptit.web_grading_system.course_service.service.AssignmentService;
 import vn.edu.ptit.web_grading_system.course_service.util.annotation.ApiMessage;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -41,13 +43,23 @@ public class AssignmentController {
     public ResponseEntity<Page<AssignmentResponse>> listMine(
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId,
             @RequestParam(required = false) UUID classId,
+            @RequestParam(required = false) AssignmentPurpose purpose,
+            @RequestParam(required = false) String topic,
             @RequestParam(required = false) Boolean published,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(
-                assignmentService.listMine(UUID.fromString(ownerId), classId, published, search, pageable));
+                assignmentService.listMine(UUID.fromString(ownerId), classId, purpose, topic, published, search, pageable));
+    }
+
+    @PreAuthorize("hasRole('LECTURER')")
+    @GetMapping("/topics")
+    public ResponseEntity<List<String>> listTopics(
+            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId,
+            @RequestParam AssignmentPurpose purpose) {
+        return ResponseEntity.ok(assignmentService.listTopics(UUID.fromString(ownerId), purpose));
     }
 
     @PreAuthorize("hasRole('LECTURER')")

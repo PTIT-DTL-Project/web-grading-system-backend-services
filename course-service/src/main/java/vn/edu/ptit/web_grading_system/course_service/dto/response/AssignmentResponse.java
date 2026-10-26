@@ -18,6 +18,8 @@ public class AssignmentResponse {
     private UUID classId;
     private String title;
     private String description;
+    private String purpose;
+    private String topic;
     private String gradingStrategy;
     private String dockerComposeTemplate;
     private Integer dockerComposePort;

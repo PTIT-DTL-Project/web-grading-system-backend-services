@@ -201,7 +201,8 @@ public class ScoreService {
         if (studentUserId == null) {
             return null; // no user mapping yet — auto grading unavailable
         }
-        List<UUID> assignmentIds = assignmentRepository.findAllByClassId(classId).stream()
+        // Bài tập luyện tập (PRACTICE) không vào điểm thành phần EXERCISE.
+        List<UUID> assignmentIds = assignmentRepository.findAllByClassIdAndPurpose(classId, AssignmentPurpose.GRADED).stream()
                 .map(Assignment::getId)
                 .toList();
         if (assignmentIds.isEmpty()) {

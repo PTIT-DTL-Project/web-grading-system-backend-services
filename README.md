@@ -240,6 +240,11 @@ cần đủ cả 3 điều kiện:
 
 Thiếu bất kỳ điều kiện nào → `exercise = null` và do đó `total = null`.
 
+Bài tập luyện tập (`purpose = PRACTICE`, `class_id` NULL) được chấm như bình thường
+nhưng **không** vào điểm thành phần `EXERCISE` (`ScoreService` chỉ tổng hợp
+`purpose = GRADED`). Mỗi assignment có trường `topic` (bắt buộc) để giảng viên lọc
+và sinh viên tìm theo chủ đề.
+
 ## 🔗 Related Repositories
 
 - **Config Repo**: [web-grading-system-config](https://github.com/PTIT-DTL-Project/web-grading-system-config) - Helm charts và values
@@ -255,9 +260,15 @@ Xem kịch bản đầy đủ tại `docs/design/usecase-flows.md` (UC-02) và c
 ```bash
 BASE_URL=http://localhost:18081 bash docs/api/scenarios/exercise-management.sh
 ```
-Endpoints: POST/GET/GET{id}/PUT{id}/DELETE{id}/POST{id}/publish under `/api/v1/assignments`.
-Student read path (enrollment + published gated, steps sanitized): `GET /api/v1/student/assignments`,
-`GET /api/v1/student/assignments/{id}`, `GET /api/v1/student/assignments/{id}/plans`.
+Endpoints: POST/GET/GET{id}/PUT{id}/DELETE{id}/POST{id}/publish under `/api/v1/assignments`;
+`GET /api/v1/assignments/topics?purpose=` (distinct chủ đề). Query params `purpose`
+(`GRADED`|`PRACTICE`) and `topic` (chính xác) có thể lọc list.
+- `PRACTICE` assignments: `classId` phải null, topic bắt buộc, xuất hiện cho mọi sinh
+  viên khi công bố, không vào điểm thành phần.
+Student read path (enrollment + published gated, steps sanitized): `GET /api/v1/student/assignments`
+(mặc định `purpose=GRADED`; passare `purpose=PRACTICE` để xem bài luyện tập),
+`GET /api/v1/student/assignments/{id}`, `GET /api/v1/student/assignments/{id}/plans`,
+`GET /api/v1/student/assignments/topics`.
 `test_steps.description` is a nullable lecturer-authored note; FE shows it verbatim and
 falls back to auto-generated text from `config` when empty. Per-plan submission:
 `POST /api/v1/submissions/presigned-url?planId=` (planId optional; omitted ⇒ grade all). Requires `X-User-Id` header (stamps `submissions.student_id`).
