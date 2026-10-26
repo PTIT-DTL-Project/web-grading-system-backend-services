@@ -39,7 +39,7 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
             where a.ownerId = :ownerId
               and (:classId is null or a.classId = :classId)
               and (:purpose is null or a.purpose = :purpose)
-              and (:topic is null or lower(a.topic) = lower(:topic))
+              and (:topic is null or lower(a.topic) = lower(cast(:topic as string)))
               and (:published is null or a.published = :published)
               and (:search is null
                    or lower(a.title) like lower(concat('%', cast(:search as string), '%'))
@@ -65,7 +65,7 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
               and a.purpose = vn.edu.ptit.web_grading_system.course_service.entity.AssignmentPurpose.GRADED
               and a.classId in :classIds
               and (:classId is null or a.classId = :classId)
-              and (:topic is null or lower(a.topic) = lower(:topic))
+              and (:topic is null or lower(a.topic) = lower(cast(:topic as string)))
               and (:search is null
                    or lower(a.title) like lower(concat('%', cast(:search as string), '%'))
                    or lower(coalesce(a.topic, '')) like lower(concat('%', cast(:search as string), '%')))
@@ -85,7 +85,7 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
             where a.published = true
               and a.purpose = vn.edu.ptit.web_grading_system.course_service.entity.AssignmentPurpose.PRACTICE
               and a.classId is null
-              and (:topic is null or lower(a.topic) = lower(:topic))
+              and (:topic is null or lower(a.topic) = lower(cast(:topic as string)))
               and (:search is null
                    or lower(a.title) like lower(concat('%', cast(:search as string), '%'))
                    or lower(coalesce(a.topic, '')) like lower(concat('%', cast(:search as string), '%')))
