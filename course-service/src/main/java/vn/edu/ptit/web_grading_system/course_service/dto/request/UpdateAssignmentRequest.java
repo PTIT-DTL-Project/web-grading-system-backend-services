@@ -30,6 +30,9 @@ public class UpdateAssignmentRequest {
 
     private UUID classId;
 
+    @NotBlank
+    private String topic;
+
     private GradingStrategy gradingStrategy;
 
     private String dockerComposeTemplate;

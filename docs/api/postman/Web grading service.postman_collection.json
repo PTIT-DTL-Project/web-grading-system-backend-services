@@ -2726,6 +2726,16 @@
                       "key": "size",
                       "value": "20",
                       "disabled": true
+                    },
+                    {
+                      "key": "purpose",
+                      "value": "GRADED",
+                      "disabled": true
+                    },
+                    {
+                      "key": "topic",
+                      "value": "",
+                      "disabled": true
                     }
                   ]
                 }
@@ -2809,7 +2819,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"Lab 01 - Book API\",\n  \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n  \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n  \"description\": \"REST basics\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 256,\n  \"maxCpu\": 0.5\n}\n",
+                  "raw": "{\n  \"title\": \"Lab 01 - Book API\",\n  \"classId\": \"e541fb98-ad5b-4483-8c14-95ac9c81dc68\",\n  \"purpose\": \"GRADED\",\n  \"topic\": \"Chủ đề\",\n  \"gradingStrategy\": \"STUDENT_DOCKER_COMPOSE\",\n  \"description\": \"REST basics\",\n  \"dockerComposePort\": 8080,\n  \"startupTimeoutMs\": 60000,\n  \"executionTimeoutMs\": 300000,\n  \"maxMemoryMb\": 256,\n  \"maxCpu\": 0.5\n}\n",
                   "options": {
                     "raw": {
                       "language": "json"

@@ -17,6 +17,7 @@ import vn.edu.ptit.web_grading_system.course_service.repository.AssignmentReposi
 import vn.edu.ptit.web_grading_system.course_service.repository.ClassStudentRepository;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -57,9 +58,26 @@ public class AssignmentGradingService {
     }
 
     private Map<UUID, ClassStudent> rosterByUserId(UUID classId) {
+        if (classId == null) {
+            return Map.of();
+        }
         return classStudentRepository.findAllByClassId(classId).stream()
                 // A repeated student_user_id would make Collectors.toMap throw; first wins,
                 // matching ClassStudentRepository.findByClassIdAndStudentCode's Optional.
+                .collect(Collectors.toMap(ClassStudent::getStudentUserId,
+                        student -> student, (first, second) -> first));
+    }
+
+    /**
+     * Looks up the identifying fields (code/name) for the given student_user_id values, used when
+     * the assignment belongs to no class (practice) so there is no roster to enrich from.
+     */
+    private Map<UUID, ClassStudent> identityByUserId(Collection<UUID> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Map.of();
+        }
+        return classStudentRepository.findAllByStudentUserIdIn(userIds).stream()
+                .filter(s -> s.getStudentUserId() != null)
                 .collect(Collectors.toMap(ClassStudent::getStudentUserId,
                         student -> student, (first, second) -> first));
     }
@@ -103,7 +121,8 @@ public class AssignmentGradingService {
             UUID assignmentId, UUID ownerId, String studentCode, boolean includeSteps,
             Integer page, Integer size) {
         Assignment assignment = requireOwnedAssignment(assignmentId, ownerId);
-        Map<UUID, ClassStudent> roster = rosterByUserId(assignment.getClassId());
+        UUID classId = assignment.getClassId();
+        Map<UUID, ClassStudent> roster = rosterByUserId(classId);
 
         // Single-student path: translate the roster code to a user id up front.
         Optional<UUID> wantedId = studentIdFor(roster, studentCode);
@@ -118,12 +137,23 @@ public class AssignmentGradingService {
         List<StudentResultResponse> groups =
                 resultServiceClient.assignmentResults(assignmentId, studentUserId, includeSteps);
 
+        // Practice assignments have classId == NULL, so no class roster exists: enrich student
+        // code/name from class_students by student_user_id (students who have taken at least one
+        // class).
+        Map<UUID, ClassStudent> identity = classId == null
+                ? identityByUserId(groups.stream()
+                        .map(StudentResultResponse::getStudentUserId)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet()))
+                : roster;
+
         // Only the whole-class view synthesises the still-missing students — a single-student
         // view must never invent rows for people who have no results at all.
-        boolean synthesizeMissing = studentUserId == null;
+        // Practice assignments have no roster, so nothing to synthesise.
+        boolean synthesizeMissing = studentUserId == null && classId != null;
         Map<UUID, StudentResultResponse> byUser = new LinkedHashMap<>();
         for (StudentResultResponse group : groups) {
-            ClassStudent student = roster.get(group.getStudentUserId());
+            ClassStudent student = identity.get(group.getStudentUserId());
             if (student != null) {
                 group.setStudentCode(student.getStudentCode());
                 group.setStudentName(student.getStudentName());
@@ -185,7 +215,8 @@ public class AssignmentGradingService {
     public Page<SubmissionResponse> submissions(UUID assignmentId, UUID ownerId, String studentCode,
             Integer page, Integer size) {
         Assignment assignment = requireOwnedAssignment(assignmentId, ownerId);
-        Map<UUID, ClassStudent> roster = rosterByUserId(assignment.getClassId());
+        UUID classId = assignment.getClassId();
+        Map<UUID, ClassStudent> roster = rosterByUserId(classId);
 
         Optional<UUID> wantedId = studentIdFor(roster, studentCode);
         if (studentCode != null && !studentCode.isBlank() && wantedId.isEmpty()) {
@@ -197,9 +228,17 @@ public class AssignmentGradingService {
         Page<SubmissionResponse> fetched = submissionInternalClient.listByAssignment(
                 assignmentId, page, size);
         List<SubmissionResponse> rows = fetched.getContent();
+        // Practice assignments have classId == NULL, so no class roster exists: enrich code/name from
+        // class_students by student_user_id of the submissions.
+        Map<UUID, ClassStudent> identity = classId == null
+                ? identityByUserId(rows.stream()
+                        .map(SubmissionResponse::getStudentId)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet()))
+                : roster;
         for (SubmissionResponse row : rows) {
             ClassStudent student = row.getStudentId() == null
-                    ? null : roster.get(row.getStudentId());
+                    ? null : identity.get(row.getStudentId());
             if (student != null) {
                 row.setStudentCode(student.getStudentCode());
                 row.setStudentName(student.getStudentName());

@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -13,6 +14,7 @@ import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResp
 import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.StepResponse;
 import vn.edu.ptit.web_grading_system.course_service.entity.Assignment;
+import vn.edu.ptit.web_grading_system.course_service.entity.AssignmentPurpose;
 import vn.edu.ptit.web_grading_system.course_service.entity.ClassStudent;
 import vn.edu.ptit.web_grading_system.course_service.entity.StepType;
 import vn.edu.ptit.web_grading_system.course_service.entity.TestPlan;
@@ -54,15 +56,31 @@ public class StudentAssignmentService {
 
     @Transactional(readOnly = true)
     public Page<AssignmentResponse> listAssignments(UUID studentId, String email, UUID classId,
+                                                    AssignmentPurpose purpose, String topic,
                                                     String search, Pageable pageable) {
         studentIdentityService.linkStudent(studentId, email);
+        AssignmentPurpose effective = purpose != null ? purpose : AssignmentPurpose.GRADED;
+        String t = StringUtils.hasText(topic) ? topic.trim() : null;
+
+        // Review: 2026-10-26, practice-exercises feature
+        // Practice assignments are class-independent: visible to every student, no enrollment
+        // required (class_id is NULL). Skip the enrolled-class lookup entirely.
+        if (effective == AssignmentPurpose.PRACTICE) {
+            return assignmentRepository.findPublishedPractice(t, search, pageable)
+                    .map(assignmentMapper::toResponse);
+        }
+
         List<UUID> classIds = enrolledClassIds(studentId);
         if (classIds.isEmpty()) {
             return Page.empty(pageable);
         }
         return assignmentRepository
-                .findPublishedForStudent(classIds, classId, search, pageable)
+                .findPublishedForStudent(classIds, classId, t, search, pageable)
                 .map(assignmentMapper::toResponse);
+    }
+
+    public List<String> listTopics() {
+        return assignmentRepository.findDistinctPublishedTopics(AssignmentPurpose.PRACTICE);
     }
 
     @Transactional(readOnly = true)
@@ -133,8 +151,16 @@ public class StudentAssignmentService {
     private Assignment requireVisible(UUID studentId, UUID assignmentId) {
         Assignment assignment = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Assignment not found: " + assignmentId));
-        if (!Boolean.TRUE.equals(assignment.getPublished())
-                || !enrolledClassIds(studentId).contains(assignment.getClassId())) {
+        if (!Boolean.TRUE.equals(assignment.getPublished())) {
+            throw new ResourceNotFoundException("Assignment not found: " + assignmentId);
+        }
+        // Review: 2026-10-26, practice-exercises feature
+        // Practice assignments are class-independent: visible to every student regardless of
+        // enrollment (class_id is NULL). No enrolled-class check needed.
+        if (assignment.getPurpose() == AssignmentPurpose.PRACTICE) {
+            return assignment;
+        }
+        if (!enrolledClassIds(studentId).contains(assignment.getClassId())) {
             throw new ResourceNotFoundException("Assignment not found: " + assignmentId);
         }
         return assignment;

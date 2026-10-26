@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
+import vn.edu.ptit.web_grading_system.course_service.entity.AssignmentPurpose;
 import vn.edu.ptit.web_grading_system.course_service.service.StudentAssignmentService;
 
 import java.util.List;
@@ -25,12 +26,24 @@ public class StudentAssignmentController {
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String studentId,
             @RequestHeader(value = "X-User-Email", defaultValue = "") String email,
             @RequestParam(required = false) UUID classId,
+            @RequestParam(required = false) AssignmentPurpose purpose,
+            @RequestParam(required = false) String topic,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
+        // Review: 2026-10-26, practice-exercises feature
+        // purpose defaults to GRADED. Passing purpose=PRACTICE lists published class-independent
+        // exercises visible to every student (no enrollment check); topic/search are combinable filters.
         Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(studentAssignmentService.listAssignments(
-                UUID.fromString(studentId), email, classId, search, pageable));
+                UUID.fromString(studentId), email, classId, purpose, topic, search, pageable));
+    }
+
+    @GetMapping("/topics")
+    public ResponseEntity<List<String>> listTopics() {
+        // Review: 2026-10-26, practice-exercises feature
+        // Distinct topics among published practice exercises, for the student topic filter.
+        return ResponseEntity.ok(studentAssignmentService.listTopics());
     }
 
     @GetMapping("/{id}")

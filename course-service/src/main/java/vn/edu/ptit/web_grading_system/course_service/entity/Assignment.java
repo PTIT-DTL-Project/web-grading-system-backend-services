@@ -17,7 +17,10 @@ import java.util.UUID;
 @SuperBuilder
 public class Assignment extends BaseEntity {
 
-    @Column(name = "class_id", nullable = false)
+    // Review: 2026-10-26, practice-exercises feature
+    // class_id nullable so PRACTICE assignments can be class-independent (visible to every
+    // student when published, no enrollment). GRADED assignments keep their owning class.
+    @Column(name = "class_id")
     private UUID classId;
 
     @Column(name = "owner_id", nullable = false)
@@ -27,6 +30,17 @@ public class Assignment extends BaseEntity {
     private String title;
 
     private String description;
+
+    @Column(nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private AssignmentPurpose purpose = AssignmentPurpose.GRADED;
+
+    // Review: 2026-10-26, practice-exercises feature
+    // topic is mandatory for every assignment (GRADED and PRACTICE); legacy rows were backfilled to
+    // 'Chung' in V7 so the column is NOT NULL.
+    @Column(length = 255)
+    private String topic;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "grading_strategy", nullable = false, length = 30)

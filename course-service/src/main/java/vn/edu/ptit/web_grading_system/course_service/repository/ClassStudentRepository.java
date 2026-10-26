@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import vn.edu.ptit.web_grading_system.course_service.entity.ClassStudent;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,6 +26,8 @@ public interface ClassStudentRepository extends JpaRepository<ClassStudent, UUID
     boolean existsByClassIdAndStudentCode(UUID classId, String studentCode);
 
     List<ClassStudent> findAllByStudentUserId(UUID studentUserId);
+
+    List<ClassStudent> findAllByStudentUserIdIn(Collection<UUID> studentUserIds);
 
     /**
      * Binds a Keycloak identity to roster rows by email. Only rows that have
