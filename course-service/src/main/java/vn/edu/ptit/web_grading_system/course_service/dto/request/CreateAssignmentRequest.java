@@ -33,8 +33,7 @@ public class CreateAssignmentRequest {
     @NotBlank
     private String topic;
 
-    @NotNull
-    private GradingStrategy gradingStrategy;
+    private GradingStrategy gradingStrategy = GradingStrategy.STUDENT_DOCKER_COMPOSE;
 
     private String dockerComposeTemplate;
 

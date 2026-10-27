@@ -36,7 +36,7 @@ public class CreateAssignmentTool implements AgentTool {
 
     @Override
     public String getDescription() {
-        return "Tạo bài tập sau khi giảng viên xác nhận. Cần title, classId (UUID) và gradingStrategy (STUDENT_DOCKER_COMPOSE hoặc LECTURER_DOCKER_COMPOSE). Nếu thiếu, hỏi người dùng trước khi gọi tool.";
+        return "Tạo bài tập sau khi giảng viên xác nhận. Cần title, classId (UUID). gradingStrategy mặc định là STUDENT_DOCKER_COMPOSE nếu không ghi rõ.";
     }
 
     @Override
@@ -56,7 +56,7 @@ public class CreateAssignmentTool implements AgentTool {
                           "executionTimeoutMs":{"type":"integer"},
                           "maxMemoryMb":{"type":"integer"},
                           "maxCpu":{"type":"number"}
-                        },"required":["title","classId","gradingStrategy"],"additionalProperties":false}
+                        },"required":["title","classId"],"additionalProperties":false}
                         """)
                 .build();
     }
@@ -100,7 +100,8 @@ public class CreateAssignmentTool implements AgentTool {
         }
 
         String strategy = arguments.hasNonNull("gradingStrategy")
-                ? arguments.get("gradingStrategy").asText() : "";
+                ? arguments.get("gradingStrategy").asText()
+                : "STUDENT_DOCKER_COMPOSE";
         if (!strategy.equals("STUDENT_DOCKER_COMPOSE") && !strategy.equals("LECTURER_DOCKER_COMPOSE")) {
             return ToolResult.error("INVALID_ARGUMENTS", "Cần chọn gradingStrategy: STUDENT_DOCKER_COMPOSE hoặc LECTURER_DOCKER_COMPOSE", false);
         }

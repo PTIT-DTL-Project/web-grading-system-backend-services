@@ -66,6 +66,34 @@ public class ResultService {
     }
 
     /**
+     * Batch exercise scores for multiple students across multiple assignments.
+     * Single DB query instead of N individual calls — used by lecturer transcript.
+     * Null when a student has no scorable results.
+     */
+    public Map<UUID, BigDecimal> weightedScoreByPlanBatch(
+            List<UUID> assignmentIds, List<UUID> studentIds) {
+        if (assignmentIds == null || assignmentIds.isEmpty()
+                || studentIds == null || studentIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Result> rows =
+                resultRepository.findByAssignmentIdInAndStudentIdIn(assignmentIds, studentIds);
+        if (rows.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, List<StepResult>> stepsByResult = stepsByResultIds(rows);
+        Map<UUID, List<Result>> byStudent = new LinkedHashMap<>();
+        for (Result row : rows) {
+            byStudent.computeIfAbsent(row.getStudentId(), key -> new ArrayList<>()).add(row);
+        }
+        Map<UUID, BigDecimal> out = new LinkedHashMap<>();
+        byStudent.forEach((studentId, attempts) -> {
+            out.put(studentId, maxPerPlanAverage(attempts, stepsByResult));
+        });
+        return out;
+    }
+
+    /**
      * Single source of the weight-weighted formula: {@link #weightedScoreByPlan} and
      * {@link #getByAssignment} both call it, so the per-student exercise score in the
      * transcript and the one in the lecturer's class-wide view use the **same formula**.

@@ -3,6 +3,7 @@ package vn.edu.ptit.web_grading_system.course_service.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -233,25 +234,49 @@ public class ScoreService {
         return failed ? LetterGrade.F : LetterGrade.fromTotal(finalTotal);
     }
 
-    public List<TranscriptEntryResponse> transcript(UUID classId, UUID ownerId) {
+    public Page<TranscriptEntryResponse> transcript(UUID classId, UUID ownerId, Pageable pageable) {
         requireOwnedClass(classId, ownerId);
         List<ScoreComponent> components = scoreComponentRepository.findAllByClassId(classId);
+
+        Page<ClassStudent> rosterPage = classStudentRepository.findAllByClassId(classId, pageable);
+        List<ClassStudent> roster = rosterPage.getContent();
+        if (roster.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        // Manual scores for students on this page
         Map<String, List<StudentScore>> scoresByStudent = studentScoreRepository
                 .findAllByClassId(classId).stream()
+                .filter(s -> roster.stream().anyMatch(r -> r.getStudentCode().equals(s.getStudentCode())))
                 .collect(Collectors.groupingBy(StudentScore::getStudentCode));
-        List<ClassStudent> roster = classStudentRepository.findAllByClassId(classId);
-        // ponytail: N+1 exercise fetches, fine for class-size rosters; batch endpoint if it hurts
-        return roster.stream().map(student -> {
+
+        // Graded assignment IDs for this class
+        List<UUID> assignmentIds = assignmentRepository.findAllByClassIdAndPurpose(classId, AssignmentPurpose.GRADED).stream()
+                .map(Assignment::getId)
+                .toList();
+
+        // Batch exercise scores — 1 HTTP call for all students on this page
+        List<UUID> studentUserIds = roster.stream()
+                .map(ClassStudent::getStudentUserId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        final Map<UUID, BigDecimal> exerciseByStudent = fetchBatchExerciseScores(assignmentIds, studentUserIds);
+
+        List<TranscriptEntryResponse> entries = roster.stream().map(student -> {
             Map<UUID, BigDecimal> manual = Optional.ofNullable(scoresByStudent.get(student.getStudentCode()))
                     .orElse(List.of()).stream()
                     .collect(Collectors.toMap(StudentScore::getComponentId, StudentScore::getScore));
-            BigDecimal exercise = computeExercise(classId, student.getStudentCode());
-            List<StudentScoreEntryResponse> entries = new ArrayList<>();
+
+            final UUID studentUserId = student.getStudentUserId();
+            BigDecimal exercise = studentUserId != null ? exerciseByStudent.get(studentUserId) : null;
+
+            List<StudentScoreEntryResponse> entryList = new ArrayList<>();
             BigDecimal total = BigDecimal.ZERO;
             boolean complete = true;
             for (ScoreComponent c : components) {
                 BigDecimal score = c.getType() == ScoreComponentType.EXERCISE ? exercise : manual.get(c.getId());
-                entries.add(StudentScoreEntryResponse.builder()
+                entryList.add(StudentScoreEntryResponse.builder()
                         .type(c.getType()).weight(c.getWeight()).score(score).build());
                 if (score == null) {
                     complete = false;
@@ -260,15 +285,31 @@ public class ScoreService {
                 }
             }
             BigDecimal finalTotal = complete ? total.setScale(2, RoundingMode.HALF_UP) : null;
-            LetterGrade grade = evaluateGrade(finalTotal, entries);
+            LetterGrade grade = evaluateGrade(finalTotal, entryList);
             return TranscriptEntryResponse.builder()
                     .studentCode(student.getStudentCode())
                     .studentName(student.getStudentName())
-                    .entries(entries)
+                    .entries(entryList)
                     .total(finalTotal)
                     .letterGrade(grade != null ? grade.getDisplay() : null)
                     .gpa(grade != null ? grade.getGpa() : null)
                     .build();
         }).toList();
+
+        return new PageImpl<>(entries, pageable, rosterPage.getTotalElements());
+    }
+
+    private Map<UUID, BigDecimal> fetchBatchExerciseScores(List<UUID> assignmentIds, List<UUID> studentUserIds) {
+        if (assignmentIds == null || assignmentIds.isEmpty()
+                || studentUserIds == null || studentUserIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            return resultServiceClient.weightedBatch(
+                    new ResultServiceClient.BatchAverageRequest(assignmentIds, studentUserIds));
+        } catch (Exception e) {
+            log.warn("Exercise score unavailable: {}", e.toString());
+            return Map.of();
+        }
     }
 }
