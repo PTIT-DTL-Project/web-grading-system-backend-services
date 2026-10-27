@@ -39,4 +39,10 @@ public interface ResultServiceClient {
 
     record AverageRequest(List<UUID> assignmentIds, UUID studentId) {
     }
+
+    record BatchAverageRequest(List<UUID> assignmentIds, List<UUID> studentIds) {
+    }
+
+    @PostMapping("/api/v1/internal/results/weighted-batch")
+    Map<UUID, BigDecimal> weightedBatch(@RequestBody BatchAverageRequest request);
 }

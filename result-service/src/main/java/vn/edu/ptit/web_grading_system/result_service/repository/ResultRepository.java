@@ -21,6 +21,9 @@ public interface ResultRepository extends JpaRepository<Result, UUID> {
     /** Every attempt row of these assignments for one student (max-policy reads). */
     List<Result> findByAssignmentIdInAndStudentId(Collection<UUID> assignmentIds, UUID studentId);
 
+    /** Every attempt row of these assignments for these students (batch transcript read). */
+    List<Result> findByAssignmentIdInAndStudentIdIn(Collection<UUID> assignmentIds, Collection<UUID> studentIds);
+
     /** Every attempt row of one assignment (max-policy reads). */
     List<Result> findByAssignmentId(UUID assignmentId);
     List<Result> findByStudentIdAndAssignmentIdAndPlanIdAndLatestTrue(

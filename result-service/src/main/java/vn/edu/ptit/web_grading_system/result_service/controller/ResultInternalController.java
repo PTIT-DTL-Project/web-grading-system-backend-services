@@ -25,11 +25,22 @@ public class ResultInternalController {
     public record AverageRequest(List<UUID> assignmentIds, UUID studentId) {
     }
 
+    public record BatchAverageRequest(List<UUID> assignmentIds, List<UUID> studentIds) {
+    }
+
     @PostMapping("/weighted")
     public ResponseEntity<Map<String, BigDecimal>> weighted(
             @RequestBody AverageRequest request) {
         BigDecimal weighted = resultService.weightedScoreByPlan(request.assignmentIds(), request.studentId());
         return ResponseEntity.ok(java.util.Collections.singletonMap("average", weighted));
+    }
+
+    @PostMapping("/weighted-batch")
+    public ResponseEntity<Map<UUID, BigDecimal>> weightedBatch(
+            @RequestBody BatchAverageRequest request) {
+        Map<UUID, BigDecimal> result =
+                resultService.weightedScoreByPlanBatch(request.assignmentIds(), request.studentIds());
+        return ResponseEntity.ok(result);
     }
 
     /**

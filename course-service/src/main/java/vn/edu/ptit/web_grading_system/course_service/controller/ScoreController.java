@@ -2,6 +2,8 @@ package vn.edu.ptit.web_grading_system.course_service.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -64,9 +66,10 @@ public class ScoreController {
 
     @PreAuthorize("hasRole('LECTURER')")
     @GetMapping("/{id}/transcript")
-    public ResponseEntity<List<TranscriptEntryResponse>> transcript(
+    public ResponseEntity<Page<TranscriptEntryResponse>> transcript(
             @PathVariable UUID id,
-            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId) {
-        return ResponseEntity.ok(scoreService.transcript(id, UUID.fromString(ownerId)));
+            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId,
+            Pageable pageable) {
+        return ResponseEntity.ok(scoreService.transcript(id, UUID.fromString(ownerId), pageable));
     }
 }

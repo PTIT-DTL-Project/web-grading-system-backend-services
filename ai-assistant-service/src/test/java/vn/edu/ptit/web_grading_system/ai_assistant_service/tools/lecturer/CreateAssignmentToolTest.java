@@ -1,5 +1,6 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.tools.lecturer;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.FeignException;
 import org.mockito.ArgumentCaptor;
@@ -38,17 +39,60 @@ public class CreateAssignmentToolTest {
     }
 
     @Test
-    void rejectsMissingStrategyBeforeCallingCourseService() throws Exception {
+    void defaultsToStudentDockerComposeWhenStrategyMissing() throws Exception {
+        CourseServiceClient client = mock(CourseServiceClient.class);
+        OperationService operations = mock(OperationService.class);
+        ObjectMapper mapper = new JacksonConfig().objectMapper();
+        CreateAssignmentTool tool = new CreateAssignmentTool(client, operations, mapper);
+        UUID classId = UUID.randomUUID();
+        UUID assignmentId = UUID.randomUUID();
+        AgentContext ctx = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"), null, null, "secret");
+        when(operations.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
+        when(client.createAssignment(anyString(), eq("ROLE_LECTURER"), any(), eq("secret")))
+                .thenReturn(ApiEnvelope.<AssignmentSummaryDto>builder()
+                        .status(201).data(AssignmentSummaryDto.builder().id(assignmentId).title("Bài 1").build()).build());
+
+        // Review: 2026-10-27 — gradingStrategy is optional now. The tool must fill in the
+        // lecturer-created default and still create the assignment instead of rejecting the call.
+        ToolResult result = tool.execute(mapper.readTree("{\"title\":\"Bài 1\",\"classId\":\"" + classId + "\"}"), ctx);
+
+        assertTrue(result.isSuccess());
+        ArgumentCaptor<CreateAssignmentCommand> body = ArgumentCaptor.forClass(CreateAssignmentCommand.class);
+        verify(client).createAssignment(eq(ctx.userId().toString()), eq("ROLE_LECTURER"), body.capture(), eq("secret"));
+        assertEquals("STUDENT_DOCKER_COMPOSE", body.getValue().gradingStrategy());
+        assertEquals(classId, body.getValue().classId());
+    }
+
+    @Test
+    void rejectsLecturerComposeWithoutTemplateBeforeCallingCourseService() throws Exception {
         CourseServiceClient client = mock(CourseServiceClient.class);
         CreateAssignmentTool tool = new CreateAssignmentTool(client, mock(OperationService.class), new JacksonConfig().objectMapper());
         UUID classId = UUID.randomUUID();
         AgentContext ctx = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"), null, null, "secret");
 
-        ToolResult result = tool.execute(new ObjectMapper().readTree("{\"title\":\"Bài 1\",\"classId\":\"" + classId + "\"}"), ctx);
+        ToolResult result = tool.execute(new ObjectMapper().readTree(
+                "{\"title\":\"Bài 1\",\"classId\":\"" + classId + "\",\"gradingStrategy\":\"LECTURER_DOCKER_COMPOSE\"}"), ctx);
 
         assertFalse(result.isSuccess());
         assertEquals("INVALID_ARGUMENTS", result.getCode());
         verifyNoInteractions(client);
+    }
+
+    @Test
+    void schemaDoesNotRequireGradingStrategy() throws Exception {
+        CreateAssignmentTool tool = new CreateAssignmentTool(
+                mock(CourseServiceClient.class), mock(OperationService.class), new JacksonConfig().objectMapper());
+
+        JsonNode required = new ObjectMapper()
+                .readTree(tool.getToolDefinition().inputSchema())
+                .path("required");
+
+        // A required gradingStrategy made the model ask the lecturer to pick one; the schema
+        // must keep it optional so the STUDENT_DOCKER_COMPOSE default applies.
+        assertTrue(required.isArray());
+        assertFalse(required.toString().contains("gradingStrategy"));
+        assertTrue(required.toString().contains("title"));
+        assertTrue(required.toString().contains("classId"));
     }
 
     @Test
