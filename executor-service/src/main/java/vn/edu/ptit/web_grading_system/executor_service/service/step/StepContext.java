@@ -50,4 +50,15 @@ public class StepContext {
     public JsonNode getConfig() { return config; }
     public VariableContext getVariableContext() { return variableContext; }
     public Integer getTimeoutMs() { return timeoutMs; }
+
+    /**
+     * Returns a copy of this context with a different config.
+     * Used by the data[] loop: each iteration substitutes the data row into a
+     * fresh config while sharing the same job, step and variable context.
+     */
+    public StepContext withConfig(JsonNode config)
+    {
+        return new StepContext(jobId, planId, stepId, stepOrder, stepName, config,
+                variableContext, timeoutMs);
+    }
 }

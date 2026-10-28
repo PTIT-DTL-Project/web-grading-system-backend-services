@@ -1,5 +1,6 @@
 package vn.edu.ptit.web_grading_system.course_service.service;
 
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,8 @@ import vn.edu.ptit.web_grading_system.course_service.entity.StepType;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -296,5 +299,255 @@ class StepConfigValidatorTest {
                     () -> StepConfigValidator.validateAndSerialize(type, arr));
             assertTrue(e.getMessage().contains("JSON object"), type.name());
         });
+    }
+
+    // ---------- Phase 1: new assertion kinds ----------
+
+    @Test
+    void http_newAssertionKinds_pass() {
+        String regex = "^ABC-\\\\d+$";
+        String json = "{\"method\":\"GET\",\"path\":\"/x\"," +
+                "\"assertions\":[" +
+                "{\"kind\":\"array_length\",\"path\":\"$\",\"equals\":3}," +
+                "{\"kind\":\"contains_item\",\"path\":\"$[*].title\",\"equals\":\"De Men\"}," +
+                "{\"kind\":\"json_path_equals\",\"path\":\"$.id\",\"equals\":\"b1\"}," +
+                "{\"kind\":\"greater_than\",\"path\":\"$.price\",\"value\":\"100\"}," +
+                "{\"kind\":\"less_than\",\"path\":\"$.price\",\"value\":\"200\"}," +
+                "{\"kind\":\"matches_regex\",\"path\":\"$.code\",\"pattern\":\"" + regex + "\"}," +
+                "{\"kind\":\"any_of\",\"assertions\":[" +
+                "{\"kind\":\"status\",\"equals\":200}," +
+                "{\"kind\":\"json_path\",\"path\":\"$.id\"}" +
+                "]}" +
+                "]}";
+        assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, node(json)));
+    }
+
+    @Test
+    void http_arrayLengthMissingFields_fails() {
+        ObjectNode n = node("{\"method\":\"GET\",\"path\":\"/x\",\"assertions\":[{\"kind\":\"array_length\"}]}");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, n));
+        assertTrue(e.getMessage().contains("'path'") || e.getMessage().contains("'equals'"));
+
+        ObjectNode n2 = node("{\"method\":\"GET\",\"path\":\"/x\",\"assertions\":[{\"kind\":\"array_length\",\"path\":\"$\"}]}");
+        var e2 = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, n2));
+        assertTrue(e2.getMessage().contains("'equals'"));
+    }
+
+    @Test
+    void http_greaterThanMissingValue_fails() {
+        ObjectNode n = node("{\"method\":\"GET\",\"path\":\"/x\",\"assertions\":[{\"kind\":\"greater_than\",\"path\":\"$.price\"}]}");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, n));
+        assertTrue(e.getMessage().contains("'value'"));
+    }
+
+    @Test
+    void http_matchesRegexMissingPattern_fails() {
+        ObjectNode n = node("{\"method\":\"GET\",\"path\":\"/x\",\"assertions\":[{\"kind\":\"matches_regex\",\"path\":\"$.code\"}]}");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, n));
+        assertTrue(e.getMessage().contains("'pattern'"));
+    }
+
+    @Test
+    void http_anyOfMissingSubAssertions_fails() {
+        ObjectNode n = node("{\"method\":\"GET\",\"path\":\"/x\",\"assertions\":[{\"kind\":\"any_of\"}]}");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, n));
+        assertTrue(e.getMessage().contains("'assertions'"));
+
+        ObjectNode n2 = node("{\"method\":\"GET\",\"path\":\"/x\",\"assertions\":[{\"kind\":\"any_of\",\"assertions\":[]}]}");
+        var e2 = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, n2));
+        assertTrue(e2.getMessage().contains("non-empty"));
+    }
+
+    @Test
+    void http_extractWithFallback_passes() {
+        String json = """
+            {"method":"GET","path":"/x",
+             "extract":[{"name":"bookId","from":"response_body","expression":"$.missing","fallback":"NOT_FOUND"}]}""";
+        assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, node(json)));
+    }
+
+    @Test
+    void http_extractWithAsJson_passes() {
+        String json = """
+            {"method":"GET","path":"/x",
+             "extract":[{"name":"whole","from":"response_body","expression":"$","as":"json"}]}""";
+        assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, node(json)));
+    }
+
+    // ---------- Phase 3: data[] loop + auto_inject_headers ----------
+
+    @Test
+    void http_dataLoop_validUpToTen_passes() {
+        StringBuilder sb = new StringBuilder(
+                "{\"method\":\"POST\",\"path\":\"/api/v1/books\",\"data\":[");
+        for (int i = 0; i < 10; i++) {
+            if (i > 0) sb.append(',');
+            sb.append("{\"title\":\"Sach \",\"year\":").append(1940 + i).append("}");
+        }
+        sb.append("],\"body\":{\"title\":\"${title}\",\"year\":\"${year}\"}}");
+        assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, node(sb.toString())));
+    }
+
+    @Test
+    void http_dataLoop_validOne_passes() {
+        assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, node(
+                "{\"method\":\"POST\",\"path\":\"/x\",\"data\":[{\"title\":\"A\"}],\"body\":\"{\\\"title\\\":\\\"${title}\\\"}\"}")));
+    }
+
+    @Test
+    void http_dataLoop_elevenEntries_fails() {
+        StringBuilder sb = new StringBuilder(
+                "{\"method\":\"POST\",\"path\":\"/x\",\"data\":[");
+        for (int i = 0; i < 11; i++) {
+            if (i > 0) sb.append(',');
+            sb.append("{\"title\":\"Sach \",\"year\":").append(1940 + i).append("}");
+        }
+        sb.append("]}");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, node(sb.toString())));
+        assertTrue(e.getMessage().contains("at most 10 entries"), "message was: " + e.getMessage());
+    }
+
+    @Test
+    void http_dataLoop_empty_fails() {
+        ObjectNode n = node("{\"method\":\"GET\",\"path\":\"/x\",\"data\":[]}");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, n));
+        assertTrue(e.getMessage().contains("non-empty array"), "message was: " + e.getMessage());
+    }
+
+    @Test
+    void http_dataLoop_notArray_fails() {
+        ObjectNode n = node("{\"method\":\"GET\",\"path\":\"/x\",\"data\":{\"title\":\"A\"}}");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, n));
+        assertTrue(e.getMessage().contains("non-empty array"), "message was: " + e.getMessage());
+    }
+
+    @Test
+    void http_dataLoop_entryNotObject_fails() {
+        ObjectNode n = node("{\"method\":\"GET\",\"path\":\"/x\",\"data\":[\"not-an-object\"]}");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, n));
+        assertTrue(e.getMessage().contains("data entries must be objects"), "message was: " + e.getMessage());
+    }
+
+    @Test
+    void http_autoInjectHeaders_valid_passes() {
+        assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, node(
+                "{\"method\":\"GET\",\"path\":\"/x\",\"auto_inject_headers\":{\"Authorization\":\"Bearer ${accessToken}\"}}")));
+    }
+
+    @Test
+    void http_autoInjectHeaders_notObject_fails() {
+        ObjectNode n = node("{\"method\":\"GET\",\"path\":\"/x\",\"auto_inject_headers\":\"Bearer ${token}\"}");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, n));
+        assertTrue(e.getMessage().contains("object of strings"), "message was: " + e.getMessage());
+    }
+
+    @Test
+    void http_autoInjectHeaders_valueNotString_fails() {
+        ObjectNode n = node("{\"method\":\"GET\",\"path\":\"/x\",\"auto_inject_headers\":{\"Authorization\":123}}");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.HTTP_REQUEST, n));
+        assertTrue(e.getMessage().contains("must be a string"), "message was: " + e.getMessage());
+    }
+
+    // ---------- Phase 7: JSON Schema generation ----------
+
+    @Test
+    void generateHttpSchema_hasRequiredFields() {
+        JsonNode schema = StepConfigValidator.generateHttpSchema();
+        assertEquals("http://json-schema.org/draft-07/schema#", schema.path("$schema").asText());
+        assertEquals("HTTP_REQUEST step config", schema.path("title").asText());
+        assertEquals("object", schema.path("type").asText());
+
+        JsonNode required = schema.path("required");
+        assertTrue(required.isArray());
+        boolean hasMethod = false, hasPath = false;
+        for (JsonNode r : required) {
+            if ("method".equals(r.asText())) hasMethod = true;
+            if ("path".equals(r.asText())) hasPath = true;
+        }
+        assertTrue(hasMethod, "required should contain 'method'");
+        assertTrue(hasPath, "required should contain 'path'");
+    }
+
+    @Test
+    void generateHttpSchema_methodHasEnum() {
+        JsonNode schema = StepConfigValidator.generateHttpSchema();
+        JsonNode methodProp = schema.path("properties").path("method");
+        assertEquals("string", methodProp.path("type").asText());
+        JsonNode enumNode = methodProp.path("enum");
+        assertTrue(enumNode.isArray());
+        boolean foundGet = false;
+        for (JsonNode e : enumNode) {
+            if ("GET".equals(e.asText())) foundGet = true;
+        }
+        assertTrue(foundGet, "GET should be in method enum");
+    }
+
+    @Test
+    void generateHttp_schemaHasExpectedStatusRange() {
+        JsonNode schema = StepConfigValidator.generateHttpSchema();
+        JsonNode esProp = schema.path("properties").path("expected_status");
+        assertEquals("integer", esProp.path("type").asText());
+        assertEquals(100, esProp.path("minimum").asInt());
+        assertEquals(599, esProp.path("maximum").asInt());
+    }
+
+    @Test
+    void generateHttpSchema_hasAssertionsWithKindEnum() {
+        JsonNode schema = StepConfigValidator.generateHttpSchema();
+        JsonNode assertions = schema.path("properties").path("assertions");
+        assertEquals("array", assertions.path("type").asText());
+        JsonNode items = assertions.path("items");
+        assertEquals("object", items.path("type").asText());
+        JsonNode kindProp = items.path("properties").path("kind");
+        assertEquals("string", kindProp.path("type").asText());
+        JsonNode kindEnum = kindProp.path("enum");
+        assertTrue(kindEnum.isArray());
+        boolean hasAnyOf = false;
+        for (JsonNode e : kindEnum) {
+            if ("any_of".equals(e.asText())) hasAnyOf = true;
+        }
+        assertTrue(hasAnyOf, "any_of should be in assertion kind enum");
+    }
+
+    @Test
+    void generateHttpSchema_hasDataAndAutoInjectHeaders() {
+        JsonNode schema = StepConfigValidator.generateHttpSchema();
+        JsonNode props = schema.path("properties");
+        assertNotNull(props.path("data"), "data property should exist");
+        assertNotNull(props.path("auto_inject_headers"), "auto_inject_headers property should exist");
+        assertEquals("array", props.path("data").path("type").asText());
+        assertEquals("object", props.path("auto_inject_headers").path("type").asText());
+    }
+
+    @Test
+    void generateHttpSchema_extractHasRequiredFields() {
+        JsonNode schema = StepConfigValidator.generateHttpSchema();
+        JsonNode extract = schema.path("properties").path("extract");
+        assertEquals("array", extract.path("type").asText());
+        JsonNode items = extract.path("items");
+        JsonNode itemRequired = items.path("required");
+        boolean hasName = false, hasFrom = false, hasExpression = false;
+        for (JsonNode r : itemRequired) {
+            switch (r.asText()) {
+                case "name" -> hasName = true;
+                case "from" -> hasFrom = true;
+                case "expression" -> hasExpression = true;
+            }
+        }
+        assertTrue(hasName);
+        assertTrue(hasFrom);
+        assertTrue(hasExpression);
     }
 }

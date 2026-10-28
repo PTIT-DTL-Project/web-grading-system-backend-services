@@ -8,6 +8,15 @@ public class Constant {
         public static final String SUBMISSION_ID = "submission_id";
         public static final String ASSIGNMENT_ID = "assignment_id";
         public static final String STUDENT_ID = "student_id";
+        /* --- Phase 2: built-in dynamic variables ($-prefixed tokens) --- */
+        public static final String DYNAMIC_PREFIX = "$";
+        public static final String DYNAMIC_UUID = "$UUID";
+        public static final String DYNAMIC_TIMESTAMP = "$TIMESTAMP";
+        public static final String DYNAMIC_FAKER_PREFIX = "$FAKER_";
+        public static final String FAKER_NAME = "$FAKER_NAME";
+        public static final String FAKER_BOOK_TITLE = "$FAKER_BOOK_TITLE";
+        public static final String FAKER_WORD = "$FAKER_WORD";
+        public static final String FAKER_EMAIL = "$FAKER_EMAIL";
     }
 
     /* Keys of the `connection` block in DB step configs (DB_QUERY /
@@ -75,6 +84,46 @@ public class Constant {
         public static final String HTTP_PATCH = "PATCH";
         public static final String HTTP_DELETE = "DELETE";
         public static final String HTTP_HEAD = "HEAD";
+        /* --- Phase 1: extract fallback and as-type --- */
+        public static final String FALLBACK = "fallback";
+        public static final String AS = "as";
+        public static final String AS_SCALAR = "scalar";
+        public static final String AS_JSON = "json";
+        /* --- Phase 3: data-driven loop (data[]) --- */
+        public static final String DATA = "data";
+        /* --- Phase 3: auto-inject headers (declared on a step, applies to subsequent steps in the plan) --- */
+        public static final String AUTO_INJECT_HEADERS = "auto_inject_headers";
+    }
+
+    /* --- Phase 3: Loop Safety Governor --- */
+    public static final class Loop {
+        public static final int DATA_INLINE_MAX = 10;   // course-service validator rejects inline data[] > 10
+        public static final int FOREACH_TRUNCATE = 20;  // executor truncates a large for-each to 20 at runtime
+        private Loop() {
+        }
+    }
+
+    /* --- Phase 5: DB Isolation Sandbox --- */
+    public static final class DbSandbox {
+        /** System database to connect to for admin operations (drop/create target DB) — PostgreSQL. */
+        public static final String PG_SYSTEM_DB = "postgres";
+        /** System database to connect to for admin operations — MySQL/MariaDB. */
+        public static final String MYSQL_SYSTEM_DB = "mysql";
+        /** SQL to drop a database (PostgreSQL). */
+        public static final String PG_DROP_DB = "DROP DATABASE IF EXISTS %s";
+        /** SQL to create a database (PostgreSQL). */
+        public static final String PG_CREATE_DB = "CREATE DATABASE %s";
+        /** Terminate existing connections to a PG database before dropping it. */
+        public static final String PG_TERMINATE_CONNECTIONS =
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '%s' AND pid <> pg_backend_pid()";
+        /** SQL to drop a database (MySQL/MariaDB). */
+        public static final String MYSQL_DROP_DB = "DROP DATABASE IF EXISTS %s";
+        /** SQL to create a database (MySQL/MariaDB). */
+        public static final String MYSQL_CREATE_DB = "CREATE DATABASE %s";
+        /** Default timeout (ms) for the sandbox reset connection. */
+        public static final int RESET_TIMEOUT_MS = 30_000;
+        private DbSandbox() {
+        }
     }
 
     public static final class Assertion {
@@ -92,6 +141,16 @@ public class Constant {
         public static final String BODY_EQUALS = "body_equals";
         public static final String BODY_STRUCTURE = "body_structure";
         public static final String FIELD_EQUALS = "field_equals";
+        /* --- Phase 1: new assertion kinds for list/filter and operators --- */
+        public static final String ARRAY_LENGTH = "array_length";
+        public static final String CONTAINS_ITEM = "contains_item";
+        public static final String JSON_PATH_EQUALS = "json_path_equals";
+        public static final String GREATER_THAN = "greater_than";
+        public static final String LESS_THAN = "less_than";
+        public static final String MATCHES_REGEX = "matches_regex";
+        public static final String ANY_OF = "any_of";
+        public static final String VALUE = "value";
+        public static final String PATTERN = "pattern";
     }
 
     public static final class DockerCompose {
@@ -263,6 +322,21 @@ public class Constant {
             public static final String JSON_PATH_NOT_FOUND = "json_path correctly not found";
             public static final String BODY_NOT_EQUAL_PREFIX = "Body not equal. Expected: ";
             public static final String BODY_STRUCTURE_MISMATCH_PREFIX = "Body structure mismatch. Expected keys: ";
+            /* --- Phase 1: new assertion messages --- */
+            public static final String ARRAY_LENGTH_MATCHED = "array length matched";
+            public static final String ARRAY_LENGTH_MISMATCH_PREFIX = "Array length mismatch. Expected: ";
+            public static final String CONTAINS_ITEM_MATCHED = "array contains item";
+            public static final String CONTAINS_ITEM_MISMATCH_PREFIX = "Array does not contain item: ";
+            public static final String JSON_PATH_EQUALS_MATCHED = "json_path value matched";
+            public static final String JSON_PATH_EQUALS_MISMATCH_PREFIX = "json_path value mismatch. Expected: ";
+            public static final String GREATER_THAN_MATCHED = "greater than matched";
+            public static final String GREATER_THAN_MISMATCH_PREFIX = "Greater than mismatch. Expected > ";
+            public static final String LESS_THAN_MATCHED = "less than matched";
+            public static final String LESS_THAN_MISMATCH_PREFIX = "Less than mismatch. Expected < ";
+            public static final String MATCHES_REGEX_MATCHED = "regex matched";
+            public static final String MATCHES_REGEX_MISMATCH_PREFIX = "Regex mismatch. Expected pattern: ";
+            public static final String ANY_OF_MATCHED = "any_of matched (at least one condition passed)";
+            public static final String ANY_OF_MISMATCH_PREFIX = "Any-of mismatch. None of the conditions passed.";
         }
 
         /* --- nested: DB step dialect (multi-DBMS) --- */
@@ -327,6 +401,21 @@ public class Constant {
         public static final String JSON_PATH_CORRECTLY_NOT_FOUND = Message.Assertion.JSON_PATH_NOT_FOUND;
         public static final String BODY_NOT_EQUAL_PREFIX = Message.Assertion.BODY_NOT_EQUAL_PREFIX;
         public static final String BODY_STRUCTURE_MISMATCH_PREFIX = Message.Assertion.BODY_STRUCTURE_MISMATCH_PREFIX;
+        /* --- Phase 1: new assertion message aliases --- */
+        public static final String ARRAY_LENGTH_MATCHED = Message.Assertion.ARRAY_LENGTH_MATCHED;
+        public static final String ARRAY_LENGTH_MISMATCH_PREFIX = Message.Assertion.ARRAY_LENGTH_MISMATCH_PREFIX;
+        public static final String CONTAINS_ITEM_MATCHED = Message.Assertion.CONTAINS_ITEM_MATCHED;
+        public static final String CONTAINS_ITEM_MISMATCH_PREFIX = Message.Assertion.CONTAINS_ITEM_MISMATCH_PREFIX;
+        public static final String JSON_PATH_EQUALS_MATCHED = Message.Assertion.JSON_PATH_EQUALS_MATCHED;
+        public static final String JSON_PATH_EQUALS_MISMATCH_PREFIX = Message.Assertion.JSON_PATH_EQUALS_MISMATCH_PREFIX;
+        public static final String GREATER_THAN_MATCHED = Message.Assertion.GREATER_THAN_MATCHED;
+        public static final String GREATER_THAN_MISMATCH_PREFIX = Message.Assertion.GREATER_THAN_MISMATCH_PREFIX;
+        public static final String LESS_THAN_MATCHED = Message.Assertion.LESS_THAN_MATCHED;
+        public static final String LESS_THAN_MISMATCH_PREFIX = Message.Assertion.LESS_THAN_MISMATCH_PREFIX;
+        public static final String MATCHES_REGEX_MATCHED = Message.Assertion.MATCHES_REGEX_MATCHED;
+        public static final String MATCHES_REGEX_MISMATCH_PREFIX = Message.Assertion.MATCHES_REGEX_MISMATCH_PREFIX;
+        public static final String ANY_OF_MATCHED = Message.Assertion.ANY_OF_MATCHED;
+        public static final String ANY_OF_MISMATCH_PREFIX = Message.Assertion.ANY_OF_MISMATCH_PREFIX;
         public static final String FETCHING_PREFIX = Message.Infra.FETCHING_PREFIX;
         public static final String BUILDING_PREFIX = Message.Infra.BUILDING_PREFIX;
         public static final String RUNNING_PREFIX = Message.Infra.RUNNING_PREFIX;
