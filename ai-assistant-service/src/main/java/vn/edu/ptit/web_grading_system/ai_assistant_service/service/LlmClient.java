@@ -9,6 +9,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
@@ -242,6 +243,13 @@ public class LlmClient {
     public Flux<String> streamAgentTurn(String systemPrompt,
             List<org.springframework.ai.chat.messages.Message> messages,
             List<ToolCallback> toolCallbacks) {
+        return streamAgentTurn(systemPrompt, messages, toolCallbacks, null);
+    }
+
+    /** A non-null toolChoice is used only for bounded lookup before asking the user for an ID. */
+    public Flux<String> streamAgentTurn(String systemPrompt,
+            List<org.springframework.ai.chat.messages.Message> messages,
+            List<ToolCallback> toolCallbacks, String toolChoice) {
         if (isOfflineMode()) {
             String last = messages == null || messages.isEmpty() ? "" : messages.getLast().getText();
             return Flux.just(generateFallbackResponse(last));
@@ -250,6 +258,11 @@ public class LlmClient {
             var spec = chatClient.prompt().system(systemPrompt);
             if (messages != null && !messages.isEmpty()) spec.messages(messages);
             if (toolCallbacks != null && !toolCallbacks.isEmpty()) spec.toolCallbacks(toolCallbacks);
+            if (toolChoice != null) {
+                Object choice = "required".equals(toolChoice) ? "required"
+                        : java.util.Map.of("type", "function", "function", java.util.Map.of("name", toolChoice));
+                spec.options(OpenAiChatOptions.builder().toolChoice(choice));
+            }
             return spec.stream().content().filter(s -> s != null && !s.isEmpty())
                     .onErrorMap(AiProviderException::new);
         } catch (Exception e) {

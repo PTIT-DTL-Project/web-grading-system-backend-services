@@ -124,6 +124,8 @@ public class AgentOrchestrator {
         run.setStartedAt(Instant.now());
         Run currentRun = runRepository.save(run);
         UUID conversationId = currentRun.getConversationId();
+        long runStarted = System.nanoTime();
+        log.info("AI runId={} conversationId={} started", runId, conversationId);
 
         recordEvent(runId, 1, "run.started", Map.of("runId", runId.toString()));
         sseBroadcaster.sendEvent(runId, "run.started", Map.of("runId", runId));
@@ -181,7 +183,7 @@ public class AgentOrchestrator {
                                     }
                                 });
                     } catch (Exception ex) {
-                        log.warn("Agent execution error: {}", ex.getMessage());
+                        log.warn("AI runId={} agent execution error: {}", runId, ex.getMessage());
                         if (failedWrite.get() == null) throw new AiProviderException(ex);
                     }
                 } else {
@@ -201,7 +203,7 @@ public class AgentOrchestrator {
                                 sseBroadcaster.sendDelta(runId, delta);
                             }).blockLast();
                         } catch (Exception ex) {
-                            log.warn("Streaming encountered error: {}", ex.getMessage());
+                            log.warn("AI runId={} streaming error: {}", runId, ex.getMessage());
                             if (failedWrite.get() == null) throw new AiProviderException(ex);
                         }
                     }
@@ -280,6 +282,9 @@ public class AgentOrchestrator {
             recordEvent(runId, 999, "run.failed", Map.of("runId", runId.toString(), "error", userMessage));
             sseBroadcaster.sendEvent(runId, "run.failed", Map.of("runId", runId.toString(), "error", userMessage));
             sseBroadcaster.complete(runId);
+        } finally {
+            log.info("AI runId={} totalMs={}", runId,
+                    java.time.Duration.ofNanos(System.nanoTime() - runStarted).toMillis());
         }
     }
 

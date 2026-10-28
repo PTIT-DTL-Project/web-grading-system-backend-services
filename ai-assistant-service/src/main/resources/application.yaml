@@ -79,6 +79,7 @@ agent:
     max-tool-calls: ${AGENT_MAX_TOOL_CALLS:12}
     max-model-attempts: ${AGENT_MAX_MODEL_ATTEMPTS:16}
     max-validation-repairs: ${AGENT_MAX_VALIDATION_REPAIRS:2}
+    max-lookup-rounds: ${AGENT_MAX_LOOKUP_ROUNDS:2}
     active-timeout-seconds: ${AGENT_ACTIVE_TIMEOUT_SECONDS:120}
   retry:
     model-max-retries: ${AGENT_MODEL_MAX_RETRIES:2}

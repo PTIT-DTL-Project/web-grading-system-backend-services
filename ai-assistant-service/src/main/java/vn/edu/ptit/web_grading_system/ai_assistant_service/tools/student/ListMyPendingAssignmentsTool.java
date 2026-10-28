@@ -60,6 +60,7 @@ public class ListMyPendingAssignmentsTool implements AgentTool {
                     context.userId().toString(),
                     context.email(),
                     null,
+                    null,
                     0,
                     50,
                     context.gatewaySecret()

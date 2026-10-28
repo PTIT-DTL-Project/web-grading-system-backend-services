@@ -49,6 +49,23 @@ public class ToolRegistryTest {
     }
 
     @Test
+    void referenceLookupPicksAuthorizedReadToolFromEntityLanguage() {
+        var client = org.mockito.Mockito.mock(
+                vn.edu.ptit.web_grading_system.ai_assistant_service.client.CourseServiceClient.class);
+        ToolRegistry registry = new ToolRegistry(List.of(
+                new vn.edu.ptit.web_grading_system.ai_assistant_service.tools.common.ListMyClassesTool(client),
+                new vn.edu.ptit.web_grading_system.ai_assistant_service.tools.common.ListVisibleAssignmentsTool(client)),
+                new JacksonConfig().objectMapper());
+
+        assertEquals("listVisibleAssignments", registry.findReferenceLookupTools(
+                "Bạn cung cấp assignmentId của bài tập 4?", Set.of("ROLE_LECTURER"), 1).getFirst().getName());
+        assertEquals("listMyClasses", registry.findReferenceLookupTools(
+                "Bạn muốn làm việc với lớp nào?", Set.of("ROLE_LECTURER"), 1).getFirst().getName());
+        assertEquals(List.of(), registry.findReferenceLookupTools("Bạn gửi ID?", Set.of("ROLE_LECTURER"), 1));
+        assertEquals(List.of(), registry.findReferenceLookupTools("bài tập", Set.of("ROLE_USER"), 1));
+    }
+
+    @Test
     void testAgentToolSpringAiCallbackInterface() {
         AgentTool tool = new AgentTool() {
             @Override public String getName() { return "myTool"; }

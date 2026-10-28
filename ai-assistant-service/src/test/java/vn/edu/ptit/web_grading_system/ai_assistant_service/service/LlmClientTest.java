@@ -161,6 +161,29 @@ class LlmClientTest {
     }
 
     @Test
+    void lookupTurnForcesTheSearchTool() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        when(chatModel.getOptions()).thenReturn(org.springframework.ai.openai.OpenAiChatOptions.builder().build());
+        when(chatModel.stream(any(Prompt.class))).thenReturn(Flux.just(
+                new ChatResponse(List.of(new Generation(new AssistantMessage("done"))))));
+        org.springframework.ai.tool.ToolCallback callback = mock(org.springframework.ai.tool.ToolCallback.class);
+        when(callback.getToolDefinition()).thenReturn(org.springframework.ai.tool.definition.ToolDefinition.builder()
+                .name("search_tools").description("search").inputSchema("{\"type\":\"object\"}").build());
+
+        client.streamAgentTurn("system", List.of(new UserMessage("question")),
+                List.of(callback), "search_tools").collectList().block();
+        client.streamAgentTurn("system", List.of(new UserMessage("question")),
+                List.of(callback), "required").collectList().block();
+
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel, times(2)).stream(prompt.capture());
+        assertEquals(java.util.Map.of("type", "function", "function", java.util.Map.of("name", "search_tools")),
+                ((org.springframework.ai.openai.OpenAiChatOptions) prompt.getAllValues().get(0).getOptions()).getToolChoice());
+        assertEquals("required",
+                ((org.springframework.ai.openai.OpenAiChatOptions) prompt.getAllValues().get(1).getOptions()).getToolChoice());
+    }
+
+    @Test
     void classifiesExplicitChatConsentForThePendingAction() {
         LlmClient client = new LlmClient(liveProperties, chatModel);
         when(chatModel.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(

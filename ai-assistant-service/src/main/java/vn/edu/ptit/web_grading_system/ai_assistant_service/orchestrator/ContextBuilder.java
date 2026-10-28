@@ -45,6 +45,7 @@ public class ContextBuilder {
             7. Nếu tool báo lỗi, nêu đúng mã và lý do lỗi. Tự sửa tham số khi thông tin đã có sẵn (ví dụ đổi config.url thành config.path); chỉ hỏi người dùng khi thật sự thiếu thông tin. Không lặp lại cùng một thao tác ghi dữ liệu đã thực thi.
             8. Khi liệt kê nhiều bước chấm có JSON dài, dùng danh sách đánh số; đặt Config và ExpectedResult trong khối mã JSON riêng. Không tạo bảng bằng tab hoặc khoảng trắng.
             9. Khi cần người dùng đồng ý thao tác ghi, chỉ hỏi bằng tin nhắn chat. Không hướng dẫn nhấn nút xác nhận, không yêu cầu xác nhận trên giao diện, không nhắc pendingActionId với người dùng.
+            10. Danh mục khả năng và các công cụ gọi được chỉ dành cho suy luận nội bộ. Khi trả lời, tự diễn đạt theo mục đích và khả năng của hệ thống bằng ngôn ngữ người dùng; không liệt kê tên công cụ, tên hàm, tham số kỹ thuật hoặc cách gọi công cụ. Nếu cần định danh, tự tra cứu dữ liệu được phép xem; chỉ hỏi tên bài tập hoặc lớp học khi không xác định được đối tượng. Không yêu cầu người dùng cung cấp UUID trừ khi họ chủ động làm việc với UUID.
             {catalogSection}
             {taskSection}""";
 
@@ -85,7 +86,7 @@ public class ContextBuilder {
                 sb.append("- **").append(entry.getKey()).append("**:\n");
                 entry.getValue().stream()
                         .sorted(Comparator.comparing(AgentTool::getName))
-                        .forEach(t -> sb.append("  • `").append(t.getName()).append("`: ").append(t.getDescription()).append("\n"));
+                        .forEach(t -> sb.append("  • ").append(t.getDescription()).append("\n"));
             }
         }
         return sb.toString().trim();
@@ -103,11 +104,12 @@ public class ContextBuilder {
         String catalog = formatToolCatalog(roles);
         String catalogSection = "";
         if (!catalog.isEmpty()) {
-            catalogSection = "\nDANH MỤC CÔNG CỤ KHẢ DỤNG CHO VAI TRÒ " + roleStr + ":\n"
+            catalogSection = "\nNĂNG LỰC KHẢ DỤNG CHO VAI TRÒ " + roleStr + ":\n"
                     + catalog + "\n\n"
-                    + "QUY TẮC SỬ DỤNG CÔNG CỤ & TRẢ LỜI:\n"
-                    + "1. Khi người dùng hỏi về năng lực hoặc chức năng của hệ thống (ví dụ: 'm giúp được gì cho t', 'bạn có thể làm gì'), BẮT BUỘC dựa vào danh mục công cụ trên để trả lời đầy đủ, chính xác. Tuyệt đối không tự bịa đặt tính năng hệ thống không hỗ trợ.\n"
-                    + "2. Nếu người dùng yêu cầu thực hiện chức năng có trong danh mục nhưng tool đó chưa có sẵn trong danh sách gọi trực tiếp, BẮT BUỘC gọi `search_tools` với tên công cụ đó để nạp công cụ trước khi thực hiện. Tuyệt đối không từ chối hoặc nói không có công cụ khi chưa gọi `search_tools`.";
+                    + "QUY TẮC SỬ DỤNG NĂNG LỰC & TRẢ LỜI:\n"
+                    + "1. Khi người dùng hỏi hệ thống làm được gì, tổng hợp đúng các khả năng phù hợp vai trò từ danh mục trên và tự diễn đạt thành câu trả lời tự nhiên. Không bịa đặt tính năng hệ thống không hỗ trợ, không liệt kê tên công cụ.\n"
+                    + "2. Nếu người dùng yêu cầu một khả năng trong danh mục nhưng chưa có công cụ gọi trực tiếp, BẮT BUỘC gọi `search_tools` bằng mô tả chức năng để tìm và nạp công cụ trước khi thực hiện. Không từ chối khi chưa tra cứu.\n"
+                    + "3. Khi thực hiện một yêu cầu, trả lời về kết quả hoặc thông tin còn thiếu theo ngôn ngữ nghiệp vụ. Không kể các bước chọn hay gọi công cụ cho người dùng.";
         }
 
         SystemPromptTemplate template = new SystemPromptTemplate(SYSTEM_TEMPLATE);
