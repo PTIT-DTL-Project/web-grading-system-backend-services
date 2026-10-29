@@ -27,7 +27,10 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class WriteApprovalService {
-    public record ChatPendingAction(UUID id, String toolName, String description, JsonNode arguments) {
+    public record ChatPendingAction(UUID id, UUID originRunId, String toolName, String description, JsonNode arguments) {
+        public ChatPendingAction(UUID id, String toolName, String description, JsonNode arguments) {
+            this(id, null, toolName, description, arguments);
+        }
         public String summary() {
             return description + " (" + toolName + ") với tham số " + arguments;
         }
@@ -101,7 +104,7 @@ public class WriteApprovalService {
                         String toolName = mapper.readTree(action.getOptionsJson()).path("toolName").asText();
                         String description = tools.stream().filter(tool -> tool.getName().equals(toolName))
                                 .map(AgentTool::getDescription).findFirst().orElse(toolName);
-                        return new ChatPendingAction(action.getId(), toolName, description,
+                        return new ChatPendingAction(action.getId(), action.getRunId(), toolName, description,
                                 mapper.readTree(action.getQuestionJson()));
                     } catch (Exception e) {
                         throw new IllegalStateException("Yêu cầu chờ duyệt không hợp lệ", e);

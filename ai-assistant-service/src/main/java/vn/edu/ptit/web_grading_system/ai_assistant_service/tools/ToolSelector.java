@@ -2,13 +2,13 @@ package vn.edu.ptit.web_grading_system.ai_assistant_service.tools;
 
 import java.text.Normalizer;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.service.LlmClient;
 
-/** Deterministic, bounded first-turn selection. Discovery remains available for misses. */
+/** Selects role-scoped tools proposed by the model. */
 @Component
 public class ToolSelector {
     private static final Set<String> STOP = Set.of("cua", "toi", "minh", "cho", "trong", "va", "la", "nhung", "cac", "mot", "duoc");
@@ -18,15 +18,13 @@ public class ToolSelector {
         this.registry = registry;
     }
 
-    public List<String> selectInitial(String userText, Set<String> roles, int limit) {
-        if (limit <= 0) return List.of();
-        Set<String> terms = terms(userText);
-        if (terms.isEmpty()) return List.of();
-        return registry.getToolsForRoles(roles).stream()
-                .map(tool -> new Scored(tool.getName(), score(terms, tool)))
-                .filter(item -> item.score() > 0)
-                .sorted(Comparator.comparingInt(Scored::score).reversed().thenComparing(Scored::name))
-                .limit(limit).map(Scored::name).toList();
+    public List<String> selectFromModel(String request, Set<String> roles, LlmClient llm) {
+        List<AgentTool> authorized = registry.getToolsForRoles(roles);
+        if (authorized.isEmpty()) return List.of();
+        List<String> proposed = llm.chooseRelevantTools(request, authorized);
+        if (proposed == null) return List.of();
+        Set<String> allowed = authorized.stream().map(AgentTool::getName).collect(Collectors.toSet());
+        return proposed.stream().filter(allowed::contains).distinct().toList();
     }
 
     static int score(Set<String> query, AgentTool tool) {
@@ -46,5 +44,4 @@ public class ToolSelector {
                 .collect(Collectors.toSet());
     }
 
-    private record Scored(String name, int score) {}
 }

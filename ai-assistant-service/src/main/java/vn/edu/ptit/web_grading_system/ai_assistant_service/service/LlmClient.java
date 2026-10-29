@@ -13,9 +13,13 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.AgentTool;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @Slf4j
 @Component
@@ -66,6 +70,89 @@ public class LlmClient {
             throw e;
         } catch (Exception e) {
             throw new AiProviderException(e);
+        }
+    }
+
+    /** Word an already completed write for the user; this call has no tools. */
+    public String generateConfirmedActionReply(String originalRequest, String toolName,
+                                               String argumentsJson, vn.edu.ptit.web_grading_system.ai_assistant_service.tools.ToolResult result) {
+        if (isOfflineMode()) return null;
+        try {
+            ChatResponse response = chatModel.call(new Prompt(List.of(
+                    new SystemMessage("Một thao tác ghi đã được người dùng xác nhận và hệ thống thực hiện thành công. "
+                            + "Hãy trả lời tự nhiên, ngắn gọn bằng tiếng Việt theo yêu cầu ban đầu và kết quả thực thi. "
+                            + "Chỉ khẳng định điều có trong kết quả; không bịa tên, ID hoặc bước tiếp theo. "
+                            + "Không nhắc tên tool, tham số kỹ thuật hay việc cần duyệt nữa. "
+                            + "Đây chỉ là lượt diễn đạt kết quả, không thực hiện thêm thao tác. Chỉ trả về câu trả lời cho người dùng."),
+                    new UserMessage("Yêu cầu ban đầu: " + (originalRequest == null ? "" : originalRequest)
+                            + "\nTrạng thái: COMPLETED"
+                            + "\nTool đã thực hiện: " + toolName
+                            + "\nTham số: " + argumentsJson
+                            + "\nKết quả thực thi: " + gson.toJson(result)))));
+            return response == null || response.getResult() == null || response.getResult().getOutput() == null
+                    ? null : response.getResult().getOutput().getText();
+        } catch (Exception e) {
+            throw new AiProviderException(e);
+        }
+    }
+
+    /** Selects relevant authorized tools without a fixed candidate count. The caller validates role scope. */
+    public List<String> chooseRelevantTools(String request, List<AgentTool> authorizedTools) {
+        if (isOfflineMode() || authorizedTools == null || authorizedTools.isEmpty()) return List.of();
+        StringBuilder catalog = new StringBuilder();
+        Set<String> allowed = new HashSet<>();
+        for (AgentTool tool : authorizedTools) {
+            allowed.add(tool.getName());
+            String description = tool.getDescription() == null ? "" : tool.getDescription().replaceAll("\\s+", " ");
+            if (description.length() > 120) description = description.substring(0, 120);
+            catalog.append(tool.getName()).append(" | ").append(description)
+                    .append(" | ").append(compactParameters(tool.getToolDefinition().inputSchema())).append('\n');
+        }
+        String userRequest = request == null ? "" : request;
+        if (userRequest.length() > 3000) userRequest = userRequest.substring(userRequest.length() - 3000);
+        try {
+            ChatResponse response = chatModel.call(new Prompt(List.of(
+                    new SystemMessage("Interpret the recent request as a concise English task while preserving its intent. "
+                            + "Select every tool needed to complete the current user request, including read tools "
+                            + "needed to resolve names before write tools. Use recent conversation only as context. "
+                            + "Tool descriptions may be Vietnamese. Return only a JSON array of exact tool names; "
+                            + "return [] when no tool is needed. Do not invent names or execute tools."),
+                    new UserMessage("Recent request:\n" + userRequest + "\nAvailable tools (name | short description | parameters):\n" + catalog))));
+            String raw = response == null || response.getResult() == null || response.getResult().getOutput() == null
+                    ? "[]" : response.getResult().getOutput().getText();
+            JsonElement parsed = JsonParser.parseString(cleanJsonString(raw));
+            if (!parsed.isJsonArray()) return List.of();
+            List<String> chosen = new ArrayList<>();
+            for (JsonElement item : parsed.getAsJsonArray()) {
+                if (item.isJsonPrimitive() && item.getAsJsonPrimitive().isString()) {
+                    String name = item.getAsString();
+                    if (allowed.contains(name) && !chosen.contains(name)) chosen.add(name);
+                }
+            }
+            return List.copyOf(chosen);
+        } catch (Exception e) {
+            throw new AiProviderException(e);
+        }
+    }
+
+    private String compactParameters(String schema) {
+        try {
+            JsonObject root = JsonParser.parseString(schema).getAsJsonObject();
+            JsonObject properties = root.has("properties") && root.get("properties").isJsonObject()
+                    ? root.getAsJsonObject("properties") : new JsonObject();
+            Set<String> required = new HashSet<>();
+            if (root.has("required") && root.get("required").isJsonArray()) {
+                root.getAsJsonArray("required").forEach(item -> required.add(item.getAsString()));
+            }
+            List<String> fields = new ArrayList<>();
+            properties.entrySet().forEach(entry -> {
+                JsonObject value = entry.getValue().isJsonObject() ? entry.getValue().getAsJsonObject() : new JsonObject();
+                String type = value.has("type") ? value.get("type").getAsString() : "value";
+                fields.add(entry.getKey() + ":" + type + (required.contains(entry.getKey()) ? " required" : " optional"));
+            });
+            return fields.isEmpty() ? "none" : String.join(", ", fields);
+        } catch (Exception ignored) {
+            return "see tool schema";
         }
     }
 

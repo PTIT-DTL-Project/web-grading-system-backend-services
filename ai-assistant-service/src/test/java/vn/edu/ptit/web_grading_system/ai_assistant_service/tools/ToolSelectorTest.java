@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.JacksonConfig;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.service.LlmClient;
 
 import java.time.Duration;
 import java.util.List;
@@ -11,6 +12,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 class ToolSelectorTest {
     private final ObjectMapper mapper = new JacksonConfig().objectMapper();
@@ -28,7 +31,7 @@ class ToolSelectorTest {
     }
 
     @Test
-    void selectsCappedRelevantToolsWithStableOrder() {
+    void selectsModelProposalsWithoutFixedCapAndEnforcesRoles() {
         ToolRegistry registry = new ToolRegistry(List.of(
                 tool("listMyClasses", "Liệt kê lớp học", "ROLE_STUDENT"),
                 tool("getMyClass", "Xem chi tiết lớp học", "ROLE_STUDENT"),
@@ -36,14 +39,19 @@ class ToolSelectorTest {
                 tool("listMySubmissions", "Liệt kê bài nộp", "ROLE_STUDENT")
         ), mapper);
         ToolSelector selector = new ToolSelector(registry);
-        assertEquals(List.of("getMyClass", "listMyClasses"),
-                selector.selectInitial("Xem lớp học của tôi", Set.of("ROLE_STUDENT"), 2));
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of(
+                "getMyClass", "listMyClasses", "getClassRoster", "listMySubmissions", "getMyClass", "invented"));
+        assertEquals(List.of("getMyClass", "listMyClasses", "getClassRoster", "listMySubmissions"),
+                selector.selectFromModel("Xem lớp học của tôi", Set.of("ROLE_STUDENT"), llm));
     }
 
     @Test
-    void emptyQueryDoesNotDumpRegistry() {
+    void noModelProposalsDoesNotDumpRegistry() {
         ToolRegistry registry = new ToolRegistry(List.of(tool("getMyClass", "Xem lớp", "ROLE_STUDENT")), mapper);
-        assertTrue(new ToolSelector(registry).selectInitial("", Set.of("ROLE_STUDENT"), 4).isEmpty());
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of());
+        assertTrue(new ToolSelector(registry).selectFromModel("", Set.of("ROLE_STUDENT"), llm).isEmpty());
     }
 
     @Test
@@ -72,10 +80,4 @@ class ToolSelectorTest {
         assertTrue(selected.contains("listMySubmissions"));
     }
 
-    @Test
-    void englishQueryCanMatchCamelCaseToolName() {
-        ToolRegistry registry = new ToolRegistry(List.of(tool("listMySubmissions", "Liệt kê bài nộp", "ROLE_STUDENT")), mapper);
-        assertEquals(List.of("listMySubmissions"),
-                new ToolSelector(registry).selectInitial("my submissions", Set.of("ROLE_STUDENT"), 4));
-    }
 }

@@ -16,6 +16,8 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import reactor.core.publisher.Flux;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.AgentTool;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.ToolResult;
 
 import java.util.List;
 import org.mockito.ArgumentCaptor;
@@ -65,6 +67,55 @@ class LlmClientTest {
         assertNotNull(result);
         assertTrue(result.contains("overallSummary"));
         verifyNoInteractions(chatModel);
+    }
+
+    @Test
+    void completedActionReplyUsesActualResultAndOriginalRequestWithoutTools() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        when(chatModel.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(new Generation(
+                new AssistantMessage("Đã tạo câu kiểm tra cho bài tập 4 rồi nhé.")))));
+
+        String reply = client.generateConfirmedActionReply(
+                "Tạo câu kiểm tra cho bài tập 4", "createTestPlan",
+                "{\"assignmentId\":\"a4\",\"payload\":{\"name\":\"Kiểm tra API\"}}",
+                ToolResult.ok(java.util.Map.of("id", "p1", "name", "Kiểm tra API")));
+
+        assertEquals("Đã tạo câu kiểm tra cho bài tập 4 rồi nhé.", reply);
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel).call(prompt.capture());
+        String sent = prompt.getValue().getContents();
+        assertTrue(sent.contains("Tạo câu kiểm tra cho bài tập 4"));
+        assertTrue(sent.contains("createTestPlan"));
+        assertTrue(sent.contains("Kiểm tra API"));
+        assertTrue(sent.contains("COMPLETED"));
+        assertFalse(sent.contains("Tạo câu kiểm tra với name, sequenceOrder"));
+    }
+
+    @Test
+    void choosesAuthorizedToolsFromCompactCatalogWithoutFourToolCap() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        List<AgentTool> tools = java.util.stream.IntStream.rangeClosed(1, 5).mapToObj(index -> {
+            AgentTool tool = mock(AgentTool.class);
+            String name = "readTool" + index;
+            when(tool.getName()).thenReturn(name);
+            when(tool.getDescription()).thenReturn("Read data for task " + index);
+            when(tool.getToolDefinition()).thenReturn(org.springframework.ai.tool.definition.ToolDefinition.builder()
+                    .name(name).description("Read data for task " + index)
+                    .inputSchema("{\"type\":\"object\",\"properties\":{\"assignmentId\":{\"type\":\"string\"}},\"required\":[\"assignmentId\"]}")
+                    .build());
+            return tool;
+        }).toList();
+        when(chatModel.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(new Generation(
+                new AssistantMessage("[\"readTool1\",\"readTool2\",\"readTool3\",\"readTool4\",\"readTool5\",\"unknown\"]")))));
+
+        List<String> chosen = client.chooseRelevantTools("Earlier: create test questions. Current: for assignment 4", tools);
+
+        assertEquals(List.of("readTool1", "readTool2", "readTool3", "readTool4", "readTool5"), chosen);
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel).call(prompt.capture());
+        String request = prompt.getValue().getContents();
+        assertTrue(request.contains("assignmentId:string required"));
+        assertTrue(request.contains("Current: for assignment 4"));
     }
 
     @Test
