@@ -66,6 +66,28 @@ class HttpStepExecutorTest {
     }
 
     @Test
+    void queryParams_withSpacesAndNonAscii_arePercentEncoded() throws Exception {
+        // 2026-10-29, mock book-app grading: "title=The Little Prince" (and the
+        // Vietnamese title before it) reached URI.create raw, which threw
+        // "Illegal character in query" and the request was never sent.
+        Mockito.when(httpClient.sendAsync(Mockito.any(), Mockito.<HttpResponse.BodyHandler<String>>any()))
+                .thenAnswer(inv -> mockResponse(200, "[]"));
+
+        VariableContext vars = new VariableContext();
+        vars.put("app_port", 23456);
+        var result = executor.execute(ctx("""
+                {"method":"GET","path":"/api/v1/books",
+                 "query_params":{"title":"The Little Prince","author":"Tô Hoài"}}""", vars));
+
+        var captor = org.mockito.ArgumentCaptor.forClass(java.net.http.HttpRequest.class);
+        Mockito.verify(httpClient).sendAsync(captor.capture(), Mockito.<HttpResponse.BodyHandler<String>>any());
+        assertEquals(
+                "http://localhost:23456/api/v1/books?title=The%20Little%20Prince&author=T%C3%B4%20Ho%C3%A0i",
+                captor.getValue().uri().toString());
+        assertEquals(200, result.getActualStatusCode());
+    }
+
+    @Test
     void failingStatusAssertion_marksFailed() throws IOException, InterruptedException {
         Mockito.when(httpClient.sendAsync(Mockito.any(), Mockito.<HttpResponse.BodyHandler<String>>any()))
                 .thenAnswer(inv -> mockResponse(404, "{}"));
