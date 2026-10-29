@@ -79,27 +79,21 @@ public class AgentRuntime {
                         : llm.classifyPendingActionReply(latestUserText, action.summary());
                 if (decision == LlmClient.ApprovalDecision.CONFIRM) {
                     Object outcome = approvalService.confirmFromChat(action.id(), context);
-                    String completion;
-                    if ("createTestQuestion".equals(action.toolName())
-                            || "createTestStep".equals(action.toolName())) {
-                        completion = planWriteReply(outcome);
-                    } else {
-                        completion = confirmationReply(action, outcome);
-                        if (outcome instanceof java.util.Map<?, ?> map
-                                && "COMPLETED".equals(map.get("status"))
-                                && map.get("result") instanceof ToolResult result && result.isSuccess()) {
-                            try {
-                                String originalRequest = action.originRunId() == null ? "" : messages
-                                        .findFirstByRunIdAndRoleOrderBySequenceNoAsc(action.originRunId(), "user")
-                                        .map(vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message::getContent)
-                                        .orElse("");
-                                String naturalReply = llm.generateConfirmedActionReply(originalRequest,
-                                        action.toolName(), mapper.writeValueAsString(action.arguments()), result);
-                                if (naturalReply != null && !naturalReply.isBlank()) completion = naturalReply.strip();
-                            } catch (Exception error) {
-                                log.warn("AI runId={} completedActionReplyFailed errorType={}",
-                                        context.runId(), error.getClass().getSimpleName());
-                            }
+                    String completion = confirmationReply(action, outcome);
+                    if (outcome instanceof java.util.Map<?, ?> map
+                            && "COMPLETED".equals(map.get("status"))
+                            && map.get("result") instanceof ToolResult result && result.isSuccess()) {
+                        try {
+                            String originalRequest = action.originRunId() == null ? "" : messages
+                                    .findFirstByRunIdAndRoleOrderBySequenceNoAsc(action.originRunId(), "user")
+                                    .map(vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message::getContent)
+                                    .orElse("");
+                            String naturalReply = llm.generateConfirmedActionReply(originalRequest,
+                                    action.toolName(), mapper.writeValueAsString(action.arguments()), result);
+                            if (naturalReply != null && !naturalReply.isBlank()) completion = naturalReply.strip();
+                        } catch (Exception error) {
+                            log.warn("AI runId={} completedActionReplyFailed errorType={}",
+                                    context.runId(), error.getClass().getSimpleName());
                         }
                     }
                     onFinalDelta.accept(completion);
@@ -127,11 +121,8 @@ public class AgentRuntime {
                     + "Không quay lại yêu cầu cũ và không tuyên bố đã thực hiện thao tác. "
                     + "Nếu thiếu dữ liệu, chỉ hỏi phần còn thiếu của đề xuất này.";
         }
-        long toolSelectionStarted = System.nanoTime();
         Set<String> selected = java.util.Collections.synchronizedSet(new LinkedHashSet<>(
                 selector.selectFromModel(toolRequest, context.roles(), llm)));
-        log.info("AI runId={} toolSelectionMs={} selectedTools={}", context.runId(),
-                elapsedMs(toolSelectionStarted), selected);
         List<org.springframework.ai.chat.messages.Message> inFlight =
                 java.util.Collections.synchronizedList(new ArrayList<>());
         String prompt = systemPrompt + "\nNếu cần tool mà chưa có trong danh sách đang gọi được, hãy gọi search_tools để tra cứu kho công cụ, sau đó tiếp tục công việc. Khi kết quả tool có nextCursor, dùng get_tool_result_page để đọc tiếp trước khi kết luận. "
@@ -368,7 +359,7 @@ public class AgentRuntime {
                 }
                 completion = "Mình chưa tạo được yêu cầu xác nhận cho thao tác này. Vui lòng thử lại.";
             }
-            if (asksForLookupInformation(completion, context.roles(), selected)
+            if (asksForLookupInformation(completion, context.roles())
                     && lookupRounds < Math.max(0, properties.getLimits().getMaxLookupRounds())
                     && toolCalls.get() < properties.getLimits().getMaxToolCalls()) {
                 lookupQuery = latestUserText + " " + completion;
@@ -440,9 +431,8 @@ public class AgentRuntime {
         if (text == null) return false;
         String normalized = text.strip().toLowerCase(java.util.Locale.ROOT)
                 .replaceAll("[.!?]+$", "").strip();
-        return Set.of("có", "co", "ok", "oke", "đồng ý", "dong y", "yes", "ừ", "được",
-                "xác nhận", "xac nhan", "tiến hành", "tien hanh", "làm đi", "lam di",
-                "chốt", "chot").contains(normalized);
+        return Set.of("có", "co", "ok", "oke", "đồng ý", "dong y", "yes", "ừ", "được")
+                .contains(normalized);
     }
 
     private String lastUnpersistedProposal(AgentContext context) {
@@ -464,17 +454,9 @@ public class AgentRuntime {
         }
     }
 
-    private boolean asksForLookupInformation(String completion, Set<String> roles,
-                                             Set<String> selected) {
-        if (completion == null || completion.isBlank()) return false;
-        // Người dùng đang trả lời thao tác đang chờ xác nhận: không đập vào tra cứu.
-        if (looksLikeApprovalRequest(completion)) return false;
-        // Model đã chọn tool ghi: không ép tra cứu thêm.
-        if (selected.stream().anyMatch(name -> registry.find(name)
-                .map(tool -> tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE)
-                .orElse(false))) {
-            return false;
-        }
+    private boolean asksForLookupInformation(String completion, Set<String> roles) {
+        if (completion == null || completion.isBlank()
+                || registry.findReferenceLookupTools(completion, roles, 1).isEmpty()) return false;
         String lower = completion.toLowerCase(java.util.Locale.ROOT);
         boolean asksIdentity = completion.contains("?") && (
                 lower.contains("id") || lower.contains("uuid") || lower.contains("mã")
@@ -496,6 +478,13 @@ public class AgentRuntime {
                 || lower.contains("sửa") || lower.contains("xóa") || lower.contains("xoá")
                 || lower.contains("thêm") || lower.contains("gửi") || lower.contains("nộp");
         return asksConfirm && writeVerb;
+    }
+
+    private boolean looksLikeApprovalRequest(String completion) {
+        if (completion == null || !completion.contains("?")) return false;
+        String lower = completion.toLowerCase(java.util.Locale.ROOT);
+        return lower.contains("đồng ý") || lower.contains("dong y")
+                || lower.contains("xác nhận") || lower.contains("xac nhan");
     }
 
     private String loggedToolCall(AgentContext context, int modelStep, AtomicInteger toolCalls,

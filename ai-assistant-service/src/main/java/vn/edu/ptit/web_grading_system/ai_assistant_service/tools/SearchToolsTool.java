@@ -51,18 +51,14 @@ public class SearchToolsTool {
                     if (llm == null) {
                         found = registry.searchAuthorized(query, context.roles(), resultLimit);
                     } else {
-                        // Deterministic registry match first; fall back to LLM only when nothing matches.
-                        found = registry.searchAuthorized(query, context.roles(), resultLimit);
-                        if (found.isEmpty()) {
-                            List<AgentTool> authorized = registry.getToolsForRoles(context.roles());
-                            List<String> names = llm.chooseRelevantTools(query, authorized);
-                            if (names == null) {
-                                found = registry.searchAuthorized(query, context.roles(), resultLimit);
-                            } else {
-                                Set<String> chosen = Set.copyOf(names);
-                                found = authorized.stream().filter(tool -> chosen.contains(tool.getName()))
-                                        .map(AgentTool::getDefinition).toList();
-                            }
+                        List<AgentTool> authorized = registry.getToolsForRoles(context.roles());
+                        List<String> names = llm.chooseRelevantTools(query, authorized);
+                        if (names == null) {
+                            found = registry.searchAuthorized(query, context.roles(), resultLimit);
+                        } else {
+                            Set<String> chosen = Set.copyOf(names);
+                            found = authorized.stream().filter(tool -> chosen.contains(tool.getName()))
+                                    .map(AgentTool::getDefinition).toList();
                         }
                     }
                     found.forEach(definition -> discoveredNames.add(definition.name()));
