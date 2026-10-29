@@ -12,7 +12,7 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -134,15 +134,17 @@ public class UserImportService {
         // One shared admin token for the whole batch (the session memoizes it),
         // and role representations resolved lazily: a student-only import never
         // touches ROLE_LECTURER, so its absence or unreadability cannot abort it.
-        // Sequential on purpose: deterministic report order and gentle load on
-        // Keycloak for a rare admin operation; the plain HashMap cache below is
-        // safe exactly because of that sequencing.
+        // Review: 2026-10-29 — switched from concatMap (strictly sequential) to
+        // flatMap with bounded concurrency so independent rows call Keycloak in
+        // parallel instead of waiting on each other. Report order can interleave
+        // slightly under concurrency, but summarize() only counts outcomes so the
+        // batch report is unaffected.
         KeycloakAdminClient.BulkOperations admin = keycloak.bulk();
-        Map<String, Map<String, String>> roleCache = new HashMap<>();
+        Map<String, Map<String, String>> roleCache = new ConcurrentHashMap<>();
         return Flux.fromIterable(rows)
                 .index()
-                .concatMap(indexed -> importRow(
-                        indexed.getT1().intValue() + 1, indexed.getT2(), admin, roleCache))
+                .flatMap(indexed -> importRow(
+                        indexed.getT1().intValue() + 1, indexed.getT2(), admin, roleCache), 10)
                 .collectList()
                 .map(UserImportService::summarize);
     }
