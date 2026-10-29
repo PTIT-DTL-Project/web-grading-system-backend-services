@@ -14,6 +14,9 @@ import vn.edu.ptit.web_grading_system.executor_service.client.ResultServiceClien
 import vn.edu.ptit.web_grading_system.executor_service.client.SubmissionStatusClient;
 import vn.edu.ptit.web_grading_system.executor_service.config.ExecutorProperties;
 import vn.edu.ptit.web_grading_system.executor_service.dto.internal.AssignmentGradingConfigDto;
+import vn.edu.ptit.web_grading_system.executor_service.dto.internal.DryRunReport;
+import vn.edu.ptit.web_grading_system.executor_service.dto.internal.DryRunRequest;
+import vn.edu.ptit.web_grading_system.executor_service.dto.internal.DryRunStepReport;
 import vn.edu.ptit.web_grading_system.executor_service.dto.internal.InternalPlanDto;
 import vn.edu.ptit.web_grading_system.executor_service.dto.internal.InternalStepDto;
 import vn.edu.ptit.web_grading_system.executor_service.entity.GradingJob;
@@ -31,6 +34,7 @@ import vn.edu.ptit.web_grading_system.executor_service.service.step.StepExecutor
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepContext;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepRegistry;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialectRegistry;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.DbSandboxService;
 
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -38,6 +42,7 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -81,6 +86,7 @@ public class GradingOrchestrator
     private final ExecutorProperties executorProperties;
     private final SagaTracker sagaTracker;
     private final DbDialectRegistry dialectRegistry;
+    private final DbSandboxService dbSandbox;
 
     @Async("gradingTaskExecutor")
     public void gradeAsync(UUID jobId, UUID submissionId, UUID assignmentId, UUID studentId,
@@ -214,7 +220,7 @@ public class GradingOrchestrator
                     try
                     {
                         runSteps(job, submissionId, assignmentId, studentId, planId, sagaId, plans,
-                                running.port(), dbPort, executionTimeoutMs);
+                                running.port(), dbPort, executionTimeoutMs, dbReq);
                         sagaTracker.finishStep(runRow, SagaStepStatus.DONE, null);
                     }
                     catch (Exception inner)
@@ -265,6 +271,278 @@ public class GradingOrchestrator
     }
 
     /**
+     * Phase 6 — Dry-run mode. Runs the full grading flow (boot compose,
+     * execute steps) but does NOT persist step results to the DB, does NOT
+     * post results to result-service, and does NOT patch submission status.
+     * Returns a detailed per-step report for lecturer review.
+     *
+     * <p>Unlike {@link #grade(UUID, UUID, UUID, UUID, UUID, String, String)},
+     * this method is synchronous and returns the report directly. All ports
+     * and the work directory are cleaned up on every exit path.
+     */
+    public DryRunReport dryRun(DryRunRequest request)
+    {
+        UUID assignmentId = request.getAssignmentId();
+        String referenceCodeZipUrl = request.getReferenceCodeZipUrl();
+        List<InternalPlanDto> plans = request.getPlans() == null
+                ? List.of()
+                : new ArrayList<>(request.getPlans());
+        plans.sort(Comparator.comparing(InternalPlanDto::getSequenceOrder,
+                Comparator.nullsLast(Integer::compareTo)));
+        if (plans.isEmpty())
+        {
+            throw new IllegalArgumentException("Assignment has no test plans");
+        }
+
+        // Validate DB requirements before downloading/booting.
+        DbRequirements dbReq;
+        try
+        {
+            dbReq = scanDbRequirements(plans);
+        }
+        catch (IllegalArgumentException unknownEngine)
+        {
+            throw new IllegalArgumentException(unknownEngine.getMessage());
+        }
+
+        Path workDir = null;
+        int appPort = -1;
+        Integer dbPort = null;
+        boolean booted = false;
+        try
+        {
+            // Download the reference-code submission artifact.
+            workDir = artifactService.fetchWorkDir(UUID.randomUUID(), referenceCodeZipUrl);
+
+            appPort = portAllocator.claim();
+            if (dbReq.present())
+            {
+                dbPort = portAllocator.claimDbPort();
+                writeLog(null, null, GradingLogLevel.INFO,
+                        "Dry-run DB port allocated: host=" + dbPort
+                                + " service=" + dbReq.dbService()
+                                + " db_type=" + dbReq.dbType());
+            }
+            long executionTimeoutMs = 300_000;
+
+            DockerComposePatcher.EffectiveCompose effective = DockerComposePatcher.writeEffectiveCompose(
+                    workDir, "STUDENT_DOCKER_COMPOSE", null,
+                    appPort, 8080, null, null,
+                    dbReq.dbService(), dbPort, dbReq.dbContainerPort());
+            try (DockerComposeRunner.RunningCompose running =
+                    composeRunner.boot(effective, 60_000L))
+            {
+                booted = true;
+                return dryRunSteps(plans, running.port(), dbPort, executionTimeoutMs);
+            }
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Dry-run failed: " + e.getMessage(), e);
+        }
+        finally
+        {
+            portAllocator.release(appPort);
+            if (dbPort != null)
+            {
+                portAllocator.release(dbPort);
+            }
+            if (workDir != null)
+            {
+                cleanupWorkDir(workDir);
+            }
+        }
+    }
+
+    /**
+     * Phase 6 — executes all steps in dry-run mode, collecting per-step results
+     * without persisting to the DB or posting to result-service. Mirrors
+     * {@link #runSteps(...)} but returns a {@link DryRunReport} instead of
+     * writing side effects.
+     */
+    private DryRunReport dryRunSteps(List<InternalPlanDto> plans, int appPort,
+            Integer dbPort, long executionTimeoutMs)
+    {
+        VariableContext vars = new VariableContext();
+        vars.put(Constant.VariableContext.APP_PORT, appPort);
+        if (dbPort != null)
+        {
+            vars.put(Constant.VariableContext.DB_PORT, dbPort);
+        }
+        vars.put(Constant.VariableContext.SUBMISSION_ID, "dry-run");
+        vars.put(Constant.VariableContext.ASSIGNMENT_ID, "dry-run");
+        vars.put(Constant.VariableContext.STUDENT_ID, "dry-run");
+        long deadline = System.currentTimeMillis() + executionTimeoutMs;
+        List<DryRunStepReport> stepReports = new ArrayList<>();
+        List<ScoreCalculator.StepScore> outcomes = new ArrayList<>();
+        boolean timedOut = false;
+        outer:
+        for (InternalPlanDto plan : plans)
+        {
+            List<InternalStepDto> steps = plan.getSteps() == null
+                    ? List.of()
+                    : plan.getSteps().stream()
+                            .sorted(Comparator.comparing(InternalStepDto::getStepOrder,
+                                    Comparator.nullsLast(Integer::compareTo)))
+                            .toList();
+            steps = autoInjectExtracts(steps);
+            boolean planStopped = false;
+            Map<String, String> injectedHeaders = new HashMap<>();
+            for (InternalStepDto step : steps)
+            {
+                if (System.currentTimeMillis() > deadline)
+                {
+                    timedOut = true;
+                    break outer;
+                }
+                if (planStopped)
+                {
+                    stepReports.add(DryRunStepReport.builder()
+                            .stepOrder(step.getStepOrder())
+                            .stepName(step.getName())
+                            .stepType(step.getStepType())
+                            .status(StepResultStatus.SKIPPED.name())
+                            .durationMs(0)
+                            .errorMessage(Constant.Message.SKIPPED_REQUIRED_FAILED)
+                            .build());
+                    outcomes.add(new ScoreCalculator.StepScore(false, true,
+                            nz(step.getWeight(), 1)));
+                    continue;
+                }
+                JsonNode config;
+                try
+                {
+                    config = objectMapper.readTree(step.getConfig() == null ? "{}" : step.getConfig());
+                }
+                catch (Exception e)
+                {
+                    stepReports.add(DryRunStepReport.builder()
+                            .stepOrder(step.getStepOrder())
+                            .stepName(step.getName())
+                            .stepType(step.getStepType())
+                            .status(StepResultStatus.ERROR.name())
+                            .durationMs(0)
+                            .errorMessage(Constant.Message.INVALID_STEP_CONFIG + safeMessage(e))
+                            .build());
+                    outcomes.add(new ScoreCalculator.StepScore(false, false,
+                            nz(step.getWeight(), 1)));
+                    if (Boolean.TRUE.equals(step.getRequired()))
+                    {
+                        planStopped = true;
+                    }
+                    continue;
+                }
+                JsonNode effectiveConfig = injectPlanHeaders(config, injectedHeaders, vars);
+                if (effectiveConfig instanceof ObjectNode on)
+                {
+                    on.remove(Constant.HttpStep.AUTO_INJECT_HEADERS);
+                }
+                StepExecutor executor;
+                try
+                {
+                    executor = stepRegistry.of(step.getStepType());
+                }
+                catch (IllegalArgumentException unknown)
+                {
+                    stepReports.add(DryRunStepReport.builder()
+                            .stepOrder(step.getStepOrder())
+                            .stepName(step.getName())
+                            .stepType(step.getStepType())
+                            .status(StepResultStatus.FAILED.name())
+                            .durationMs(0)
+                            .errorMessage(Constant.Message.UNKNOWN_STEP_TYPE + step.getStepType())
+                            .build());
+                    outcomes.add(new ScoreCalculator.StepScore(false, false,
+                            nz(step.getWeight(), 1)));
+                    if (Boolean.TRUE.equals(step.getRequired()))
+                    {
+                        planStopped = true;
+                    }
+                    continue;
+                }
+                GradingStepResult result;
+                try
+                {
+                    result = executor.execute(new StepContext(
+                            UUID.randomUUID(), UUID.randomUUID(), step.getId(),
+                            step.getStepOrder(), step.getName(), config, vars,
+                            step.getTimeoutMs()));
+                }
+                catch (Exception e)
+                {
+                    result = GradingStepResult.builder()
+                            .status(StepResultStatus.ERROR)
+                            .errorMessage(safeMessage(e))
+                            .build();
+                }
+                harvestAutoInjectHeaders(config, injectedHeaders);
+                Map<String, Object> extracted = parseExtractedVariables(
+                        result.getExtractedVariables());
+                stepReports.add(DryRunStepReport.builder()
+                        .stepOrder(step.getStepOrder())
+                        .stepName(step.getName())
+                        .stepType(step.getStepType())
+                        .status(result.getStatus().name())
+                        .durationMs(result.getDurationMs())
+                        .extractedVariables(extracted)
+                        .errorMessage(result.getErrorMessage())
+                        .build());
+                outcomes.add(new ScoreCalculator.StepScore(
+                        result.getStatus() == StepResultStatus.PASSED, false,
+                        nz(step.getWeight(), 1)));
+                if ((result.getStatus() == StepResultStatus.FAILED
+                        || result.getStatus() == StepResultStatus.ERROR)
+                        && Boolean.TRUE.equals(step.getRequired()))
+                {
+                    planStopped = true;
+                }
+            }
+        }
+        if (timedOut)
+        {
+            String summary = "Dry-run timed out after " + executionTimeoutMs + "ms";
+            return DryRunReport.builder()
+                    .dryRunId(UUID.randomUUID())
+                    .steps(stepReports)
+                    .summary(summary)
+                    .build();
+        }
+        BigDecimal score = ScoreCalculator.score(outcomes, java.math.BigDecimal.TEN);
+        long ran = outcomes.stream().filter(o -> !o.skipped()).count();
+        long passed = outcomes.stream().filter(o -> !o.skipped() && o.passed()).count();
+        long pct = ran == 0 ? 0 : Math.round(passed * 100.0 / ran);
+        String summary = String.format("Passed %d/%d steps (%d%%), Score: %.2f/10.00",
+                passed, ran, pct, score);
+        return DryRunReport.builder()
+                .dryRunId(UUID.randomUUID())
+                .steps(stepReports)
+                .summary(summary)
+                .build();
+    }
+
+    /**
+     * Parses the JSON-serialized {@code extractedVariables} from a step result
+     * into a {@link Map}. Returns an empty map when null/invalid.
+     */
+    private Map<String, Object> parseExtractedVariables(String extractedJson)
+    {
+        if (extractedJson == null || extractedJson.isBlank())
+        {
+            return Map.of();
+        }
+        try
+        {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = objectMapper.readValue(extractedJson, Map.class);
+            return map == null ? Map.of() : map;
+        }
+        catch (Exception e)
+        {
+            return Map.of();
+        }
+    }
+
+    /**
      * Scans all plans for {@code DB_*} steps and reads the connection block
      * of the first one; a later step targeting a different service/engine
      * is logged and ignored.
@@ -293,6 +571,7 @@ public class GradingOrchestrator
                 String dbService = null;
                 Integer dbContainerPort = null;
                 String dbType = null;
+                String database = null;
                 String parseError = null;
                 try
                 {
@@ -312,6 +591,10 @@ public class GradingOrchestrator
                         if (conn.hasNonNull(Constant.DbConnection.DB_TYPE))
                         {
                             dbType = conn.path(Constant.DbConnection.DB_TYPE).asString();
+                        }
+                        if (conn.hasNonNull(Constant.DbConnection.DATABASE))
+                        {
+                            database = conn.path(Constant.DbConnection.DATABASE).asString();
                         }
                     }
                 }
@@ -339,7 +622,8 @@ public class GradingOrchestrator
                     }
                     dbContainerPort = dialect.defaultPort();
                 }
-                DbRequirements current = new DbRequirements(true, dbService, dbContainerPort, dbType, parseError);
+                DbRequirements current = new DbRequirements(true, dbService, dbContainerPort, dbType,
+                        database, parseError);
                 if (first == null)
                 {
                     first = current;
@@ -390,17 +674,17 @@ public class GradingOrchestrator
      * @throws IllegalArgumentException from {@link #scanDbRequirements} on unknown db_type
      */
     record DbRequirements(boolean present, String dbService, Integer dbContainerPort,
-            String dbType, String parseError)
+            String dbType, String database, String parseError)
     {
         static DbRequirements none()
         {
-            return new DbRequirements(false, null, null, null, null);
+            return new DbRequirements(false, null, null, null, null, null);
         }
     }
 
     private void runSteps(GradingJob job, UUID submissionId, UUID assignmentId, UUID studentId,
             UUID planId, UUID sagaId, List<InternalPlanDto> plans, int appPort, Integer dbPort,
-            long executionTimeoutMs)
+            long executionTimeoutMs, DbRequirements dbReq)
     {
         job.setStatus(GradingJobStatus.RUNNING);
         gradingJobRepository.save(job);
@@ -431,6 +715,13 @@ public class GradingOrchestrator
                             .toList();
             steps = autoInjectExtracts(steps);
             boolean planStopped = false;
+            /*
+             * Phase 3: auto_inject_headers at plan scope. Headers declared by an
+             * earlier step (typically login extracting ${accessToken}) are injected
+             * into every subsequent HTTP_REQUEST step in the same plan. The map is
+             * plan-scoped: it accumulates across steps and resets per plan.
+             */
+            Map<String, String> injectedHeaders = new HashMap<>();
             for (InternalStepDto step : steps)
             {
                 if (System.currentTimeMillis() > deadline)
@@ -445,7 +736,43 @@ public class GradingOrchestrator
                 }
                 UUID stepRow = sagaTracker.step(sagaId, Constant.Saga.STEP_PREFIX + step.getName(),
                         plan.getId(), step.getId());
-                GradingStepResult result = runStep(job, plan, step, vars);
+                JsonNode config;
+                try
+                {
+                    config = objectMapper.readTree(step.getConfig() == null ? "{}" : step.getConfig());
+                }
+                catch (Exception e)
+                {
+                    GradingStepResult result = persist(job, plan, step, StepResultStatus.ERROR,
+                            Constant.Message.INVALID_STEP_CONFIG + safeMessage(e));
+                    boolean passed = result.getStatus() == StepResultStatus.PASSED;
+                    sagaTracker.finishStep(stepRow,
+                            passed ? SagaStepStatus.DONE : SagaStepStatus.FAILED,
+                            passed ? null : result.getErrorMessage());
+                    outcomes.add(new ScoreCalculator.StepScore(
+                            passed, false, nz(step.getWeight(), 1)));
+                    items.add(stepItem(plan, step, result, passed, false, result.getErrorMessage()));
+                    if ((result.getStatus() == StepResultStatus.FAILED
+                            || result.getStatus() == StepResultStatus.ERROR)
+                            && Boolean.TRUE.equals(step.getRequired()))
+                    {
+                        planStopped = true;
+                        writeLog(job.getId(), submissionId, GradingLogLevel.WARN,
+                                Constant.Message.REQUIRED_STEP_FAILED + step.getName());
+                    }
+                    continue;
+                }
+                // Inject headers accumulated from earlier steps in this plan.
+                JsonNode effectiveConfig = injectPlanHeaders(config, injectedHeaders, vars);
+                // auto_inject_headers is an orchestrator concern, not an executor config key.
+                if (effectiveConfig instanceof ObjectNode on)
+                {
+                    on.remove(Constant.HttpStep.AUTO_INJECT_HEADERS);
+                }
+                GradingStepResult result = runStep(job, plan, step, effectiveConfig, vars);
+                // Harvest this step's auto_inject_headers for subsequent steps only
+                // (after it ran, so its extracts such as ${accessToken} are resolvable).
+                harvestAutoInjectHeaders(config, injectedHeaders);
                 boolean passed = result.getStatus() == StepResultStatus.PASSED;
                 sagaTracker.finishStep(stepRow,
                         passed ? SagaStepStatus.DONE : SagaStepStatus.FAILED,
@@ -460,6 +787,20 @@ public class GradingOrchestrator
                     planStopped = true;
                     writeLog(job.getId(), submissionId, GradingLogLevel.WARN,
                             Constant.Message.REQUIRED_STEP_FAILED + step.getName());
+                }
+            }
+            // --- Phase 5: DB Isolation Sandbox ---
+            // Reset the DB after each plan so the next plan starts with a
+            // pristine database (no leftover rows/schema from this plan).
+            // Skipped when the assignment has no DB steps.
+            if (dbReq.present() && dbPort != null && dbReq.database() != null)
+            {
+                JsonNode dbConfig = findFirstDbConfig(plan);
+                if (dbConfig != null)
+                {
+                    dbSandbox.resetDatabase(dbConfig, dbPort);
+                    writeLog(job.getId(), submissionId, GradingLogLevel.INFO,
+                            "DB sandbox reset after plan '" + plan.getName() + "'");
                 }
             }
         }
@@ -498,18 +839,8 @@ public class GradingOrchestrator
     }
 
     private GradingStepResult runStep(GradingJob job, InternalPlanDto plan, InternalStepDto step,
-            VariableContext vars)
+            JsonNode config, VariableContext vars)
     {
-        JsonNode config;
-        try
-        {
-            config = objectMapper.readTree(step.getConfig() == null ? "{}" : step.getConfig());
-        }
-        catch (Exception e)
-        {
-            return persist(job, plan, step, StepResultStatus.ERROR,
-                    Constant.Message.INVALID_STEP_CONFIG + safeMessage(e));
-        }
         StepExecutor executor;
         try
         {
@@ -631,6 +962,96 @@ public class GradingOrchestrator
         while (m.find())
         {
             vars.add(m.group(1));
+        }
+    }
+
+    /**
+     * Finds the `connection` block of the first DB_* step in {@code plan},
+     * which carries the target database name, credentials, and engine key
+     * needed for the DB sandbox reset. Returns null when the plan has no
+     * DB steps or the config is unparseable.
+     */
+    private JsonNode findFirstDbConfig(InternalPlanDto plan)
+    {
+        if (plan.getSteps() == null)
+        {
+            return null;
+        }
+        for (InternalStepDto step : plan.getSteps())
+        {
+            if (step.getStepType() != null
+                    && step.getStepType().startsWith(Constant.DbConnection.DB_STEP_PREFIX))
+            {
+                try
+                {
+                    JsonNode cfg = objectMapper.readTree(
+                            step.getConfig() == null ? "{}" : step.getConfig());
+                    if (cfg.hasNonNull(Constant.DbConnection.CONNECTION))
+                    {
+                        return cfg.get(Constant.DbConnection.CONNECTION);
+                    }
+                }
+                catch (Exception e)
+                {
+                    // unparseable config — skip
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Phase 3: merge plan-scoped auto_inject_headers into an HTTP step config.
+     * Header templates are substituted against the current variable context, so a
+     * token extracted by an earlier step (e.g. ${accessToken}) resolves here.
+     * Headers already set on the step take precedence; injection never overrides.
+     */
+    private JsonNode injectPlanHeaders(JsonNode config, Map<String, String> injectedHeaders,
+            VariableContext vars)
+    {
+        if (injectedHeaders == null || injectedHeaders.isEmpty() || !(config instanceof ObjectNode))
+        {
+            return config;
+        }
+        ObjectNode enhanced = (ObjectNode) config.deepCopy();
+        ObjectNode headers;
+        if (enhanced.hasNonNull(Constant.HttpStep.HEADERS)
+                && enhanced.get(Constant.HttpStep.HEADERS).isObject())
+        {
+            headers = (ObjectNode) enhanced.get(Constant.HttpStep.HEADERS);
+        }
+        else
+        {
+            headers = objectMapper.createObjectNode();
+            enhanced.set(Constant.HttpStep.HEADERS, headers);
+        }
+        injectedHeaders.forEach((name, template) ->
+        {
+            if (!headers.has(name))
+            {
+                headers.put(name, vars.substitute(template));
+            }
+        });
+        return enhanced;
+    }
+
+    /**
+     * Phase 3: harvest a step's declared auto_inject_headers into the plan-scoped
+     * map so they apply to subsequent steps. Called after the step ran so its
+     * extracts are resolvable when the templates are later substituted.
+     */
+    private void harvestAutoInjectHeaders(JsonNode config, Map<String, String> injectedHeaders)
+    {
+        if (config == null || !(config instanceof ObjectNode))
+        {
+            return;
+        }
+        JsonNode headers = config.path(Constant.HttpStep.AUTO_INJECT_HEADERS);
+        if (headers != null && headers.isObject())
+        {
+            headers.properties().forEach(e -> {
+                injectedHeaders.put(e.getKey(), e.getValue().asString());
+            });
         }
     }
 
