@@ -28,11 +28,13 @@ import java.util.Map;
  * blank means {@code STUDENT} (secure default: the lower privilege). Unknown
  * role values fail the row, never the batch.
  *
- * <p>Per row, in order: validate → duplicate check by username, then email
- * (skip with reason) → create → temporary password (the username itself) →
- * realm role from a per-import cache. One bad row lands in the report and the
- * batch continues; only file-level problems abort the whole request, and
- * re-running a file is safe (created rows skip as duplicates).
+ * <p>Per row, in order: validate → duplicate check by username, then email.
+ * A username duplicate that already has a password skips with a reason; one
+ * WITHOUT a password is a half-provisioned account from an earlier failed run
+ * and gets its temporary password and role now. New rows: create → temporary
+ * password (the username itself) → realm role from a per-import cache. One bad
+ * row lands in the report and the batch continues; only file-level problems
+ * abort the whole request, and re-running a file is safe.
  *
  * <p>Review: 2026-10-09, bulk user import plan.
  */
@@ -134,17 +136,18 @@ public class UserImportService {
         // One shared admin token for the whole batch (the session memoizes it),
         // and role representations resolved lazily: a student-only import never
         // touches ROLE_LECTURER, so its absence or unreadability cannot abort it.
-        // Review: 2026-10-29 — switched from concatMap (strictly sequential) to
-        // flatMap with bounded concurrency so independent rows call Keycloak in
-        // parallel instead of waiting on each other. Report order can interleave
-        // slightly under concurrency, but summarize() only counts outcomes so the
-        // batch report is unaffected.
+        // Review: 2026-10-29 — flatMap overlaps independent rows, but only THREE
+        // at a time: ten in flight made a single-node Keycloak answer 400
+        // "Cannot parse the JSON", 500 and connection resets mid-import, because
+        // its user-list reads serialize against the writes each row performs.
+        // Report order can interleave slightly under concurrency, but summarize()
+        // only counts outcomes so the batch report is unaffected.
         KeycloakAdminClient.BulkOperations admin = keycloak.bulk();
         Map<String, Map<String, String>> roleCache = new ConcurrentHashMap<>();
         return Flux.fromIterable(rows)
                 .index()
                 .flatMap(indexed -> importRow(
-                        indexed.getT1().intValue() + 1, indexed.getT2(), admin, roleCache), 10)
+                        indexed.getT1().intValue() + 1, indexed.getT2(), admin, roleCache), 3)
                 .collectList()
                 .map(UserImportService::summarize);
     }
@@ -187,7 +190,7 @@ public class UserImportService {
         // a provider-side role failure surfaces as provider_error for the row,
         // never as a batch abort).
         return admin.findUserId(username)
-                .flatMap(id -> Mono.just(RowResult.skipped(line, username, role, "duplicate_username")))
+                .flatMap(id -> completeOrSkip(admin, line, id, username, role, roleCache))
                 .switchIfEmpty(Mono.defer(() -> admin.findUserId(email)
                         .flatMap(id -> Mono.just(RowResult.skipped(line, username, role, "duplicate_email")))
                         .switchIfEmpty(Mono.defer(() -> roleRep(admin, roleCache, role)
@@ -196,6 +199,39 @@ public class UserImportService {
                 .onErrorResume(error -> error instanceof UserImportException
                         ? Mono.error(error)
                         : Mono.just(RowResult.failed(line, username, role, "provider_error")));
+    }
+
+    /**
+     * A duplicate username is skipped only when the account already has a password.
+     * A previous import can die between {@code createUser} and
+     * {@code setTemporaryPassword} (transient Keycloak 5xx), leaving an enabled
+     * account nobody can log into; re-running the same CSV is the only repair path,
+     * so skipping it would make the gap permanent. The row is reported as created
+     * because this run is what made the account usable.
+     *
+     * <p>Review: 2026-10-29, bulk-import overload incident.
+     */
+    private Mono<RowResult> completeOrSkip(KeycloakAdminClient.BulkOperations admin, int line,
+            String userId, String username, String role,
+            Map<String, Map<String, String>> roleCache) {
+        return admin.hasPassword(userId)
+                .flatMap(hasPassword -> {
+                    if (hasPassword) {
+                        return Mono.just(RowResult.skipped(line, username, role, "duplicate_username"));
+                    }
+                    return roleRep(admin, roleCache, role)
+                            .flatMap(rep -> admin.setTemporaryPassword(userId, username)
+                                    .flatMap(applied -> {
+                                        if (!applied) {
+                                            return Mono.just(RowResult.failed(
+                                                    line, username, role, "weak_password"));
+                                        }
+                                        return admin.assignRealmRoles(userId, List.of(rep))
+                                                .thenReturn(RowResult.created(line, username, role))
+                                                .onErrorResume(error -> Mono.just(RowResult.failed(
+                                                        line, username, role, "role_not_assigned")));
+                                    }));
+                });
     }
 
     private Mono<RowResult> createAndProvision(KeycloakAdminClient.BulkOperations admin, int line,

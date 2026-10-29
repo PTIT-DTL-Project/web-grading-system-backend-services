@@ -10,11 +10,14 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import vn.edu.ptit.web_grading_system.api_gateway.config.KeycloakAdminProperties;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +44,29 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
      * from this signal alone.
      */
     static final String PENDING_REQUIRED_ACTION_MARKER = "Account is not fully set up";
+
+    /**
+     * Bounded retry budget for admin calls that are safe to repeat. A burst of
+     * parallel user-list reads makes a single-node Keycloak answer 5xx, or its
+     * streaming user search fail with 400 "Cannot parse the JSON"
+     * (keycloak#34857); the same call is fine a moment later.
+     * Review: 2026-10-29, bulk-import overload incident.
+     */
+    static final int TRANSIENT_MAX_ATTEMPTS = 3;
+    static final Duration TRANSIENT_BACKOFF = Duration.ofMillis(250);
+    private static final Duration TRANSIENT_MAX_BACKOFF = Duration.ofSeconds(2);
+
+    /**
+     * Keycloak's answer to overload, not a verdict about the request. Kept an
+     * {@link IllegalStateException} so every unexpected provider answer still
+     * surfaces as the same 502 class downstream.
+     * Review: 2026-10-29, bulk-import overload incident.
+     */
+    static final class TransientKeycloakException extends IllegalStateException {
+        TransientKeycloakException(String message) {
+            super(message);
+        }
+    }
 
     private static final JsonMapper JSON = JsonMapper.shared();
 
@@ -83,7 +109,8 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
 
     @Override
     public Mono<String> findUserId(String username) {
-        return adminAccessToken().flatMap(token -> findUserIdWith(token, username));
+        return freshAdminToken()
+                .flatMap(token -> retryTransient(findUserIdWith(token, username)));
     }
 
     private Mono<String> findUserIdWith(String token, String username) {
@@ -113,14 +140,25 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
 
     @Override
     public Mono<Boolean> resetPassword(String userId, String newPassword) {
-        return adminAccessToken().flatMap(token -> webClient.put()
+        return freshAdminToken().flatMap(token -> retryTransient(
+                resetPasswordWith(token, userId, resetCredential(newPassword))));
+    }
+
+    /**
+     * One wire call shared by both reset paths — only the credential body differs
+     * ({@code temporary} true/false). Safe to retry: writing the same password
+     * twice leaves the same state.
+     */
+    private Mono<Boolean> resetPasswordWith(String token, String userId,
+            Map<String, Object> credential) {
+        return webClient.put()
                 .uri(usersUri + "/" + userId + "/reset-password")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .bodyValue(resetCredential(newPassword))
+                .bodyValue(credential)
                 .exchangeToMono(response -> response.bodyToMono(String.class)
                         .defaultIfEmpty("")
-                        .flatMap(body -> resetVerdict(response.statusCode(), body))));
+                        .flatMap(body -> resetVerdict(response.statusCode(), body)));
     }
 
     /**
@@ -133,7 +171,11 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
      */
     @Override
     public Mono<String> createUser(String username, String email, String firstName, String lastName) {
-        return adminAccessToken().flatMap(token ->
+        // The token fetch is retried; the create POST is not. A 5xx after Keycloak
+        // already committed the user would make a retry answer 409 and hide the
+        // account that still needs provisioning — a re-import finishes it instead.
+        // Review: 2026-10-29, bulk-import overload incident.
+        return freshAdminToken().flatMap(token ->
                 createUserWith(token, username, email, firstName, lastName));
     }
 
@@ -177,23 +219,60 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
 
     @Override
     public Mono<Boolean> setTemporaryPassword(String userId, String newPassword) {
-        return adminAccessToken().flatMap(token -> setTemporaryPasswordWith(token, userId, newPassword));
+        return freshAdminToken().flatMap(token -> retryTransient(
+                setTemporaryPasswordWith(token, userId, newPassword)));
     }
 
     private Mono<Boolean> setTemporaryPasswordWith(String token, String userId, String newPassword) {
-        return webClient.put()
-                .uri(usersUri + "/" + userId + "/reset-password")
-                .contentType(MediaType.APPLICATION_JSON)
+        return resetPasswordWith(token, userId, temporaryCredential(newPassword));
+    }
+
+    /**
+     * Keycloak's credential list for a user: empty means the account was created
+     * but never got a password, so nobody can log into it yet.
+     *
+     * <p>Review: 2026-10-29, bulk-import overload incident — rows that died
+     * between create and reset left such accounts behind.
+     */
+    private Mono<Boolean> hasPasswordWith(String token, String userId) {
+        return webClient.get()
+                .uri(usersUri + "/" + userId + "/credentials")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .bodyValue(temporaryCredential(newPassword))
                 .exchangeToMono(response -> response.bodyToMono(String.class)
                         .defaultIfEmpty("")
-                        .flatMap(body -> resetVerdict(response.statusCode(), body)));
+                        .flatMap(body -> credentialsVerdict(response.statusCode(), body, userId)));
+    }
+
+    private Mono<Boolean> credentialsVerdict(HttpStatusCode status, String body, String userId) {
+        if (status.is5xxServerError()) {
+            log.warn("Credential lookup failed: status={} user={}", status.value(), userId);
+            return Mono.error(new TransientKeycloakException(
+                    "credential lookup answered " + status.value()));
+        }
+        if (!status.is2xxSuccessful()) {
+            log.warn("Credential lookup failed: status={} user={}", status.value(), userId);
+            return Mono.error(new IllegalStateException(
+                    "credential lookup answered " + status.value()));
+        }
+        JsonNode credentials = JSON.readTree(body);
+        if (!credentials.isArray()) {
+            // A non-array node iterates FIELD VALUES, which would read an error
+            // payload's properties as if they were credentials.
+            log.warn("Credential lookup answered a non-array body: {}", body);
+            return Mono.error(new IllegalStateException("credential body was not an array"));
+        }
+        for (JsonNode credential : credentials) {
+            if ("password".equals(credential.path("type").asString())) {
+                return Mono.just(Boolean.TRUE);
+            }
+        }
+        return Mono.just(Boolean.FALSE);
     }
 
     @Override
     public Mono<Map<String, String>> findRealmRole(String roleName) {
-        return adminAccessToken().flatMap(token -> findRealmRoleWith(token, roleName));
+        return freshAdminToken()
+                .flatMap(token -> retryTransient(findRealmRoleWith(token, roleName)));
     }
 
     private Mono<Map<String, String>> findRealmRoleWith(String token, String roleName) {
@@ -206,8 +285,8 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
                             if (!response.statusCode().is2xxSuccessful()) {
                                 log.warn("Role lookup failed: status={} role={}",
                                         response.statusCode().value(), roleName);
-                                return Mono.error(new IllegalStateException(
-                                        "role lookup answered " + response.statusCode().value()));
+                                return Mono.error(statusFailure("role lookup",
+                                        response.statusCode().value()));
                             }
                             JsonNode role = JSON.readTree(body);
                             String id = role.path("id").asString();
@@ -223,7 +302,9 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
 
     @Override
     public Mono<Void> assignRealmRoles(String userId, List<Map<String, String>> roles) {
-        return adminAccessToken().flatMap(token -> assignRealmRolesWith(token, userId, roles));
+        // Idempotent by contract: mapping an already-assigned realm role is a no-op 204.
+        return freshAdminToken()
+                .flatMap(token -> retryTransient(assignRealmRolesWith(token, userId, roles)));
     }
 
     private Mono<Void> assignRealmRolesWith(String token, String userId, List<Map<String, String>> roles) {
@@ -236,8 +317,8 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
                     if (response.statusCode().value() != 204) {
                         log.warn("Role assignment failed: status={} user={}",
                                 response.statusCode().value(), userId);
-                        return Mono.error(new IllegalStateException(
-                                "role assignment answered " + response.statusCode().value()));
+                        return Mono.error(statusFailure("role assignment",
+                                response.statusCode().value()));
                     }
                     return Mono.empty();
                 });
@@ -252,11 +333,14 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
      */
     @Override
     public BulkOperations bulk() {
-        Mono<String> token = adminAccessToken().cache();
+        // Retry the fetch BEFORE caching: cache() memoizes a failure too, so a
+        // retry outside the cache would replay the same error instead of refetching.
+        // Review: 2026-10-29, bulk-import overload incident.
+        Mono<String> token = freshAdminToken().cache();
         return new BulkOperations() {
             @Override
             public Mono<String> findUserId(String username) {
-                return token.flatMap(t -> findUserIdWith(t, username));
+                return token.flatMap(t -> retryTransient(findUserIdWith(t, username)));
             }
 
             @Override
@@ -267,17 +351,23 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
 
             @Override
             public Mono<Boolean> setTemporaryPassword(String userId, String newPassword) {
-                return token.flatMap(t -> setTemporaryPasswordWith(t, userId, newPassword));
+                return token.flatMap(t -> retryTransient(
+                        setTemporaryPasswordWith(t, userId, newPassword)));
+            }
+
+            @Override
+            public Mono<Boolean> hasPassword(String userId) {
+                return token.flatMap(t -> retryTransient(hasPasswordWith(t, userId)));
             }
 
             @Override
             public Mono<Map<String, String>> findRealmRole(String roleName) {
-                return token.flatMap(t -> findRealmRoleWith(t, roleName));
+                return token.flatMap(t -> retryTransient(findRealmRoleWith(t, roleName)));
             }
 
             @Override
             public Mono<Void> assignRealmRoles(String userId, List<Map<String, String>> roles) {
-                return token.flatMap(t -> assignRealmRolesWith(t, userId, roles));
+                return token.flatMap(t -> retryTransient(assignRealmRolesWith(t, userId, roles)));
             }
         };
     }
@@ -342,13 +432,19 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
     private Mono<String> userLookupVerdict(HttpStatusCode status, String body, String wanted,
             boolean byEmail) {
         if (!status.is2xxSuccessful()) {
-            // Keycloak 400 "Cannot parse the JSON" can happen transiently on user lookup;
-            // treating it as "user not found" lets the import flow retry/create the user.
-            if (status.value() == 400 && body != null && body.contains("Cannot parse the JSON")) {
-                log.warn("User lookup 400 'Cannot parse the JSON' — treating as user not found");
-                return Mono.empty();
-            }
             log.warn("User lookup failed: status={} body={}", status.value(), body);
+            // Keycloak's streaming user search answers 400 "Cannot parse the JSON" when
+            // its user-list read fails under load (keycloak#34857). That is NOT "user
+            // does not exist": treating it as empty let a duplicate reach createUser,
+            // whose 409 then hid the account. Retry it, and if it persists report
+            // provider trouble instead of inventing a verdict.
+            // Review: 2026-10-29, bulk-import overload incident.
+            if (status.is5xxServerError()
+                    || (status.value() == 400 && body != null
+                            && body.contains("Cannot parse the JSON"))) {
+                return Mono.error(new TransientKeycloakException(
+                        "user lookup answered " + status.value()));
+            }
             return Mono.error(new IllegalStateException("user lookup answered " + status.value()));
         }
         JsonNode users = JSON.readTree(body);
@@ -382,13 +478,15 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
             log.debug("Keycloak rejected the new password: {}", body);
             return Mono.just(Boolean.FALSE);
         }
-        // Keycloak 5xx on reset-password is transient — treat as rejected so the
-        // import flow doesn't break hard on a flaky server.
-        if (status.value() >= 500 && status.value() < 600) {
-            log.warn("reset-password {} transient — treating as rejected", status.value());
-            return Mono.just(Boolean.FALSE);
-        }
         log.warn("reset-password failed: status={} body={}", status.value(), body);
+        // 5xx is overload, not a verdict about the password: answering FALSE would
+        // report weak_password, blaming the CSV for a server hiccup and leaving the
+        // account without a credential. Retry it; a persistent failure stays an error.
+        // Review: 2026-10-29, bulk-import overload incident.
+        if (status.is5xxServerError()) {
+            return Mono.error(new TransientKeycloakException(
+                    "reset-password answered " + status.value()));
+        }
         return Mono.error(new IllegalStateException("reset-password answered " + status.value()));
     }
 
@@ -408,8 +506,8 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
                             if (!response.statusCode().is2xxSuccessful()) {
                                 log.warn("Admin token grant failed: status={} body={}",
                                         response.statusCode().value(), body);
-                                return Mono.error(new IllegalStateException(
-                                        "admin token endpoint answered " + response.statusCode().value()));
+                                return Mono.error(statusFailure("admin token endpoint",
+                                        response.statusCode().value()));
                             }
                             String token = JSON.readTree(body).path("access_token").asString();
                             return StringUtils.hasText(token)
@@ -417,6 +515,41 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
                                     : Mono.error(new IllegalStateException(
                                             "admin token response carried no access_token"));
                         }));
+    }
+
+    /**
+     * An admin token with the transient-failure retry already applied. Callers that
+     * repeat an idempotent operation wrap only the OPERATION, so a retry reuses this
+     * token instead of asking for a new one.
+     */
+    private Mono<String> freshAdminToken() {
+        return retryTransient(adminAccessToken());
+    }
+
+    /**
+     * Retries only what a retry cannot make worse: connection failures and Keycloak's
+     * overload answers. Backoff is capped so one slow row cannot stall the batch.
+     * Attempts, not retries — three tries cover a hiccup without hiding a real outage.
+     * Review: 2026-10-29, bulk-import overload incident.
+     */
+    private static <T> Mono<T> retryTransient(Mono<T> call) {
+        return call.retryWhen(Retry.backoff(TRANSIENT_MAX_ATTEMPTS - 1L, TRANSIENT_BACKOFF)
+                .maxBackoff(TRANSIENT_MAX_BACKOFF)
+                .filter(KeycloakAdminWebClient::isTransient)
+                .onRetryExhaustedThrow((spec, signal) -> signal.failure()));
+    }
+
+    private static boolean isTransient(Throwable error) {
+        return error instanceof TransientKeycloakException
+                || error instanceof WebClientRequestException;
+    }
+
+    /** 5xx is overload; every other status is a genuine refusal and fails at once. */
+    private static IllegalStateException statusFailure(String call, int status) {
+        if (status >= 500) {
+            return new TransientKeycloakException(call + " answered " + status);
+        }
+        return new IllegalStateException(call + " answered " + status);
     }
 
     /**
