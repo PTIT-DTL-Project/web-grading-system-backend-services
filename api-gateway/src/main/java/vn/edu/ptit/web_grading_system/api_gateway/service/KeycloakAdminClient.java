@@ -124,6 +124,16 @@ public interface KeycloakAdminClient {
 
         Mono<Boolean> setTemporaryPassword(String userId, String newPassword);
 
+        /**
+         * Whether the account already carries a password credential. A user created
+         * by an earlier import can exist without one when the reset step never landed
+         * (transient 5xx); a re-import uses this to FINISH such an account instead of
+         * skipping it as a duplicate, which would make the gap permanent.
+         *
+         * <p>Review: 2026-10-29, bulk-import overload incident.
+         */
+        Mono<Boolean> hasPassword(String userId);
+
         Mono<Map<String, String>> findRealmRole(String roleName);
 
         Mono<Void> assignRealmRoles(String userId, List<Map<String, String>> roles);
