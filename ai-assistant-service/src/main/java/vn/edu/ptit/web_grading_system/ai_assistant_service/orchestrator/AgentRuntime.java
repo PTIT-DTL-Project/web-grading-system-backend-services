@@ -128,30 +128,26 @@ public class AgentRuntime {
             for (ToolCallback domain : registry.callbacksForNames(activeNames, context, trackResult)) {
                 callbacks.add(boundedResult(domain, context, inFlight, usedTool, toolCalls, modelStep));
             }
-            if (lookupPhase != LookupPhase.READ) {
-                ToolCallback discovery = new SearchToolsTool(registry, mapper,
-                        properties.getContext().getToolSearchLimit()).callback(context, selected);
-                callbacks.add(new ToolCallback() {
-                    @Override public org.springframework.ai.tool.definition.ToolDefinition getToolDefinition() {
-                        return discovery.getToolDefinition();
-                    }
-                    @Override public ToolMetadata getToolMetadata() { return discovery.getToolMetadata(); }
-                    @Override public String call(String input) {
-                        searched.set(true);
-                        return loggedToolCall(context, modelStep, toolCalls, discovery, () -> discovery.call(input));
-                    }
-                    @Override public String call(String input, org.springframework.ai.chat.model.ToolContext toolContext) {
-                        return call(input);
-                    }
-                });
-            }
-            if (lookupPhase == LookupPhase.NORMAL) {
-                callbacks.add(directUtility(new SearchConversationTool(conversations, messages, mapper).callback(context),
-                        context, inFlight, usedTool, toolCalls, modelStep));
-                callbacks.add(directUtility(new GetToolResultPageTool(resultStore, mapper,
-                        Math.max(100, properties.getContext().getToolMaxTokens() / 2)).callback(context),
-                        context, inFlight, usedTool, toolCalls, modelStep));
-            }
+            ToolCallback discovery = new SearchToolsTool(registry, mapper,
+                    properties.getContext().getToolSearchLimit()).callback(context, selected);
+            callbacks.add(new ToolCallback() {
+                @Override public org.springframework.ai.tool.definition.ToolDefinition getToolDefinition() {
+                    return discovery.getToolDefinition();
+                }
+                @Override public ToolMetadata getToolMetadata() { return discovery.getToolMetadata(); }
+                @Override public String call(String input) {
+                    searched.set(true);
+                    return loggedToolCall(context, modelStep, toolCalls, discovery, () -> discovery.call(input));
+                }
+                @Override public String call(String input, org.springframework.ai.chat.model.ToolContext toolContext) {
+                    return call(input);
+                }
+            });
+            callbacks.add(directUtility(new SearchConversationTool(conversations, messages, mapper).callback(context),
+                    context, inFlight, usedTool, toolCalls, modelStep));
+            callbacks.add(directUtility(new GetToolResultPageTool(resultStore, mapper,
+                    Math.max(100, properties.getContext().getToolMaxTokens() / 2)).callback(context),
+                    context, inFlight, usedTool, toolCalls, modelStep));
             String stepPrompt = hideUnboundToolNames(prompt, callbacks);
             if (lookupPhase == LookupPhase.SEARCH) {
                 stepPrompt += "\nTrước khi hỏi người dùng về mã định danh, BẮT BUỘC gọi search_tools "
@@ -215,6 +211,7 @@ public class AgentRuntime {
                                 .maxBackoff(Duration.ofSeconds(2))
                                 .filter(error -> error instanceof AiProviderException
                                         && !isOversizedProviderRequest(error)
+                                        && !isToolChoiceRequiredFailure(error)
                                         && missingToolName(error).isEmpty()
                                         && !isRejectedToolCall(error)
                                         && !searched.get() && !usedTool.get())
@@ -232,6 +229,17 @@ public class AgentRuntime {
                 log.warn("AI runId={} modelStep={} modelFailedMs={} toolCallsSoFar={} errorType={}",
                         context.runId(), modelStep, elapsedMs(modelStarted), toolCalls.get(),
                         error.getClass().getSimpleName());
+                if (lookupPhase != LookupPhase.NORMAL && isToolChoiceRequiredFailure(error)) {
+                    log.warn("AI runId={} modelStep={} forcedToolChoiceFailed phase={} tool={}",
+                            context.runId(), modelStep, lookupPhase, lookupToolName);
+                    lookupRounds = Math.max(0, properties.getLimits().getMaxLookupRounds());
+                    lookupPhase = LookupPhase.NORMAL;
+                    inFlight.add(new UserMessage("Không thể bắt buộc gọi công cụ tra cứu. "
+                            + "Hãy tiếp tục với công cụ sẵn có nếu cần; nếu chưa xác định được đối tượng, "
+                            + "hỏi người dùng bằng tên hoặc ngữ cảnh, không hỏi UUID."));
+                    step--;
+                    continue;
+                }
                 Optional<String> missing = missingToolName(error);
                 if (!usedTool.get() && !searched.get() && missing.isPresent()
                         && !registry.callbacksForNames(Set.of(missing.get()), context, onResult).isEmpty()
@@ -275,10 +283,15 @@ public class AgentRuntime {
             if (lookupPhase == LookupPhase.READ) {
                 lookupRounds++;
                 lookupPhase = LookupPhase.NORMAL;
-                inFlight.add(new UserMessage(usedTool.get()
-                        ? "Hãy dùng kết quả tra cứu để xác định đối tượng. Nếu có nhiều kết quả, "
-                                + "hỏi người dùng chọn theo tên hoặc lớp học, không hỏi UUID."
-                        : "Không gọi được công cụ tra cứu. Nếu cần hỏi người dùng, hãy hỏi bằng tên hoặc ngữ cảnh."));
+                if (searched.get()) {
+                    inFlight.add(new UserMessage("Kết quả search_tools: " + response));
+                }
+                inFlight.add(new UserMessage(searched.get()
+                        ? "Đã tìm thêm công cụ. Hãy dùng công cụ phù hợp để tra cứu đối tượng."
+                        : usedTool.get()
+                                ? "Hãy dùng kết quả tra cứu để xác định đối tượng. Nếu có nhiều kết quả, "
+                                        + "hỏi người dùng chọn theo tên hoặc lớp học, không hỏi UUID."
+                                : "Không gọi được công cụ tra cứu. Nếu cần hỏi người dùng, hãy hỏi bằng tên hoặc ngữ cảnh."));
                 continue;
             }
             if (searched.get()) {
@@ -344,6 +357,16 @@ public class AgentRuntime {
         for (Throwable cause = error; cause != null; cause = cause.getCause()) {
             String message = cause.getMessage();
             if (message != null && Pattern.compile("(?:^|\\s)413:").matcher(message).find()) return true;
+        }
+        return false;
+    }
+
+    private boolean isToolChoiceRequiredFailure(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            String message = cause.getMessage();
+            if (message != null && message.contains("Tool choice is required, but model did not call a tool")) {
+                return true;
+            }
         }
         return false;
     }

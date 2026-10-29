@@ -184,7 +184,7 @@ public class AgentOrchestrator {
                                 });
                     } catch (Exception ex) {
                         log.warn("AI runId={} agent execution error: {}", runId, ex.getMessage());
-                        if (failedWrite.get() == null) throw new AiProviderException(ex);
+                        if (failedWrite.get() == null) throw ex;
                     }
                 } else {
                     List<ToolCallback> toolCallbacks = (toolRegistry != null)
@@ -204,7 +204,7 @@ public class AgentOrchestrator {
                             }).blockLast();
                         } catch (Exception ex) {
                             log.warn("AI runId={} streaming error: {}", runId, ex.getMessage());
-                            if (failedWrite.get() == null) throw new AiProviderException(ex);
+                            if (failedWrite.get() == null) throw ex;
                         }
                     }
                 }
