@@ -342,6 +342,12 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
     private Mono<String> userLookupVerdict(HttpStatusCode status, String body, String wanted,
             boolean byEmail) {
         if (!status.is2xxSuccessful()) {
+            // Keycloak 400 "Cannot parse the JSON" can happen transiently on user lookup;
+            // treating it as "user not found" lets the import flow retry/create the user.
+            if (status.value() == 400 && body != null && body.contains("Cannot parse the JSON")) {
+                log.warn("User lookup 400 'Cannot parse the JSON' — treating as user not found");
+                return Mono.empty();
+            }
             log.warn("User lookup failed: status={} body={}", status.value(), body);
             return Mono.error(new IllegalStateException("user lookup answered " + status.value()));
         }
@@ -374,6 +380,12 @@ public class KeycloakAdminWebClient implements KeycloakAdminClient {
         }
         if (status.value() == 400) {
             log.debug("Keycloak rejected the new password: {}", body);
+            return Mono.just(Boolean.FALSE);
+        }
+        // Keycloak 5xx on reset-password is transient — treat as rejected so the
+        // import flow doesn't break hard on a flaky server.
+        if (status.value() >= 500 && status.value() < 600) {
+            log.warn("reset-password {} transient — treating as rejected", status.value());
             return Mono.just(Boolean.FALSE);
         }
         log.warn("reset-password failed: status={} body={}", status.value(), body);

@@ -30,28 +30,30 @@ public interface ClassStudentRepository extends JpaRepository<ClassStudent, UUID
     List<ClassStudent> findAllByStudentUserIdIn(Collection<UUID> studentUserIds);
 
     /**
-     * Binds a Keycloak identity to roster rows by email. Only rows that have
-     * never been linked are touched — an already-owned row keeps its owner.
+     * Binds a Keycloak identity to roster rows by email. Rows whose email matches
+     * are linked to the caller's Keycloak subject (JWT sub). If a row already
+     * carries a stale student_user_id (e.g. imported from CSV with a random UUID
+     * that is not the Keycloak sub), it is overwritten so the student becomes
+     * visible on GET /api/v1/student/classes.
      *
-     * <p>Trust assumption (review before changing realm policy): the caller
-     * must be the unique holder of the presented email. This holds because the
-     * {@code ptit-wgs} realm has self-registration off
-     * ({@code registrationAllowed=false}) and forbids duplicate emails
-     * ({@code duplicateEmailsAllowed=false}) — whoever presents an email is
-     * its sole owner, so first-come-first-served can only bind one's own rows.
+     * <p>Trust assumption: the caller must be the unique holder of the presented
+     * email. This holds because the {@code ptit-wgs} realm has self-registration
+     * off ({@code registrationAllowed=false}) and forbids duplicate emails
+     * ({@code duplicateEmailsAllowed=false}) — whoever presents an email is its
+     * sole owner, so binding by email cannot steal another student's rows.
      *
-     * @return number of rows linked
+     * @return number of rows linked (updated)
      */
     // Review: 2026-10-08 — student identity linking (auto-bind from CSV email).
-    // Review: 2026-10-09, Pullfrog — scope note: the no-steal guarantee covers
-    // already-linked rows; unlinked rows are claimable by their email holder.
+    // Review: 2026-10-29 — allow overwrite of stale student_user_id so previously
+    // imported rosters heal themselves on the student's next API call.
     @Modifying
     @Query("""
             update ClassStudent s
                set s.studentUserId = :studentId
-             where s.studentUserId is null
-               and lower(s.email) = lower(:email)
-               and s.deletedAt is null""")
+             where lower(s.email) = lower(:email)
+               and s.deletedAt is null
+               and (s.studentUserId is null or s.studentUserId <> :studentId)""")
     int linkStudentIdentity(@Param("studentId") UUID studentId,
                             @Param("email") String email);
 }
