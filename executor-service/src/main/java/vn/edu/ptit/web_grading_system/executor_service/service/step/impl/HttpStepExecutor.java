@@ -16,9 +16,11 @@ import vn.edu.ptit.web_grading_system.executor_service.service.scoring.VariableC
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepContext;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.regex.Matcher;
@@ -104,7 +106,8 @@ public class HttpStepExecutor implements StepExecutor
                 {
                     queryPart.append("&");
                 }
-                queryPart.append(e.getKey()).append("=").append(v);
+                queryPart.append(encodeQueryComponent(e.getKey())).append("=")
+                        .append(encodeQueryComponent(v));
             });
             if (queryPart.length() > 0)
             {
@@ -229,6 +232,26 @@ public class HttpStepExecutor implements StepExecutor
             return buildResult(ctx, StepResultStatus.ERROR, null, url, headers, bodyStr,
                     null, Map.of(), null, "[]", null, errorMessage, start, startedAt);
         }
+    }
+
+    /**
+     * Percent-encodes one query name/value. The URL is assembled as a string and
+     * handed to {@link URI#create}, which rejects characters that are legal in a
+     * query as text but not in a URI — a space, or any non-ASCII letter. A title
+     * like "The Little Prince" (or "Dế Mèn") therefore failed the step with
+     * "Illegal character in query" before a request was ever sent.
+     * <p>
+     * Config values are raw: an already-escaped {@code %20} is escaped again, so
+     * lecturers must not pre-encode. Space becomes {@code %20} rather than the
+     * form-encoded {@code +} because {@code query_params} is a URI query, not an
+     * {@code application/x-www-form-urlencoded} body.
+     * <p>
+     * Review: 2026-10-29, mock book-app grading — step 3 never left the executor.
+     */
+    private static String encodeQueryComponent(String value)
+    {
+        return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8)
+                .replace("+", "%20");
     }
 
     /**
