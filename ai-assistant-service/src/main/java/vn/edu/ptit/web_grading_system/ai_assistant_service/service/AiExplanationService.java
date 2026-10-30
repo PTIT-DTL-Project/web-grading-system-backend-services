@@ -277,12 +277,18 @@ public class AiExplanationService {
         boolean isFallback = structuredOutput == null;
         if (isFallback) {
             // LLM provider failed or returned unparseable JSON. Try once more via the
-            // raw completion path; even if it parses, the result is from fallback
-            // (generateEntity already failed), so it must not be cached.
+            // raw completion path. If the retry parses successfully it is a real model
+            // result and should be cached; only leave isFallback=true when this second
+            // attempt also fails to produce a usable analysis.
+            // Review: 2026-10-31, Pullfrog PR #48 — original code never cleared
+            // isFallback after a successful retry, so every retried result was returned
+            // uncached and both LLM calls were re-issued on every subsequent request.
             String rawLlmResponse = llmClient.generateCompletion(systemPrompt, userPrompt);
             if (rawLlmResponse != null && !rawLlmResponse.isBlank()) {
                 try {
                     structuredOutput = outputConverter.convert(rawLlmResponse);
+                    // Retry parsed successfully — treat as a real result and allow caching.
+                    isFallback = structuredOutput == null;
                 } catch (Exception e) {
                     log.warn("BeanOutputConverter could not parse LLM fallback response: {}", e.getMessage());
                 }

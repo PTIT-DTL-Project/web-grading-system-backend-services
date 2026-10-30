@@ -18,10 +18,6 @@ import reactor.core.publisher.Flux;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.AiExplanationResultDto;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonDeserializer;
-
 import java.util.List;
 import java.util.UUID;
 import org.mockito.ArgumentCaptor;
@@ -199,32 +195,6 @@ class LlmClientTest {
         AiExplanationResultDto result = client.generateEntity("system", "any prompt", AiExplanationResultDto.class);
 
         assertNull(result);
-    }
-
-    // Regression: the UUID type adapter on LlmClient's Gson deserializes a JSON string into
-    // a UUID stepId, so fallback payloads with string stepIds parse correctly.
-    @Test
-    void gsonUuidAdapterDeserializesStringStepId() {
-        Gson gson = new GsonBuilder()
-                .registerTypeAdapter(UUID.class, (JsonDeserializer<UUID>) (json, type, context) -> {
-                    if (json == null || json.isJsonNull()) {
-                        return null;
-                    }
-                    String s = json.getAsString();
-                    return s.isBlank() ? null : UUID.fromString(s);
-                })
-                .create();
-
-        UUID stepId = UUID.randomUUID();
-        AiExplanationResultDto dto = gson.fromJson(
-                "{\"overallSummary\":\"s\",\"stepAnalyses\":[{\"stepId\":\"" + stepId + "\",\"stepName\":\"t\",\"passed\":true}]}",
-                AiExplanationResultDto.class);
-
-        assertNotNull(dto);
-        assertEquals(1, dto.stepAnalyses().size());
-        assertEquals(stepId, dto.stepAnalyses().get(0).getStepId());
-        assertEquals("t", dto.stepAnalyses().get(0).getStepName());
-        assertEquals(Boolean.TRUE, dto.stepAnalyses().get(0).getPassed());
     }
 
     // Regression: live-path provider failure makes generateEntity return null instead of

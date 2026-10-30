@@ -136,8 +136,11 @@ public class AiExplanationServiceTest {
         verifyNoInteractions(llmClient);
     }
 
-    // Review: 2026-10-17, Pullfrog — regression for the 500 when the LLM omits
+    // Review: 2026-10-31, Pullfrog PR #48 — regression for the 500 when the LLM omits
     // actionableHints/learningKeywords (Stream.flatMap(null) NPE).
+    // generateEntity must return a non-null DTO so the test actually reaches the
+    // cache-write block where the Optional.ofNullable guard lives; otherwise isFallback=true
+    // routes execution to the degraded branch and the guard is never exercised.
     @Test
     void explainSubmission_doesNotThrow_whenStepHintsAreNull() {
         when(explanationRepository.findBySubmissionIdAndCategory(submissionId, "FULL_ANALYSIS"))
@@ -153,16 +156,24 @@ public class AiExplanationServiceTest {
                 .thenReturn(ApiEnvelope.<List<ResultDto>>builder().status(200).data(List.of(result)).build());
         when(promptBuilder.buildSystemPrompt()).thenReturn("system");
         when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
-        when(llmClient.generateCompletion("system", "user")).thenReturn(
-                "{\"overallSummary\":\"ok\",\"stepAnalyses\":[{\"stepId\":\""
-                        + UUID.randomUUID()
-                        + "\",\"stepName\":\"s\",\"actionableHints\":null,\"learningKeywords\":null}]}");
+        // Stub generateEntity to return a DTO whose step has null hints/keywords — this reaches
+        // the cache-write path so a regression of the Stream.flatMap(null) guard will fail here.
+        when(llmClient.generateEntity(any(), any(), any()))
+                .thenReturn(new AiExplanationResultDto("ok",
+                        List.of(StepAnalysis.builder()
+                                .stepId(UUID.randomUUID())
+                                .stepName("s")
+                                .actionableHints(null)
+                                .learningKeywords(null)
+                                .build())));
+        when(explanationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         AiExplanationResponse res = explanationService.explainSubmission(submissionId, studentId);
 
         assertThat(res.getFromCache()).isFalse();
         assertThat(res.getOverallSummary()).isEqualTo("ok");
         assertThat(res.getStepAnalyses()).hasSize(1);
+        verify(explanationRepository).save(any());
     }
 
     // Regression: LLM returns truncated/invalid JSON (UnexpectedEndOfInputException).

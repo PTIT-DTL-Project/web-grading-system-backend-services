@@ -15,7 +15,6 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelPropert
 
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
 
 @Slf4j
 @Component
@@ -29,15 +28,6 @@ public class LlmClient {
     private final String baseUrl;
     private final ChatModel chatModel;
     private final ChatClient chatClient;
-    private final Gson gson = new GsonBuilder()
-            .registerTypeAdapter(UUID.class, (JsonDeserializer<UUID>) (json, type, context) -> {
-                if (json == null || json.isJsonNull()) {
-                    return null;
-                }
-                String s = json.getAsString();
-                return s.isBlank() ? null : UUID.fromString(s);
-            })
-            .create();
 
     public LlmClient(AiModelProperties props, ChatModel chatModel) {
         this.provider = props.provider();
