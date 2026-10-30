@@ -128,14 +128,8 @@ public class LlmClient {
 
     public <T> T generateEntity(String systemPrompt, String userPrompt, Class<T> entityClass) {
         if (isOfflineMode()) {
-            try {
-                log.info("AI API key not configured — generating fallback structured entity");
-                String fallback = generateFallbackResponse(userPrompt);
-                return gson.fromJson(fallback, entityClass);
-            } catch (Exception e) {
-                log.warn("Fallback entity generation failed: {}", e.getMessage());
-                return null;
-            }
+            log.info("AI API key not configured — no real analysis possible, returning null");
+            return null;
         }
         try {
             return chatClient.prompt()
@@ -145,13 +139,7 @@ public class LlmClient {
                     .entity(entityClass);
         } catch (Exception e) {
             log.error("Failed to generate structured entity via Spring AI: {}", e.getMessage(), e);
-            try {
-                String fallback = generateFallbackResponse(userPrompt);
-                return gson.fromJson(fallback, entityClass);
-            } catch (Exception fallbackEx) {
-                log.warn("Fallback entity parsing also failed: {}", fallbackEx.getMessage());
-                return null;
-            }
+            return null;
         }
     }
 

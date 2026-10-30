@@ -274,7 +274,11 @@ public class AiExplanationService {
         String systemPrompt = promptBuilder.buildSystemPrompt();
         String userPrompt = promptBuilder.buildUserPrompt(assignment, result);
         AiExplanationResultDto structuredOutput = llmClient.generateEntity(systemPrompt, userPrompt, AiExplanationResultDto.class);
-        if (structuredOutput == null) {
+        boolean isFallback = structuredOutput == null;
+        if (isFallback) {
+            // LLM provider failed or returned unparseable JSON. Try once more via the
+            // raw completion path; even if it parses, the result is from fallback
+            // (generateEntity already failed), so it must not be cached.
             String rawLlmResponse = llmClient.generateCompletion(systemPrompt, userPrompt);
             if (rawLlmResponse != null && !rawLlmResponse.isBlank()) {
                 try {
@@ -294,12 +298,11 @@ public class AiExplanationService {
                 ? structuredOutput.stepAnalyses()
                 : new ArrayList<>();
 
-        // 6. Save in DB cache — but NOT for a degraded total-failure result.
-        // A permanently cached default summary / empty steps would block every
-        // later retry from producing a real analysis, so skip the write and let
-        // the next request regenerate.
-        boolean degraded = structuredOutput == null;
-        if (!degraded) {
+        // 6. Save in DB cache — only for a real model analysis, never for a degraded
+        // fallback result. A permanently cached default summary / empty steps would
+        // block every later retry from producing a real analysis, so skip the write
+        // and let the next request regenerate.
+        if (!isFallback && structuredOutput != null) {
             AiExplanation entity = AiExplanation.builder()
                     .submissionId(submissionId)
                     .studentId(studentId)

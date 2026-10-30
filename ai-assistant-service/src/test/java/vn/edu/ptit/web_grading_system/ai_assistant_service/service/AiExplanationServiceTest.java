@@ -21,6 +21,8 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ResultDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.GatewayTrustProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.AiExplanationResponse;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.AiExplanationResultDto;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.StepAnalysis;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.entity.AiExplanation;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.repository.AiExplanationRepository;
 
@@ -155,7 +157,6 @@ public class AiExplanationServiceTest {
                 "{\"overallSummary\":\"ok\",\"stepAnalyses\":[{\"stepId\":\""
                         + UUID.randomUUID()
                         + "\",\"stepName\":\"s\",\"actionableHints\":null,\"learningKeywords\":null}]}");
-        when(explanationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         AiExplanationResponse res = explanationService.explainSubmission(submissionId, studentId);
 
@@ -380,7 +381,7 @@ public class AiExplanationServiceTest {
     // The row is written under the student's id, never the lecturer's, so the generate warms the
     // cache the student reads next.
     @Test
-    void explainSubmissionForLecturer_generates_andCachesUnderTheStudentId() {
+    void explainSubmissionForLecturer_generatesAndCachesUnderTheStudentId() {
         UUID assignmentId = UUID.randomUUID();
         UUID lecturerId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
@@ -391,8 +392,16 @@ public class AiExplanationServiceTest {
                 .thenReturn(Optional.empty());
         when(promptBuilder.buildSystemPrompt()).thenReturn("system");
         when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
-        when(llmClient.generateCompletion("system", "user"))
-                .thenReturn("{\"overallSummary\":\"ok\",\"stepAnalyses\":[]}");
+        when(llmClient.generateEntity(any(), any(), any()))
+                .thenReturn(new AiExplanationResultDto("ok",
+                        List.of(StepAnalysis.builder()
+                                .stepId(UUID.randomUUID())
+                                .stepName("s")
+                                .stepType("HTTP_REQUEST")
+                                .passed(true)
+                                .category("OPTIMIZE_PASS")
+                                .diagnosis("ok")
+                                .build())));
         when(explanationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         AiExplanationResponse res =

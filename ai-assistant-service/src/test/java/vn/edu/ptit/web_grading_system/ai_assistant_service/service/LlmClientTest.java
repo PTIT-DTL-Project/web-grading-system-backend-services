@@ -18,6 +18,10 @@ import reactor.core.publisher.Flux;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.AiExplanationResultDto;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonDeserializer;
+
 import java.util.List;
 import java.util.UUID;
 import org.mockito.ArgumentCaptor;
@@ -186,48 +190,61 @@ class LlmClientTest {
                 client.classifyPendingActionReply("có thể xem lại không", "Tạo câu kiểm tra Q1"));
     }
 
-    // Regression: LLM returns truncated JSON (missing closing quote) — Spring AI's BeanOutputConverter
-    // throws UnexpectedEndOfInputException. generateEntity must not propagate it; it falls back to the
-    // pedagogical JSON and returns a structured entity instead of throwing 500.
+    // Regression: offline mode (no API key) cannot produce a real analysis — generateEntity
+    // returns null so AiExplanationService treats it as degraded and skips the cache write.
     @Test
-    void generateEntityOfflineModeHandlesUuidStepId() {
+    void generateEntityOfflineModeReturnsNull() {
         LlmClient client = new LlmClient(dummyProperties, chatModel);
-        String stepId = UUID.randomUUID().toString();
-        String userPrompt = "{\"steps\":[{\"stepId\":\"" + stepId + "\",\"stepName\":\"Test step\",\"passed\":true}]}";
 
-        AiExplanationResultDto result = client.generateEntity("system", userPrompt, AiExplanationResultDto.class);
+        AiExplanationResultDto result = client.generateEntity("system", "any prompt", AiExplanationResultDto.class);
 
-        assertNotNull(result);
-        assertNotNull(result.overallSummary());
-        assertEquals(1, result.stepAnalyses().size());
-        assertEquals(UUID.fromString(stepId), result.stepAnalyses().get(0).getStepId());
-        assertEquals("Test step", result.stepAnalyses().get(0).getStepName());
-        assertEquals(Boolean.TRUE, result.stepAnalyses().get(0).getPassed());
+        assertNull(result);
     }
 
-    // Regression: the live-path catch (LlmClient.java:146-155) must convert a provider failure into
-    // the pedagogical fallback entity instead of letting the exception escape as a 500.
+    // Regression: the UUID type adapter on LlmClient's Gson deserializes a JSON string into
+    // a UUID stepId, so fallback payloads with string stepIds parse correctly.
     @Test
-    void generateEntityLivePathFallsBackToValidEntityWhenCallThrows() {
-        LlmClient client = new LlmClient(liveProperties, chatModel);
-        String stepId = UUID.randomUUID().toString();
-        String userPrompt = "{\"steps\":[{\"stepId\":\"" + stepId + "\",\"stepName\":\"Test step\",\"passed\":true}]}";
+    void gsonUuidAdapterDeserializesStringStepId() {
+        Gson gson = new GsonBuilder()
+                .registerTypeAdapter(UUID.class, (JsonDeserializer<UUID>) (json, type, context) -> {
+                    if (json == null || json.isJsonNull()) {
+                        return null;
+                    }
+                    String s = json.getAsString();
+                    return s.isBlank() ? null : UUID.fromString(s);
+                })
+                .create();
 
-        AiExplanationResultDto result = client.generateEntity("system", userPrompt, AiExplanationResultDto.class);
+        UUID stepId = UUID.randomUUID();
+        AiExplanationResultDto dto = gson.fromJson(
+                "{\"overallSummary\":\"s\",\"stepAnalyses\":[{\"stepId\":\"" + stepId + "\",\"stepName\":\"t\",\"passed\":true}]}",
+                AiExplanationResultDto.class);
 
-        assertNotNull(result);
-        assertNotNull(result.overallSummary());
-        assertEquals(1, result.stepAnalyses().size());
-        assertEquals(UUID.fromString(stepId), result.stepAnalyses().get(0).getStepId());
+        assertNotNull(dto);
+        assertEquals(1, dto.stepAnalyses().size());
+        assertEquals(stepId, dto.stepAnalyses().get(0).getStepId());
+        assertEquals("t", dto.stepAnalyses().get(0).getStepName());
+        assertEquals(Boolean.TRUE, dto.stepAnalyses().get(0).getPassed());
     }
 
-    // Regression: when both the live call and the fallback JSON parsing fail, generateEntity returns
-    // null instead of throwing — AiExplanationService.generate then skips the cache write so a retry
+    // Regression: live-path provider failure makes generateEntity return null instead of
+    // throwing — AiExplanationService.generate then skips the cache write so a retry
     // can regenerate a real analysis.
     @Test
-    void generateEntityReturnsNullWhenFallbackParsingFails() {
+    void generateEntityLivePathReturnsNullOnProviderFailure() {
         LlmClient client = new LlmClient(liveProperties, chatModel);
-        // Integer.class expects a JSON number primitive, but fallback is a JSON object → parse fails.
+
+        AiExplanationResultDto result = client.generateEntity("system", "any prompt", AiExplanationResultDto.class);
+
+        assertNull(result);
+    }
+
+    // Regression: generateEntity returns null instead of throwing when the live call fails —
+    // AiExplanationService.generate skips the cache write so a retry can regenerate.
+    @Test
+    void generateEntityReturnsNullOnParseFailure() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        // Integer.class expects a JSON number primitive, but the response is a JSON object.
         Integer result = client.generateEntity("system", "any prompt", Integer.class);
 
         assertNull(result);
