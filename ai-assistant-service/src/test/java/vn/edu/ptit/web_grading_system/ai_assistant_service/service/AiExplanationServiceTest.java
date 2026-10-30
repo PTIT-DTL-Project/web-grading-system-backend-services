@@ -166,9 +166,10 @@ public class AiExplanationServiceTest {
 
     // Regression: LLM returns truncated/invalid JSON (UnexpectedEndOfInputException).
     // generateEntity returns null instead of throwing; explainSubmission falls back to a
-    // default summary and still returns a 200 response.
+    // default summary and returns a 200 response — but does NOT cache the degraded result,
+    // so a later request can retry and get a real analysis.
     @Test
-    void explainSubmission_doesNotThrow_whenLlmFailsCompletely() {
+    void explainSubmission_doesNotThrowOrCache_whenLlmFailsCompletely() {
         when(explanationRepository.findBySubmissionIdAndCategory(submissionId, "FULL_ANALYSIS"))
                 .thenReturn(Optional.empty());
 
@@ -184,13 +185,13 @@ public class AiExplanationServiceTest {
         when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
         when(llmClient.generateEntity(any(), any(), any())).thenReturn(null);
         when(llmClient.generateCompletion(any(), any())).thenReturn("{ truncated json ");
-        when(explanationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         AiExplanationResponse res = explanationService.explainSubmission(submissionId, studentId);
 
         assertThat(res.getFromCache()).isFalse();
         assertThat(res.getOverallSummary()).isEqualTo("Bài nộp đã được phân tích toàn diện.");
         assertThat(res.getStepAnalyses()).isEmpty();
+        verify(explanationRepository, never()).save(any());
     }
 
     // 2026-10-17 — regression: a result-service read timeout (RetryableException)

@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.time.OffsetDateTime;
 
 /**
  * Reads and generates one submission's AI explanation for its two audiences.
@@ -293,45 +294,61 @@ public class AiExplanationService {
                 ? structuredOutput.stepAnalyses()
                 : new ArrayList<>();
 
-        // 6. Save in DB cache
-        AiExplanation entity = AiExplanation.builder()
-                .submissionId(submissionId)
-                .studentId(studentId)
-                .category(CATEGORY)
-                .diagnosis(diagnosis)
-                .overallSummary(overallSummary)
-                // Review: 2026-10-17, Pullfrog — a null hints/keywords list made
-                // the mapper return null; Stream.flatMap(null) then threw NPE and
-                // turned a valid LLM answer into a 500. Optional.ofNullable keeps
-                // the inner stream non-null for absent lists.
-                .actionableHints(gson.toJson(stepAnalyses.stream()
-                        .flatMap(s -> Optional.ofNullable(s.getActionableHints()).orElse(List.of()).stream())
-                        .toList()))
-                .learningKeywords(gson.toJson(stepAnalyses.stream()
-                        .flatMap(s -> Optional.ofNullable(s.getLearningKeywords()).orElse(List.of()).stream())
-                        .toList()))
-                .telemetryAudit(gson.toJson(stepAnalyses))
-                // Review: 2026-10-17, Pullfrog — was hardcoded "gpt-4o-mini";
-                // read the configured value (ai.model.model-name) instead.
-                .modelName(aiModelProperties.modelName())
-                .build();
+        // 6. Save in DB cache — but NOT for a degraded total-failure result.
+        // A permanently cached default summary / empty steps would block every
+        // later retry from producing a real analysis, so skip the write and let
+        // the next request regenerate.
+        boolean degraded = structuredOutput == null;
+        if (!degraded) {
+            AiExplanation entity = AiExplanation.builder()
+                    .submissionId(submissionId)
+                    .studentId(studentId)
+                    .category(CATEGORY)
+                    .diagnosis(diagnosis)
+                    .overallSummary(overallSummary)
+                    // Review: 2026-10-17, Pullfrog — a null hints/keywords list made
+                    // the mapper return null; Stream.flatMap(null) then threw NPE and
+                    // turned a valid LLM answer into a 500. Optional.ofNullable keeps
+                    // the inner stream non-null for absent lists.
+                    .actionableHints(gson.toJson(stepAnalyses.stream()
+                            .flatMap(s -> Optional.ofNullable(s.getActionableHints()).orElse(List.of()).stream())
+                            .toList()))
+                    .learningKeywords(gson.toJson(stepAnalyses.stream()
+                            .flatMap(s -> Optional.ofNullable(s.getLearningKeywords()).orElse(List.of()).stream())
+                            .toList()))
+                    .telemetryAudit(gson.toJson(stepAnalyses))
+                    // Review: 2026-10-17, Pullfrog — was hardcoded "gpt-4o-mini";
+                    // read the configured value (ai.model.model-name) instead.
+                    .modelName(aiModelProperties.modelName())
+                    .build();
 
-        AiExplanation saved;
-        try {
-            saved = explanationRepository.save(entity);
-        } catch (DataIntegrityViolationException conflict) {
-            // Review: 2026-10-17, Pullfrog — two concurrent POSTs for one
-            // submission both pass the idempotency check above; the partial
-            // unique index (V2) rejects the loser. Return the winner's cached
-            // row instead of surfacing a 500.
-            saved = explanationRepository.findBySubmissionIdAndCategory(submissionId, CATEGORY)
-                    .orElseThrow(() -> conflict);
-            return toResponse(saved, true);
+            AiExplanation saved;
+            try {
+                saved = explanationRepository.save(entity);
+            } catch (DataIntegrityViolationException conflict) {
+                // Review: 2026-10-17, Pullfrog — two concurrent POSTs for one
+                // submission both pass the idempotency check above; the partial
+                // unique index (V2) rejects the loser. Return the winner's cached
+                // row instead of surfacing a 500.
+                saved = explanationRepository.findBySubmissionIdAndCategory(submissionId, CATEGORY)
+                        .orElseThrow(() -> conflict);
+                return toResponse(saved, true);
+            }
+
+            AiExplanationResponse response = toResponse(saved, false);
+            response.setStepAnalyses(stepAnalyses);
+            return response;
         }
 
-        AiExplanationResponse response = toResponse(saved, false);
-        response.setStepAnalyses(stepAnalyses);
-        return response;
+        // Degraded path: return without caching so a later request can retry.
+        return AiExplanationResponse.builder()
+                .submissionId(submissionId)
+                .category(CATEGORY)
+                .fromCache(false)
+                .overallSummary(overallSummary)
+                .stepAnalyses(stepAnalyses)
+                .createdAt(OffsetDateTime.now())
+                .build();
     }
 
     private AiExplanationResponse toResponse(AiExplanation entity, boolean fromCache) {

@@ -205,15 +205,31 @@ class LlmClientTest {
         assertEquals(Boolean.TRUE, result.stepAnalyses().get(0).getPassed());
     }
 
-    // Regression: when both the LLM call and the fallback parsing fail, generateEntity returns null
-    // instead of throwing — AiExplanationService.generate handles null gracefully.
+    // Regression: the live-path catch (LlmClient.java:146-155) must convert a provider failure into
+    // the pedagogical fallback entity instead of letting the exception escape as a 500.
     @Test
-    void generateEntityReturnsNullWhenFallbackAlsoFails() {
-        LlmClient client = new LlmClient(dummyProperties, chatModel);
-        // Prompt without valid JSON steps — fallback still produces valid JSON, so this won't fail.
-        // To force total failure we'd need gson.fromJson to throw, which requires an incompatible
-        // entityClass. Use a class with a field Gson can't populate.
-        AiExplanationResultDto result = client.generateEntity("system", "not json at all", AiExplanationResultDto.class);
-        assertNotNull(result); // fallback produces valid JSON even from unparseable prompt
+    void generateEntityLivePathFallsBackToValidEntityWhenCallThrows() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        String stepId = UUID.randomUUID().toString();
+        String userPrompt = "{\"steps\":[{\"stepId\":\"" + stepId + "\",\"stepName\":\"Test step\",\"passed\":true}]}";
+
+        AiExplanationResultDto result = client.generateEntity("system", userPrompt, AiExplanationResultDto.class);
+
+        assertNotNull(result);
+        assertNotNull(result.overallSummary());
+        assertEquals(1, result.stepAnalyses().size());
+        assertEquals(UUID.fromString(stepId), result.stepAnalyses().get(0).getStepId());
+    }
+
+    // Regression: when both the live call and the fallback JSON parsing fail, generateEntity returns
+    // null instead of throwing — AiExplanationService.generate then skips the cache write so a retry
+    // can regenerate a real analysis.
+    @Test
+    void generateEntityReturnsNullWhenFallbackParsingFails() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        // Integer.class expects a JSON number primitive, but fallback is a JSON object → parse fails.
+        Integer result = client.generateEntity("system", "any prompt", Integer.class);
+
+        assertNull(result);
     }
 }
