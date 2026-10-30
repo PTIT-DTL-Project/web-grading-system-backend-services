@@ -15,6 +15,7 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelPropert
 
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -28,7 +29,15 @@ public class LlmClient {
     private final String baseUrl;
     private final ChatModel chatModel;
     private final ChatClient chatClient;
-    private final Gson gson = new Gson();
+    private final Gson gson = new GsonBuilder()
+            .registerTypeAdapter(UUID.class, (JsonDeserializer<UUID>) (json, type, context) -> {
+                if (json == null || json.isJsonNull()) {
+                    return null;
+                }
+                String s = json.getAsString();
+                return s.isBlank() ? null : UUID.fromString(s);
+            })
+            .create();
 
     public LlmClient(AiModelProperties props, ChatModel chatModel) {
         this.provider = props.provider();
@@ -119,9 +128,14 @@ public class LlmClient {
 
     public <T> T generateEntity(String systemPrompt, String userPrompt, Class<T> entityClass) {
         if (isOfflineMode()) {
-            log.info("AI API key not configured — generating fallback structured entity");
-            String fallback = generateFallbackResponse(userPrompt);
-            return gson.fromJson(fallback, entityClass);
+            try {
+                log.info("AI API key not configured — generating fallback structured entity");
+                String fallback = generateFallbackResponse(userPrompt);
+                return gson.fromJson(fallback, entityClass);
+            } catch (Exception e) {
+                log.warn("Fallback entity generation failed: {}", e.getMessage());
+                return null;
+            }
         }
         try {
             return chatClient.prompt()
@@ -131,8 +145,13 @@ public class LlmClient {
                     .entity(entityClass);
         } catch (Exception e) {
             log.error("Failed to generate structured entity via Spring AI: {}", e.getMessage(), e);
-            String fallback = generateFallbackResponse(userPrompt);
-            return gson.fromJson(fallback, entityClass);
+            try {
+                String fallback = generateFallbackResponse(userPrompt);
+                return gson.fromJson(fallback, entityClass);
+            } catch (Exception fallbackEx) {
+                log.warn("Fallback entity parsing also failed: {}", fallbackEx.getMessage());
+                return null;
+            }
         }
     }
 

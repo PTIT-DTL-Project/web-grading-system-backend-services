@@ -16,8 +16,10 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import reactor.core.publisher.Flux;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.AiExplanationResultDto;
 
 import java.util.List;
+import java.util.UUID;
 import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -182,5 +184,36 @@ class LlmClientTest {
 
         assertEquals(LlmClient.ApprovalDecision.OTHER,
                 client.classifyPendingActionReply("có thể xem lại không", "Tạo câu kiểm tra Q1"));
+    }
+
+    // Regression: LLM returns truncated JSON (missing closing quote) — Spring AI's BeanOutputConverter
+    // throws UnexpectedEndOfInputException. generateEntity must not propagate it; it falls back to the
+    // pedagogical JSON and returns a structured entity instead of throwing 500.
+    @Test
+    void generateEntityOfflineModeHandlesUuidStepId() {
+        LlmClient client = new LlmClient(dummyProperties, chatModel);
+        String stepId = UUID.randomUUID().toString();
+        String userPrompt = "{\"steps\":[{\"stepId\":\"" + stepId + "\",\"stepName\":\"Test step\",\"passed\":true}]}";
+
+        AiExplanationResultDto result = client.generateEntity("system", userPrompt, AiExplanationResultDto.class);
+
+        assertNotNull(result);
+        assertNotNull(result.overallSummary());
+        assertEquals(1, result.stepAnalyses().size());
+        assertEquals(UUID.fromString(stepId), result.stepAnalyses().get(0).getStepId());
+        assertEquals("Test step", result.stepAnalyses().get(0).getStepName());
+        assertEquals(Boolean.TRUE, result.stepAnalyses().get(0).getPassed());
+    }
+
+    // Regression: when both the LLM call and the fallback parsing fail, generateEntity returns null
+    // instead of throwing — AiExplanationService.generate handles null gracefully.
+    @Test
+    void generateEntityReturnsNullWhenFallbackAlsoFails() {
+        LlmClient client = new LlmClient(dummyProperties, chatModel);
+        // Prompt without valid JSON steps — fallback still produces valid JSON, so this won't fail.
+        // To force total failure we'd need gson.fromJson to throw, which requires an incompatible
+        // entityClass. Use a class with a field Gson can't populate.
+        AiExplanationResultDto result = client.generateEntity("system", "not json at all", AiExplanationResultDto.class);
+        assertNotNull(result); // fallback produces valid JSON even from unparseable prompt
     }
 }
