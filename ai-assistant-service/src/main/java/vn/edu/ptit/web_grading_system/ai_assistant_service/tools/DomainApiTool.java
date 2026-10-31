@@ -176,8 +176,11 @@ public class DomainApiTool implements AgentTool {
                 if (invalid != null) return invalid;
             }
         } else if (name.equals("createTestStep")) {
-            return validateStepConfig(args.path("payload"), "payload");
+            ToolResult invalid = validateStepConfig(args.path("payload"), "payload");
+            if (invalid != null) return invalid;
         }
+        if (name.equals("createTestQuestion") || name.equals("createTestStep") || name.equals("updateTestStep"))
+            return validateStepPayloads(args);
         return null;
     }
 
@@ -301,6 +304,13 @@ public class DomainApiTool implements AgentTool {
     }
 
     private ToolResult checkStepConfig(JsonNode step, String location) {
+        return validateStepConfig(step, location);
+    }
+
+    private ToolResult validateStepConfig(JsonNode step, String location) {
+        if (!step.path("stepOrder").isInt() || step.path("stepOrder").intValue() < 0)
+            return invalidStep(location, "stepOrder phải là số nguyên không âm");
+        if (step.path("name").asText().isBlank()) return invalidStep(location, "thiếu name");
         String stepType = step.path("stepType").asText();
         JsonNode config = step.path("config");
         if (!config.isObject()) return invalidStep(location, "config phải là JSON object");
@@ -401,6 +411,8 @@ public class DomainApiTool implements AgentTool {
             if (Set.of("status", "field_equals", "array_length", "contains_item", "json_path_equals").contains(kind)
                     && assertion.path("equals").isMissingNode()) return invalidStep(location, kind + " cần equals");
             if (kind.equals("contains") && assertion.path("text").asText().isBlank()) return invalidStep(location, "contains cần text");
+            if (Set.of("body_equals", "body_structure").contains(kind) && assertion.path("json").isMissingNode())
+                return invalidStep(location, kind + " cần json");
             if (Set.of("greater_than", "less_than").contains(kind) && assertion.path("value").isMissingNode())
                 return invalidStep(location, kind + " cần value");
             if (kind.equals("matches_regex") && assertion.path("pattern").asText().isBlank())

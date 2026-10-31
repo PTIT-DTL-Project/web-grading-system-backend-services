@@ -97,6 +97,23 @@ class DomainApiToolTest {
     }
 
     @Test
+    void bothCreationRoutesRejectMissingStepIdentityOrBodyExpectation() throws Exception {
+        String[] invalid = {
+                "{\"name\":\"health\",\"stepType\":\"HTTP_REQUEST\",\"config\":{\"method\":\"GET\",\"path\":\"/health\"}}",
+                "{\"stepOrder\":1,\"stepType\":\"HTTP_REQUEST\",\"config\":{\"method\":\"GET\",\"path\":\"/health\"}}",
+                "{\"stepOrder\":1,\"name\":\"body\",\"stepType\":\"HTTP_REQUEST\",\"config\":{\"method\":\"GET\",\"path\":\"/books\",\"assertions\":[{\"kind\":\"body_equals\"}]}}",
+                "{\"stepOrder\":1,\"name\":\"shape\",\"stepType\":\"HTTP_REQUEST\",\"config\":{\"method\":\"GET\",\"path\":\"/books\",\"assertions\":[{\"kind\":\"body_structure\"}]}}"
+        };
+        for (DomainApiTool tool : java.util.List.of(createQuestion, createStep)) {
+            for (String step : invalid) {
+                ToolResult result = validateStepThrough(tool, step);
+                assertNotNull(result, tool.getName() + " accepted " + step);
+                assertEquals("INVALID_ARGUMENTS", result.getCode());
+            }
+        }
+    }
+
+    @Test
     void studentCannotInvokeLecturerWriteOrSeeItInRoleFilteredRegistry() throws Exception {
         var student = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_STUDENT"),
                 UUID.randomUUID(), UUID.randomUUID(), "secret");
