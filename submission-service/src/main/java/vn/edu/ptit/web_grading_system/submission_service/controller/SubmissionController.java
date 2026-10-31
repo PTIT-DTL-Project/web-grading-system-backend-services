@@ -65,11 +65,14 @@ public class SubmissionController {
             // Review: 2026-10-17 — `?search` (not `?q`) to match the repo-wide paged-list
             // convention (ClassController:48, StudentAssignmentController:29); a mismatched
             // query param is silently ignored, yielding an unfiltered 200.
-            @RequestParam(required = false) String search) {
+            @RequestParam(required = false) String search,
+            // Review: 2026-10-31 — optional assignment filter so student can view submissions
+            // of a single assignment without re-typing the search. Assignment title lives in
+            // assignment_db; submission_service only filters by assignment_id here.
+            @RequestParam(required = false) UUID assignmentId) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<SubmissionResponse> body = (search == null || search.isBlank())
-                ? submissionService.listByStudent(UUID.fromString(studentId), pageable)
-                : submissionService.listByStudent(UUID.fromString(studentId), search.trim(), pageable);
+        Page<SubmissionResponse> body = submissionService.listByStudent(
+                UUID.fromString(studentId), assignmentId, search, pageable);
         return ResponseEntity.ok(body);
     }
 

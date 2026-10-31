@@ -22,6 +22,14 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
     Page<Submission> findByStudentIdAndZipFileNameContainingIgnoreCaseOrderByCreatedAtDesc(
             UUID studentId, String search, Pageable pageable);
 
+    // MySubmissionsPage assignment filter: submissions of one assignment for one student.
+    Page<Submission> findByStudentIdAndAssignmentIdOrderByCreatedAtDesc(
+            UUID studentId, UUID assignmentId, Pageable pageable);
+
+    // MySubmissionsPage assignment filter + file-name search combined.
+    Page<Submission> findByStudentIdAndAssignmentIdAndZipFileNameContainingIgnoreCaseOrderByCreatedAtDesc(
+            UUID studentId, UUID assignmentId, String search, Pageable pageable);
+
     List<Submission> findByAssignmentIdAndLatestTrueOrderByCreatedAtDesc(UUID assignmentId);
 
     List<Submission> findByAssignmentIdOrderByCreatedAtDesc(UUID assignmentId);
