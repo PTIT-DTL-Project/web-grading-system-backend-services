@@ -288,7 +288,12 @@ public class AiExplanationService {
             try {
                 String rawLlmResponse = llmClient.generateStrictCompletion(systemPrompt, userPrompt);
                 if (rawLlmResponse != null && !rawLlmResponse.isBlank()) {
-                    structuredOutput = outputConverter.convert(rawLlmResponse);
+                    // Review: 2026-10-31, Pullfrog PR #48 follow-up — generateStrictCompletion
+                    // returns raw provider text (no cleanJsonString fence stripping), so a
+                    // genuine retry wrapped in ```json fences would fail to parse. Strip the
+                    // fences before convert to preserve the retry's value.
+                    String cleaned = stripMarkdownFences(rawLlmResponse);
+                    structuredOutput = outputConverter.convert(cleaned);
                     // Retry returned and parsed a genuine model response — allow caching.
                     isFallback = structuredOutput == null;
                 }
@@ -387,5 +392,21 @@ public class AiExplanationService {
                 .stepAnalyses(stepAnalyses)
                 .createdAt(entity.getCreatedAt())
                 .build();
+    }
+
+    /** Strip leading {@code ```json} or {@code ```}, and trailing {@code ```} from LLM raw
+     *  text so {@code BeanOutputConverter} receives clean JSON. */
+    private String stripMarkdownFences(String raw) {
+        if (raw == null) return "";
+        String cleaned = raw.trim();
+        if (cleaned.startsWith("```json")) {
+            cleaned = cleaned.substring(7);
+        } else if (cleaned.startsWith("```")) {
+            cleaned = cleaned.substring(3);
+        }
+        if (cleaned.endsWith("```")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 3);
+        }
+        return cleaned.trim();
     }
 }

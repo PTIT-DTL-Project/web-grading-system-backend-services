@@ -275,6 +275,40 @@ public class AiExplanationServiceTest {
         verify(explanationRepository, never()).save(any());
     }
 
+    // Retry branch — fenced JSON: generateEntity fails, strict retry returns valid JSON
+    // wrapped in ```json fences → stripMarkdownFences cleans it → parse succeeds → cached.
+    // Review: 2026-10-31, Pullfrog PR #48 follow-up — generateStrictCompletion returns
+    // raw provider text; if the model wraps the response in markdown fences the retry
+    // would fail to parse without fence stripping.
+    @Test
+    void explainSubmission_cachesRetryResult_whenStrictRetryReturnsFencedJson() {
+        when(explanationRepository.findBySubmissionIdAndCategory(submissionId, "FULL_ANALYSIS"))
+                .thenReturn(Optional.empty());
+
+        ResultDto result = ResultDto.builder()
+                .id(UUID.randomUUID())
+                .submissionId(submissionId)
+                .studentId(studentId)
+                .assignmentId(UUID.randomUUID())
+                .build();
+        when(resultServiceClient.getBySubmissionId(any(), any(), any()))
+                .thenReturn(ApiEnvelope.<List<ResultDto>>builder().status(200).data(List.of(result)).build());
+        when(promptBuilder.buildSystemPrompt()).thenReturn("system");
+        when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
+        when(llmClient.generateEntity(any(), any(), any())).thenReturn(null);
+        when(llmClient.generateStrictCompletion(any(), any())).thenReturn(
+                "```json\n{\"overallSummary\":\"fenced-ok\",\"stepAnalyses\":[{\"stepId\":\""
+                        + UUID.randomUUID()
+                        + "\",\"stepName\":\"s\",\"passed\":true}]}\n```");
+        when(explanationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AiExplanationResponse res = explanationService.explainSubmission(submissionId, studentId);
+
+        assertThat(res.getFromCache()).isFalse();
+        assertThat(res.getOverallSummary()).isEqualTo("fenced-ok");
+        verify(explanationRepository).save(any());
+    }
+
     // 2026-10-17 — regression: a result-service read timeout (RetryableException)
     // escaped unhandled and surfaced as a raw 500. It must map to 502 Bad Gateway.
     @Test
