@@ -33,7 +33,6 @@ public class LlmClient {
     private final String baseUrl;
     private final ChatModel chatModel;
     private final ChatClient chatClient;
-    private final Gson gson = new Gson();
 
     public LlmClient(AiModelProperties props, ChatModel chatModel) {
         this.provider = props.provider();
@@ -207,20 +206,29 @@ public class LlmClient {
 
     public <T> T generateEntity(String systemPrompt, String userPrompt, Class<T> entityClass) {
         if (isOfflineMode()) {
-            log.info("AI API key not configured — generating fallback structured entity");
-            String fallback = generateFallbackResponse(userPrompt);
-            return gson.fromJson(fallback, entityClass);
+            log.info("AI API key not configured — no real analysis possible, returning null");
+            return null;
         }
         try {
+            // Review: 2026-10-31 — scope JSON mode to this call only (explanation analysis).
+            // Global response-format in application.yaml would break classifyPendingActionReply,
+            // generateConversationTitle, ConversationSummarizer, and streaming chat/agent turns,
+            // which all expect plain text. The explanation prompt already contains "JSON",
+            // satisfying OpenAI's requirement for json_object mode.
+            org.springframework.ai.openai.OpenAiChatModel.ResponseFormat jsonFormat =
+                    org.springframework.ai.openai.OpenAiChatModel.ResponseFormat.builder()
+                            .type(org.springframework.ai.openai.OpenAiChatModel.ResponseFormat.Type.JSON_OBJECT)
+                            .build();
             return chatClient.prompt()
                     .system(systemPrompt)
                     .user(userPrompt)
+                    .options(org.springframework.ai.openai.OpenAiChatOptions.builder()
+                            .responseFormat(jsonFormat))
                     .call()
                     .entity(entityClass);
         } catch (Exception e) {
             log.error("Failed to generate structured entity via Spring AI: {}", e.getMessage(), e);
-            String fallback = generateFallbackResponse(userPrompt);
-            return gson.fromJson(fallback, entityClass);
+            return null;
         }
     }
 

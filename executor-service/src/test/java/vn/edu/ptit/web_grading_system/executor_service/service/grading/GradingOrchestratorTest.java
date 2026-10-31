@@ -13,6 +13,9 @@ import vn.edu.ptit.web_grading_system.executor_service.client.ResultServiceClien
 import vn.edu.ptit.web_grading_system.executor_service.client.SubmissionStatusClient;
 import vn.edu.ptit.web_grading_system.executor_service.config.ExecutorProperties;
 import vn.edu.ptit.web_grading_system.executor_service.dto.internal.AssignmentGradingConfigDto;
+import vn.edu.ptit.web_grading_system.executor_service.dto.internal.DryRunReport;
+import vn.edu.ptit.web_grading_system.executor_service.dto.internal.DryRunRequest;
+import vn.edu.ptit.web_grading_system.executor_service.dto.internal.DryRunStepReport;
 import vn.edu.ptit.web_grading_system.executor_service.dto.internal.InternalPlanDto;
 import vn.edu.ptit.web_grading_system.executor_service.dto.internal.InternalStepDto;
 import vn.edu.ptit.web_grading_system.executor_service.entity.GradingJob;
@@ -23,6 +26,7 @@ import vn.edu.ptit.web_grading_system.executor_service.repository.GradingJobRepo
 import vn.edu.ptit.web_grading_system.executor_service.repository.GradingLogRepository;
 import vn.edu.ptit.web_grading_system.executor_service.repository.GradingStepResultRepository;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.DbDialectRegistry;
+import vn.edu.ptit.web_grading_system.executor_service.service.db.DbSandboxService;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.impl.MysqlDialect;
 import vn.edu.ptit.web_grading_system.executor_service.service.db.impl.PostgresDialect;
 import vn.edu.ptit.web_grading_system.executor_service.service.step.StepExecutor;
@@ -117,6 +121,7 @@ class GradingOrchestratorTest {
         Mockito.when(ports.claim()).thenReturn(23456);
         Mockito.when(ports.claimDbPort()).thenReturn(23457);
         DockerComposeRunner runner = Mockito.mock(DockerComposeRunner.class);
+        DbSandboxService sandbox = Mockito.mock(DbSandboxService.class);
         Mockito.when(runner.boot(Mockito.any(), Mockito.anyLong())).thenAnswer(inv -> {
             DockerComposePatcher.EffectiveCompose effective = inv.getArgument(0);
             return new DockerComposeRunner.RunningCompose(
@@ -184,7 +189,8 @@ class GradingOrchestratorTest {
                 course, submission, result, artifacts, ports, runner,
                 new StepRegistry(List.of(stub, dbStub)), new ObjectMapper(), props,
                 Mockito.mock(SagaTracker.class),
-                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())));
+                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())),
+                sandbox);
         return new Fixture(orchestrator, job, executions, stepRepo, result, submission,
                 ports, artifacts, workDir, capturedVars, course);
     }
@@ -549,7 +555,8 @@ class GradingOrchestratorTest {
 
     private GradingOrchestrator rawOrchestrator() {
         return new GradingOrchestrator(null, null, null, null, null, null, null,
-                null, null, null, new ObjectMapper(), null, null, null);
+                null, null, null, new ObjectMapper(), null, null, null,
+                Mockito.mock(DbSandboxService.class));
     }
 
     private List<InternalStepDto> invokeAutoInject(Object orchestrator,
@@ -995,7 +1002,8 @@ class GradingOrchestratorTest {
             throws Exception {
         GradingOrchestrator orch = new GradingOrchestrator(null, null, null, null, null, null,
                 null, null, null, null, new ObjectMapper(), null, null,
-                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())));
+                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())),
+                Mockito.mock(DbSandboxService.class));
         Method method = GradingOrchestrator.class.getDeclaredMethod(
                 "scanDbRequirements", List.class);
         method.setAccessible(true);
@@ -1152,11 +1160,112 @@ class GradingOrchestratorTest {
     private static GradingOrchestrator orchestratorWithRegistry() {
         return new GradingOrchestrator(null, null, null, null, null, null,
                 null, null, null, null, new ObjectMapper(), null, null,
-                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())));
+                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())),
+                Mockito.mock(DbSandboxService.class));
     }
 
     private static GradingOrchestrator.DbRequirements req(String service, int port, String dbType) {
-        return new GradingOrchestrator.DbRequirements(true, service, port, dbType, null);
+        return new GradingOrchestrator.DbRequirements(true, service, port, dbType, "appdb", null);
+    }
+
+    // ─── dryRunSteps tests ───
+
+    private GradingOrchestrator dryRunOrchestrator(StepExecutor stubExecutor) {
+        return new GradingOrchestrator(null, null, null, null, null, null, null,
+                null, null, new StepRegistry(List.of(stubExecutor)),
+                new ObjectMapper(), null, null,
+                new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())),
+                Mockito.mock(DbSandboxService.class));
+    }
+
+    private DryRunReport invokeDryRunSteps(Object orchestrator, List<InternalPlanDto> plans,
+            int appPort, Integer dbPort, long executionTimeoutMs) throws Exception {
+        Method method = GradingOrchestrator.class.getDeclaredMethod(
+                "dryRunSteps", List.class, int.class, Integer.class, long.class);
+        method.setAccessible(true);
+        return (DryRunReport) method.invoke(orchestrator, plans, appPort, dbPort, executionTimeoutMs);
+    }
+
+    @Test
+    void dryRunSteps_allPass_returnsReport() throws Exception {
+        StepExecutor stub = new StepExecutor() {
+            @Override
+            public String type() { return "HTTP_REQUEST"; }
+            @Override
+            public GradingStepResult execute(StepContext ctx) {
+                return GradingStepResult.builder()
+                        .status(StepResultStatus.PASSED)
+                        .durationMs(100)
+                        .extractedVariables("{\"bookId\":\"abc-123\"}")
+                        .build();
+            }
+        };
+        GradingOrchestrator orch = dryRunOrchestrator(stub);
+
+        InternalStepDto step1 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(1).name("step-1")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"GET\",\"path\":\"/api/v1/books\"}")
+                .weight(1).required(true).build();
+        InternalPlanDto plan = InternalPlanDto.builder()
+                .id(UUID.randomUUID()).name("plan-1").sequenceOrder(1).weight(1)
+                .steps(List.of(step1)).build();
+
+        DryRunReport report = invokeDryRunSteps(orch, List.of(plan), 23456, 23457, 60_000);
+
+        assertNotNull(report.getDryRunId());
+        assertEquals(1, report.getSteps().size());
+        DryRunStepReport sr = report.getSteps().get(0);
+        assertEquals("PASSED", sr.getStatus());
+        assertEquals(100, sr.getDurationMs());
+        assertEquals("abc-123", sr.getExtractedVariables().get("bookId"));
+        assertTrue(report.getSummary().contains("Passed 1/1 steps"));
+    }
+
+    @Test
+    void dryRunSteps_requiredFailure_skipsSubsequent() throws Exception {
+        StepExecutor stub = new StepExecutor() {
+            @Override
+            public String type() { return "HTTP_REQUEST"; }
+            @Override
+            public GradingStepResult execute(StepContext ctx) {
+                // First step fails, second is skipped
+                if (ctx.getStepOrder() == 1) {
+                    return GradingStepResult.builder()
+                            .status(StepResultStatus.FAILED)
+                            .durationMs(50)
+                            .errorMessage("boom")
+                            .build();
+                }
+                return GradingStepResult.builder()
+                        .status(StepResultStatus.PASSED)
+                        .durationMs(50)
+                        .build();
+            }
+        };
+        GradingOrchestrator orch = dryRunOrchestrator(stub);
+
+        InternalStepDto step1 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(1).name("step-1")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"GET\",\"path\":\"/api/v1/books\"}")
+                .weight(1).required(true).build();
+        InternalStepDto step2 = InternalStepDto.builder()
+                .id(UUID.randomUUID()).stepOrder(2).name("step-2")
+                .stepType("HTTP_REQUEST")
+                .config("{\"method\":\"GET\",\"path\":\"/api/v1/books/2\"}")
+                .weight(1).required(false).build();
+        InternalPlanDto plan = InternalPlanDto.builder()
+                .id(UUID.randomUUID()).name("plan-1").sequenceOrder(1).weight(1)
+                .steps(List.of(step1, step2)).build();
+
+        DryRunReport report = invokeDryRunSteps(orch, List.of(plan), 23456, 23457, 60_000);
+
+        assertEquals(2, report.getSteps().size());
+        assertEquals("FAILED", report.getSteps().get(0).getStatus());
+        assertEquals("SKIPPED", report.getSteps().get(1).getStatus());
+        assertTrue(report.getSummary().contains("Passed 0/1 steps"));
     }
 
 }
+

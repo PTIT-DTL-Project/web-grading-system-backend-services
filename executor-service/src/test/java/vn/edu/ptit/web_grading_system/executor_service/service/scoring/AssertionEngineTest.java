@@ -148,4 +148,87 @@ class AssertionEngineTest {
         assertFalse(d.isPassed());
         assertTrue(d.getMessage().contains("Unknown assertion kind: teleport"));
     }
+
+    // ---------- Phase 1: new assertion kinds ----------
+
+    @Test
+    void arrayLength_passAndFail() {
+        // body is a JSON array with 3 elements
+        assertTrue(engine.evaluateHttp(200, "[1,2,3]", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"array_length\",\"path\":\"$\",\"equals\":3}]}"), vars).get(0).isPassed());
+        assertFalse(engine.evaluateHttp(200, "[1,2,3]", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"array_length\",\"path\":\"$\",\"equals\":5}]}"), vars).get(0).isPassed());
+        // nested array path
+        assertTrue(engine.evaluateHttp(200, "{\"items\":[1,2,3,4]}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"array_length\",\"path\":\"$.items\",\"equals\":4}]}"), vars).get(0).isPassed());
+        // missing path -> length 0, equals 0 passes
+        assertTrue(engine.evaluateHttp(200, "{\"a\":1}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"array_length\",\"path\":\"$.missing\",\"equals\":0}]}"), vars).get(0).isPassed());
+        // missing path -> length 0, equals 1 fails
+        assertFalse(engine.evaluateHttp(200, "{\"a\":1}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"array_length\",\"path\":\"$.missing\",\"equals\":1}]}"), vars).get(0).isPassed());
+    }
+
+    @Test
+    void containsItem_passAndFail() {
+        assertTrue(engine.evaluateHttp(200, "[\"De Men\",\"Kafka\"]", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"contains_item\",\"path\":\"$\",\"equals\":\"De Men\"}]}"), vars).get(0).isPassed());
+        assertFalse(engine.evaluateHttp(200, "[\"A\",\"B\"]", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"contains_item\",\"path\":\"$\",\"equals\":\"Kafka\"}]}"), vars).get(0).isPassed());
+        // array of objects: check by string value of first field
+        assertTrue(engine.evaluateHttp(200, "{\"items\":[{\"title\":\"A\"},{\"title\":\"B\"}]}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"contains_item\",\"path\":\"$.items[*].title\",\"equals\":\"A\"}]}"), vars).get(0).isPassed());
+    }
+
+    @Test
+    void jsonPathEquals_passAndFail() {
+        assertTrue(only("{\"assertions\":[{\"kind\":\"json_path_equals\",\"path\":\"$.id\",\"equals\":\"b1\"}]}").isPassed());
+        assertFalse(only("{\"assertions\":[{\"kind\":\"json_path_equals\",\"path\":\"$.id\",\"equals\":\"b2\"}]}").isPassed());
+        // numeric comparison via BigDecimal
+        assertTrue(engine.evaluateHttp(200, "{\"price\":100}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"json_path_equals\",\"path\":\"$.price\",\"equals\":\"100\"}]}"), vars).get(0).isPassed());
+        // with variable substitution
+        vars.put("expectedId", "b1");
+        assertTrue(only("{\"assertions\":[{\"kind\":\"json_path_equals\",\"path\":\"$.id\",\"equals\":\"${expectedId}\"}]}").isPassed());
+        vars = new VariableContext();
+    }
+
+    @Test
+    void greaterThanAndLessThan() {
+        // greater_than
+        assertTrue(engine.evaluateHttp(200, "{\"price\":150}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"greater_than\",\"path\":\"$.price\",\"value\":\"100\"}]}"), vars).get(0).isPassed());
+        assertFalse(engine.evaluateHttp(200, "{\"price\":50}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"greater_than\",\"path\":\"$.price\",\"value\":\"100\"}]}"), vars).get(0).isPassed());
+        // less_than
+        assertTrue(engine.evaluateHttp(200, "{\"price\":50}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"less_than\",\"path\":\"$.price\",\"value\":\"100\"}]}"), vars).get(0).isPassed());
+        assertFalse(engine.evaluateHttp(200, "{\"price\":150}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"less_than\",\"path\":\"$.price\",\"value\":\"100\"}]}"), vars).get(0).isPassed());
+        // non-numeric value -> fail
+        assertFalse(engine.evaluateHttp(200, "{\"price\":\"expensive\"}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"greater_than\",\"path\":\"$.price\",\"value\":\"100\"}]}"), vars).get(0).isPassed());
+    }
+
+    @Test
+    void matchesRegex_passAndFail() {
+        String pattern = "^ABC-\\\\d+$";
+        assertTrue(engine.evaluateHttp(200, "{\"code\":\"ABC-123\"}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"matches_regex\",\"path\":\"$.code\",\"pattern\":\"" + pattern + "\"}]}"), vars).get(0).isPassed());
+        assertFalse(engine.evaluateHttp(200, "{\"code\":\"XYZ-123\"}", mapper.readTree(
+                "{\"assertions\":[{\"kind\":\"matches_regex\",\"path\":\"$.code\",\"pattern\":\"" + pattern + "\"}]}"), vars).get(0).isPassed());
+    }
+
+    @Test
+    void anyOf_passWhenAnySubPasses() {
+        // ISO date OR simple date format (no 'status' inside any_of — status has no HTTP context here)
+        String datePattern1 = "^\\\\d{4}-\\\\d{2}-\\\\d{2}$";
+        String datePattern2 = "^\\\\d{2}/\\\\d{2}/\\\\d{4}$";
+        String cfg = "{\"assertions\":[{\"kind\":\"any_of\",\"assertions\":[" +
+                "{\"kind\":\"matches_regex\",\"path\":\"$.date\",\"pattern\":\"" + datePattern1 + "\"}," +
+                "{\"kind\":\"matches_regex\",\"path\":\"$.date\",\"pattern\":\"" + datePattern2 + "\"}]}]}";
+        assertTrue(engine.evaluateHttp(200, "{\"date\":\"2026-10-28\"}", mapper.readTree(cfg), vars).get(0).isPassed());
+        assertTrue(engine.evaluateHttp(200, "{\"date\":\"28/10/2026\"}", mapper.readTree(cfg), vars).get(0).isPassed());
+        assertFalse(engine.evaluateHttp(200, "{\"date\":\"not-a-date\"}", mapper.readTree(cfg), vars).get(0).isPassed());
+    }
 }

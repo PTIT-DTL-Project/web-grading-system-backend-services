@@ -2,7 +2,6 @@ package vn.edu.ptit.web_grading_system.ai_assistant_service.service;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -11,6 +10,9 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.Assignment
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ResultDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.StepResultDto;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +32,14 @@ public class PromptBuilder {
     }
 
     public String buildSystemPrompt() {
-        return new SystemPromptTemplate(systemPromptResource).render();
+        // File là system prompt tĩnh, không có biến template nào cần render.
+        // Đọc thành plain text để tránh StringTemplate (ST4) choke vào các mẫu JSON
+        // chứa dấu góc nhọn <uuid>, <tên step>... trong ví dụ định dạng đầu ra.
+        try (InputStream is = systemPromptResource.getInputStream()) {
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalStateException("Không đọc được system prompt template: " + systemPromptResource, e);
+        }
     }
 
     public String buildUserPrompt(AssignmentDetailDto assignment, ResultDto result) {

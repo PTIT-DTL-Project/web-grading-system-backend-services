@@ -14,6 +14,7 @@ import tools.jackson.databind.json.JsonMapper;
 import vn.edu.ptit.web_grading_system.api_gateway.config.KeycloakAdminProperties;
 
 import java.util.function.Function;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -301,5 +302,81 @@ class KeycloakAdminWebClientTest {
         StepVerifier.create(client.findUserId("alice"))
                 .expectError(IllegalStateException.class)
                 .verify();
+    }
+
+    @Test
+    void findUserId_overloadAnswer_isRetriedThenSucceeds() {
+        // Keycloak answers 400 "Cannot parse the JSON" when its streaming user
+        // search fails under load (keycloak#34857). It must be retried, never read
+        // as "no such user" — that is what let a duplicate reach createUser and
+        // come back as a 409, hiding the account that still needed provisioning.
+        // Review: 2026-10-29, bulk-import overload incident.
+        AtomicInteger lookups = new AtomicInteger();
+        KeycloakAdminWebClient client = client(call -> {
+            if (lastBody.contains("grant_type=client_credentials")) {
+                return respond(HttpStatus.OK, ADMIN_TOKEN_RESPONSE);
+            }
+            return lookups.getAndIncrement() == 0
+                    ? respond(HttpStatus.BAD_REQUEST, "Cannot parse the JSON")
+                    : respond(HttpStatus.OK, "[{\"id\":\"user-1\",\"username\":\"alice\"}]");
+        });
+
+        StepVerifier.create(client.findUserId("alice"))
+                .expectNext("user-1")
+                .verifyComplete();
+
+        assertThat(lookups.get()).isEqualTo(2);
+    }
+
+    @Test
+    void resetPassword_transientServerError_isRetriedThenApplied() {
+        // 5xx is overload, not a password verdict: answering FALSE used to surface
+        // as weak_password, blaming the CSV for a server hiccup.
+        // Review: 2026-10-29, bulk-import overload incident.
+        AtomicInteger puts = new AtomicInteger();
+        KeycloakAdminWebClient client = client(call -> {
+            if (call.method().equals(HttpMethod.PUT)) {
+                return puts.getAndIncrement() == 0
+                        ? respond(HttpStatus.INTERNAL_SERVER_ERROR, "oops")
+                        : noContent();
+            }
+            return respond(HttpStatus.OK, ADMIN_TOKEN_RESPONSE);
+        });
+
+        StepVerifier.create(client.resetPassword("user-1", "Dev2026!!"))
+                .expectNext(Boolean.TRUE)
+                .verifyComplete();
+
+        assertThat(puts.get()).isEqualTo(2);
+    }
+
+    @Test
+    void hasPassword_trueWhenAPasswordCredentialExists() {
+        KeycloakAdminWebClient client = client(call ->
+                lastBody.contains("grant_type=client_credentials")
+                        ? respond(HttpStatus.OK, ADMIN_TOKEN_RESPONSE)
+                        : respond(HttpStatus.OK,
+                                "[{\"id\":\"cred-1\",\"type\":\"password\"}]"));
+
+        StepVerifier.create(client.bulk().hasPassword("user-1"))
+                .expectNext(Boolean.TRUE)
+                .verifyComplete();
+
+        assertThat(lastRequest.method()).isEqualTo(HttpMethod.GET);
+        assertThat(lastRequest.url().toString()).isEqualTo(USERS_URL + "/user-1/credentials");
+    }
+
+    @Test
+    void hasPassword_falseWhenTheAccountHasNoCredential() {
+        // The half-provisioned state left behind by a dead import: created, enabled,
+        // no credential. The importer completes it instead of skipping.
+        KeycloakAdminWebClient client = client(call ->
+                lastBody.contains("grant_type=client_credentials")
+                        ? respond(HttpStatus.OK, ADMIN_TOKEN_RESPONSE)
+                        : respond(HttpStatus.OK, "[]"));
+
+        StepVerifier.create(client.bulk().hasPassword("user-1"))
+                .expectNext(Boolean.FALSE)
+                .verifyComplete();
     }
 }

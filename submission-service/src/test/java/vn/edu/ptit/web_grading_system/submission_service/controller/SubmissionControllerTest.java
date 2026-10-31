@@ -85,6 +85,42 @@ class SubmissionControllerTest {
     }
 
     @Test
+    void getByAssignment_withAssignmentIdFiltersByAssignment() throws Exception {
+        UUID assignmentId = UUID.randomUUID();
+        when(repository.findByStudentIdAndAssignmentIdOrderByCreatedAtDesc(
+                eq(STUDENT), eq(assignmentId), any())).thenReturn(
+                new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+        mvc.perform(get("/api/v1/submissions")
+                        .param("page", "0").param("size", "20")
+                        .param("assignmentId", assignmentId.toString())
+                        .header("X-User-Id", STUDENT.toString()))
+                .andExpect(status().isOk());
+        verify(repository).findByStudentIdAndAssignmentIdOrderByCreatedAtDesc(
+                eq(STUDENT), eq(assignmentId), any());
+        verify(repository, never()).findByStudentIdOrderByCreatedAtDesc(eq(STUDENT), any());
+        verify(repository, never()).findByStudentIdAndZipFileNameContainingIgnoreCaseOrderByCreatedAtDesc(
+                eq(STUDENT), anyString(), any());
+    }
+
+    @Test
+    void getByAssignment_withAssignmentIdAndSearchFiltersBoth() throws Exception {
+        UUID assignmentId = UUID.randomUUID();
+        when(repository.findByStudentIdAndAssignmentIdAndZipFileNameContainingIgnoreCaseOrderByCreatedAtDesc(
+                eq(STUDENT), eq(assignmentId), anyString(), any())).thenReturn(
+                new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+        mvc.perform(get("/api/v1/submissions")
+                        .param("page", "0").param("size", "20")
+                        .param("assignmentId", assignmentId.toString())
+                        .param("search", "book-app-fail")
+                        .header("X-User-Id", STUDENT.toString()))
+                .andExpect(status().isOk());
+        verify(repository).findByStudentIdAndAssignmentIdAndZipFileNameContainingIgnoreCaseOrderByCreatedAtDesc(
+                eq(STUDENT), eq(assignmentId), eq("book-app-fail"), any());
+        verify(repository, never()).findByStudentIdAndAssignmentIdOrderByCreatedAtDesc(
+                eq(STUDENT), eq(assignmentId), any());
+    }
+
+    @Test
     void requestUpload_withCanonicalHeader_parsesAndPassesStudentId() throws Exception {
         var expected = UUID.fromString("2d93941a-4221-458b-a03d-43bd6315d02e");
         mvc.perform(post("/api/v1/submissions/presigned-url")

@@ -64,6 +64,8 @@ class UserImportServiceTest {
                 .thenReturn(Mono.just("existing-id"));
         Mockito.when(ops.findUserId("taken@ptit.edu.vn"))
                 .thenReturn(Mono.just("other-id"));
+        // A complete duplicate has a password — only then does the row skip.
+        Mockito.when(ops.hasPassword("existing-id")).thenReturn(Mono.just(Boolean.TRUE));
         Mockito.when(ops.createUser(Mockito.anyString(), Mockito.anyString(),
                         Mockito.anyString(), Mockito.anyString()))
                 .thenReturn(Mono.just("new-id"));
@@ -115,6 +117,42 @@ class UserImportServiceTest {
         assertThat(lastCaptor.getValue()).isEqualTo("Giang");
         // Exactly one bulk session per import.
         Mockito.verify(keycloak, Mockito.times(1)).bulk();
+    }
+
+    @Test
+    void halfProvisionedDuplicate_getsPasswordAndRoleInsteadOfBeingSkipped() {
+        // 2026-10-29 incident: a previous import died between createUser and
+        // setTemporaryPassword under Keycloak overload, leaving an enabled account
+        // with no credential. Re-importing the same CSV must finish it — skipping
+        // as duplicate_username would make the gap permanent.
+        stubSession();
+        Mockito.when(ops.findRealmRole("ROLE_STUDENT"))
+                .thenReturn(Mono.just(Map.of("id", "s", "name", "ROLE_STUDENT")));
+        Mockito.when(ops.findUserId(Mockito.anyString())).thenReturn(Mono.empty());
+        Mockito.when(ops.findUserId("b22dckh022")).thenReturn(Mono.just("half-id"));
+        Mockito.when(ops.hasPassword("half-id")).thenReturn(Mono.just(Boolean.FALSE));
+        Mockito.when(ops.setTemporaryPassword(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(Mono.just(Boolean.TRUE));
+        Mockito.when(ops.assignRealmRoles(Mockito.anyString(), Mockito.any()))
+                .thenReturn(Mono.empty());
+        String csv = String.join("\n",
+                "username,fullName,email,role",
+                "B22DCKH022,Half Provisioned,half@ptit.edu.vn,");
+
+        StepVerifier.create(service.importUsers(filePart(csv)))
+                .assertNext(summary -> {
+                    assertThat(summary.created()).isEqualTo(Map.of("STUDENT", 1, "LECTURER", 0));
+                    assertThat(summary.failed()).isEmpty();
+                })
+                .verifyComplete();
+
+        // No second account: the existing one is completed, with the same
+        // temporary-password rule as a fresh row.
+        Mockito.verify(ops, Mockito.never()).createUser(Mockito.anyString(), Mockito.anyString(),
+                Mockito.anyString(), Mockito.anyString());
+        Mockito.verify(ops).setTemporaryPassword("half-id", "b22dckh022");
+        Mockito.verify(ops).assignRealmRoles("half-id",
+                List.of(Map.of("id", "s", "name", "ROLE_STUDENT")));
     }
 
     @Test

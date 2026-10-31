@@ -249,6 +249,45 @@ class ResultServiceReadTest {
         assertEquals(resultId, group.getResults().get(0).getId());
     }
 
+    /**
+     * Regression (business change 2026-10-31): 5 plans with unequal weights,
+     * 4 submitted (8/6/10/7), plan 3 unsubmitted (weight 3).
+     * Expected: (8×2 + 6×1 + 0×3 + 10×1 + 7×2) / (2+1+3+1+2) = 46/9 = 5.11.
+     */
+    @Test
+    void getByAssignment_unsubmittedPlanScoresZeroWithWeight() {
+        UUID plan1 = UUID.randomUUID();
+        UUID plan2 = UUID.randomUUID();
+        UUID plan3 = UUID.randomUUID(); // unsubmitted, weight 3
+        UUID plan4 = UUID.randomUUID();
+        UUID plan5 = UUID.randomUUID();
+
+        CourseServicePlansClient plans = Mockito.mock(CourseServicePlansClient.class);
+        Mockito.when(plans.plans(Mockito.any())).thenReturn(List.of());
+        Mockito.when(plans.plans(Mockito.eq(ASSIGNMENT))).thenReturn(List.of(
+                new CourseServicePlansClient.PlanWeight(plan1, 2),
+                new CourseServicePlansClient.PlanWeight(plan2, 1),
+                new CourseServicePlansClient.PlanWeight(plan3, 3),
+                new CourseServicePlansClient.PlanWeight(plan4, 1),
+                new CourseServicePlansClient.PlanWeight(plan5, 2)
+        ));
+
+        ResultRepository results = Mockito.mock(ResultRepository.class);
+        StepResultRepository steps = Mockito.mock(StepResultRepository.class);
+        Mockito.when(results.findByAssignmentId(ASSIGNMENT)).thenReturn(List.of(
+                planRow(UUID.randomUUID(), STUDENT_A, plan1, 2, "8.00", true),
+                planRow(UUID.randomUUID(), STUDENT_A, plan2, 1, "6.00", true),
+                planRow(UUID.randomUUID(), STUDENT_A, plan4, 1, "10.00", true),
+                planRow(UUID.randomUUID(), STUDENT_A, plan5, 2, "7.00", true)
+        ));
+
+        List<AssignmentResultGroupResponse> groups =
+                new ResultService(results, steps, plans).getByAssignment(ASSIGNMENT, null, false);
+
+        assertEquals(1, groups.size());
+        assertEquals(new BigDecimal("5.11"), groups.get(0).getExerciseScore());
+    }
+
     @Test
     void getByAssignment_ungradedAssignmentReturnsEmptyWithoutAnyQuery() {
         ResultRepository results = Mockito.mock(ResultRepository.class);

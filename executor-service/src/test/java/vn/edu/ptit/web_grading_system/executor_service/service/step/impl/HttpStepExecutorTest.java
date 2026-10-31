@@ -16,6 +16,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -37,17 +38,17 @@ class HttpStepExecutorTest {
     }
 
     @SuppressWarnings("unchecked")
-    private HttpResponse<String> mockResponse(int status, String body) {
+    private CompletableFuture<HttpResponse<String>> mockResponse(int status, String body) {
         HttpResponse<String> r = Mockito.mock(HttpResponse.class);
         Mockito.when(r.statusCode()).thenReturn(status);
         Mockito.when(r.body()).thenReturn(body);
         Mockito.when(r.headers()).thenReturn(java.net.http.HttpHeaders.of(Map.of(), (a, b) -> true));
-        return r;
+        return CompletableFuture.completedFuture(r);
     }
 
     @Test
     void happyPath_passesAndExtractsVariable() throws IOException, InterruptedException {
-        Mockito.when(httpClient.send(Mockito.any(), Mockito.<HttpResponse.BodyHandler<String>>any()))
+        Mockito.when(httpClient.sendAsync(Mockito.any(), Mockito.<HttpResponse.BodyHandler<String>>any()))
                 .thenAnswer(inv -> mockResponse(201, "{\"id\":\"abc-123\"}"));
 
         VariableContext vars = new VariableContext();
@@ -65,8 +66,30 @@ class HttpStepExecutorTest {
     }
 
     @Test
+    void queryParams_withSpacesAndNonAscii_arePercentEncoded() throws Exception {
+        // 2026-10-29, mock book-app grading: "title=The Little Prince" (and the
+        // Vietnamese title before it) reached URI.create raw, which threw
+        // "Illegal character in query" and the request was never sent.
+        Mockito.when(httpClient.sendAsync(Mockito.any(), Mockito.<HttpResponse.BodyHandler<String>>any()))
+                .thenAnswer(inv -> mockResponse(200, "[]"));
+
+        VariableContext vars = new VariableContext();
+        vars.put("app_port", 23456);
+        var result = executor.execute(ctx("""
+                {"method":"GET","path":"/api/v1/books",
+                 "query_params":{"title":"The Little Prince","author":"Tô Hoài"}}""", vars));
+
+        var captor = org.mockito.ArgumentCaptor.forClass(java.net.http.HttpRequest.class);
+        Mockito.verify(httpClient).sendAsync(captor.capture(), Mockito.<HttpResponse.BodyHandler<String>>any());
+        assertEquals(
+                "http://localhost:23456/api/v1/books?title=The%20Little%20Prince&author=T%C3%B4%20Ho%C3%A0i",
+                captor.getValue().uri().toString());
+        assertEquals(200, result.getActualStatusCode());
+    }
+
+    @Test
     void failingStatusAssertion_marksFailed() throws IOException, InterruptedException {
-        Mockito.when(httpClient.send(Mockito.any(), Mockito.<HttpResponse.BodyHandler<String>>any()))
+        Mockito.when(httpClient.sendAsync(Mockito.any(), Mockito.<HttpResponse.BodyHandler<String>>any()))
                 .thenAnswer(inv -> mockResponse(404, "{}"));
 
         VariableContext vars = new VariableContext();
@@ -80,8 +103,10 @@ class HttpStepExecutorTest {
 
     @Test
     void httpError_marksErrorAndPersistsLog() throws IOException, InterruptedException {
-        Mockito.when(httpClient.send(Mockito.any(), Mockito.<HttpResponse.BodyHandler<String>>any()))
-                .thenThrow(new IOException("Connection refused"));
+        Mockito.when(httpClient.sendAsync(Mockito.any(), Mockito.<HttpResponse.BodyHandler<String>>any()))
+                .thenAnswer(inv -> {
+                    throw new IOException("Connection refused");
+                });
 
         VariableContext vars = new VariableContext();
         vars.put("app_port", 23456);
@@ -90,5 +115,47 @@ class HttpStepExecutorTest {
         assertEquals(StepResultStatus.ERROR, result.getStatus());
         assertEquals("Connection refused", result.getErrorMessage());
         Mockito.verify(httpLogService).save(Mockito.any());
+    }
+
+    // ---------- Phase 3: data[] loop ----------
+
+    @Test
+    void dataLoop_runsOncePerRowAndExtractsIndexedVariables() throws IOException, InterruptedException {
+        Mockito.when(httpClient.sendAsync(Mockito.any(), Mockito.<HttpResponse.BodyHandler<String>>any()))
+                .thenAnswer(inv -> mockResponse(201, "{\"id\":\"abc-123\"}"));
+
+        VariableContext vars = new VariableContext();
+        vars.put("app_port", 23456);
+        var result = executor.execute(ctx("""
+                {"method":"POST","path":"/api/v1/books",
+                 "data":[{"title":"Sach A","year":"1941"},{"title":"Sach B","year":"1950"}],
+                 "body":{"title":"${title}","year":"${year}"},
+                 "extract":[{"name":"bookId_${index}","from":"response_body","expression":"$.id"}]}""", vars));
+
+        assertEquals(StepResultStatus.PASSED, result.getStatus());
+        // Each iteration extracted its own bookId_N into the shared context.
+        assertEquals("abc-123", vars.get("bookId_0"));
+        assertEquals("abc-123", vars.get("bookId_1"));
+        assertNotNull(result.getExtractedVariables());
+        assertTrue(result.getExtractedVariables().contains("bookId_0"));
+        assertTrue(result.getExtractedVariables().contains("bookId_1"));
+        // The mock was called once per row.
+        Mockito.verify(httpClient, Mockito.times(2)).sendAsync(Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    void dataLoop_anyIterationFails_marksStepFailed() throws IOException, InterruptedException {
+        Mockito.when(httpClient.sendAsync(Mockito.any(), Mockito.<HttpResponse.BodyHandler<String>>any()))
+                .thenAnswer(inv -> mockResponse(404, "{}"));
+
+        VariableContext vars = new VariableContext();
+        vars.put("app_port", 23456);
+        var result = executor.execute(ctx("""
+                {"method":"GET","path":"/api/v1/books",
+                 "data":[{"title":"A"},{"title":"B"}],
+                 "expected_status":200}""", vars));
+
+        assertEquals(StepResultStatus.FAILED, result.getStatus());
+        Mockito.verify(httpClient, Mockito.times(2)).sendAsync(Mockito.any(), Mockito.any());
     }
 }

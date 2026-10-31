@@ -205,7 +205,10 @@ public class ScoreService {
         // Review: 2026-10-26, practice-exercises feature
         // Practice assignments (purpose=PRACTICE) never feed the class EXERCISE score component:
         // they are auto-graded for learner feedback only. Aggregate GRADED assignments alone.
-        List<UUID> assignmentIds = assignmentRepository.findAllByClassIdAndPurpose(classId, AssignmentPurpose.GRADED).stream()
+        // Draft/unpublished GRADED assignments must not count toward EXERCISE score either —
+        // a lecturer creating a draft assignment with plans must not lower every student's
+        // EXERCISE score before the assignment is visible. Review: 2026-10-31.
+        List<UUID> assignmentIds = assignmentRepository.findAllByClassIdAndPurposeAndPublished(classId, AssignmentPurpose.GRADED, true).stream()
                 .map(Assignment::getId)
                 .toList();
         if (assignmentIds.isEmpty()) {
@@ -250,8 +253,9 @@ public class ScoreService {
                 .filter(s -> roster.stream().anyMatch(r -> r.getStudentCode().equals(s.getStudentCode())))
                 .collect(Collectors.groupingBy(StudentScore::getStudentCode));
 
-        // Graded assignment IDs for this class
-        List<UUID> assignmentIds = assignmentRepository.findAllByClassIdAndPurpose(classId, AssignmentPurpose.GRADED).stream()
+        // Graded assignment IDs for this class — only published ones count toward EXERCISE score.
+        // Draft GRADED assignments must not drag every student's average down. Review: 2026-10-31.
+        List<UUID> assignmentIds = assignmentRepository.findAllByClassIdAndPurposeAndPublished(classId, AssignmentPurpose.GRADED, true).stream()
                 .map(Assignment::getId)
                 .toList();
 

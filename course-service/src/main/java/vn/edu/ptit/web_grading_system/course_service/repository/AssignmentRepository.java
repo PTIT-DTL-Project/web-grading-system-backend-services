@@ -22,6 +22,8 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
 
     List<Assignment> findAllByClassIdAndPurpose(UUID classId, AssignmentPurpose purpose);
 
+    List<Assignment> findAllByClassIdAndPurposeAndPublished(UUID classId, AssignmentPurpose purpose, boolean published);
+
     boolean existsByIdAndPublished(UUID id, boolean published);
 
     // Uniqueness of title scoped to the owner (not the class): a lecturer cannot

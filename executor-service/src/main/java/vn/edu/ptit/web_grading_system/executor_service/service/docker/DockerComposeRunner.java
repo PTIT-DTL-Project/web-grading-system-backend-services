@@ -25,14 +25,7 @@ public class DockerComposeRunner
         @Override
         public void close()
         {
-            try
-            {
-                compose.stop();
-            }
-            catch (Exception e)
-            {
-                log.warn(Constant.Message.COMPOSE_STOP_FAILED, e.getMessage());
-            }
+            stopQuietly(compose);
         }
     }
 
@@ -45,10 +38,35 @@ public class DockerComposeRunner
                                 .withStartupTimeout(Duration.ofMillis(startupTimeoutMs * 2L)))
                 .withBuild(true)
                 .withStartupTimeout(Duration.ofMillis(startupTimeoutMs));
-        compose.start();
+        try
+        {
+            compose.start();
+        }
+        catch (RuntimeException e)
+        {
+            // A failed start (boot timeout, port clash) still created the project's
+            // containers; Ryuk is disabled, so nothing else removes them and they
+            // keep the allocated host port bound. The next job in this pod then dies
+            // on "port is already allocated". Stop the project before rethrowing.
+            // Review: 2026-10-29, "Bind for 0.0.0.0:20000 failed" incident.
+            stopQuietly(compose);
+            throw e;
+        }
         String host = compose.getServiceHost(effective.serviceName(), effective.containerPort());
         int port = compose.getServicePort(effective.serviceName(), effective.containerPort());
         log.info("Grading container up: service={}, host={}:{}", effective.serviceName(), host, port);
         return new RunningCompose(compose, host, port);
+    }
+
+    private static void stopQuietly(ComposeContainer compose)
+    {
+        try
+        {
+            compose.stop();
+        }
+        catch (Exception e)
+        {
+            log.warn(Constant.Message.COMPOSE_STOP_FAILED, e.getMessage());
+        }
     }
 }

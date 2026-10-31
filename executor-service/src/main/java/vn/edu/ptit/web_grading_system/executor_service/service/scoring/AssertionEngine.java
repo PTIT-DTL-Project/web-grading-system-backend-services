@@ -77,6 +77,13 @@ public class AssertionEngine
                 case Constant.Assertion.BODY_EQUALS -> checkBodyEquals(assertion, actualBody);
                 case Constant.Assertion.BODY_STRUCTURE -> checkBodyStructure(assertion, actualBody);
                 case Constant.Assertion.FIELD_EQUALS -> checkFieldEquals(assertion, actualBody, vars);
+                case Constant.Assertion.ARRAY_LENGTH -> checkArrayLength(assertion, actualBody);
+                case Constant.Assertion.CONTAINS_ITEM -> checkContainsItem(assertion, actualBody);
+                case Constant.Assertion.JSON_PATH_EQUALS -> checkJsonPathEquals(assertion, actualBody, vars);
+                case Constant.Assertion.GREATER_THAN -> checkGreaterThan(assertion, actualBody);
+                case Constant.Assertion.LESS_THAN -> checkLessThan(assertion, actualBody);
+                case Constant.Assertion.MATCHES_REGEX -> checkMatchesRegex(assertion, actualBody);
+                case Constant.Assertion.ANY_OF -> checkAnyOf(assertion, actualBody, vars);
                 default -> AssertionDetail.builder()
                         .kind(kind).passed(false)
                         .message(Constant.Message.UNKNOWN_ASSERTION_KIND_PREFIX + kind).build();
@@ -206,6 +213,239 @@ public class AssertionEngine
                     .message(Constant.Message.JSON_PATH_ERROR_PREFIX + e.getMessage())
                     .build();
         }
+    }
+
+    /* --- Phase 1: new assertion checks --- */
+
+    private AssertionDetail checkArrayLength(tools.jackson.databind.JsonNode assertion, String actualBody)
+    {
+        String path = assertion.path(Constant.Assertion.PATH).asString();
+        int expected = assertion.path(Constant.Assertion.EQUALS).asInt();
+        try
+        {
+            Object result = JsonPath.using(jsonPathConfig)
+                    .parse(actualBody == null ? Constant.Assertion.NULL_JSON : actualBody)
+                    .read(path);
+            int actualLen = arrayLength(result);
+            boolean passed = actualLen == expected;
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.ARRAY_LENGTH).expected(expected).actual(actualLen).passed(passed)
+                    .message(passed ? Constant.Message.ARRAY_LENGTH_MATCHED
+                            : Constant.Message.ARRAY_LENGTH_MISMATCH_PREFIX + expected + " but was " + actualLen)
+                    .build();
+        }
+        catch (Exception e)
+        {
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.ARRAY_LENGTH).expected(expected).actual(null).passed(false)
+                    .message(Constant.Message.JSON_PATH_ERROR_PREFIX + e.getMessage()).build();
+        }
+    }
+
+    private AssertionDetail checkContainsItem(tools.jackson.databind.JsonNode assertion, String actualBody)
+    {
+        String path = assertion.path(Constant.Assertion.PATH).asString();
+        String expected = assertion.path(Constant.Assertion.EQUALS).asString();
+        try
+        {
+            Object result = JsonPath.using(jsonPathConfig)
+                    .parse(actualBody == null ? Constant.Assertion.NULL_JSON : actualBody)
+                    .read(path);
+            boolean found = containsItem(result, expected);
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.CONTAINS_ITEM).expected(expected).actual(result).passed(found)
+                    .message(found ? Constant.Message.CONTAINS_ITEM_MATCHED
+                            : Constant.Message.CONTAINS_ITEM_MISMATCH_PREFIX + expected)
+                    .build();
+        }
+        catch (Exception e)
+        {
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.CONTAINS_ITEM).expected(expected).actual(null).passed(false)
+                    .message(Constant.Message.JSON_PATH_ERROR_PREFIX + e.getMessage()).build();
+        }
+    }
+
+    private AssertionDetail checkJsonPathEquals(tools.jackson.databind.JsonNode assertion,
+            String actualBody, VariableContext vars)
+    {
+        String path = assertion.path(Constant.Assertion.PATH).asString();
+        String expectedRaw = assertion.path(Constant.Assertion.EQUALS).asString();
+        String expected = vars != null ? vars.substitute(expectedRaw) : expectedRaw;
+        try
+        {
+            Object actual = JsonPath.using(jsonPathConfig)
+                    .parse(actualBody == null ? Constant.Assertion.NULL_JSON : actualBody)
+                    .read(path);
+            boolean passed = fieldEquals(expected, actual);
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.JSON_PATH_EQUALS).expected(expected).actual(actual).passed(passed)
+                    .message(passed ? Constant.Message.JSON_PATH_EQUALS_MATCHED
+                            : Constant.Message.JSON_PATH_EQUALS_MISMATCH_PREFIX + expected + " but was " + actual)
+                    .build();
+        }
+        catch (Exception e)
+        {
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.JSON_PATH_EQUALS).expected(expected).actual(null).passed(false)
+                    .message(Constant.Message.JSON_PATH_ERROR_PREFIX + e.getMessage()).build();
+        }
+    }
+
+    private AssertionDetail checkGreaterThan(tools.jackson.databind.JsonNode assertion, String actualBody)
+    {
+        String path = assertion.path(Constant.Assertion.PATH).asString();
+        String expectedRaw = assertion.path(Constant.Assertion.VALUE).asString();
+        try
+        {
+            Object actual = JsonPath.using(jsonPathConfig)
+                    .parse(actualBody == null ? Constant.Assertion.NULL_JSON : actualBody)
+                    .read(path);
+            BigDecimal expectedNum = new BigDecimal(expectedRaw);
+            if (!(actual instanceof Number))
+            {
+                return AssertionDetail.builder()
+                        .kind(Constant.Assertion.GREATER_THAN).expected(expectedRaw).actual(actual).passed(false)
+                        .message(Constant.Message.GREATER_THAN_MISMATCH_PREFIX + expectedRaw + " but value is not a number")
+                        .build();
+            }
+            BigDecimal actualNum = new BigDecimal(actual.toString());
+            boolean passed = actualNum.compareTo(expectedNum) > 0;
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.GREATER_THAN).expected(expectedRaw).actual(actualNum).passed(passed)
+                    .message(passed ? Constant.Message.GREATER_THAN_MATCHED
+                            : Constant.Message.GREATER_THAN_MISMATCH_PREFIX + expectedRaw + " but was " + actualNum)
+                    .build();
+        }
+        catch (Exception e)
+        {
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.GREATER_THAN).expected(expectedRaw).actual(null).passed(false)
+                    .message(Constant.Message.JSON_PATH_ERROR_PREFIX + e.getMessage()).build();
+        }
+    }
+
+    private AssertionDetail checkLessThan(tools.jackson.databind.JsonNode assertion, String actualBody)
+    {
+        String path = assertion.path(Constant.Assertion.PATH).asString();
+        String expectedRaw = assertion.path(Constant.Assertion.VALUE).asString();
+        try
+        {
+            Object actual = JsonPath.using(jsonPathConfig)
+                    .parse(actualBody == null ? Constant.Assertion.NULL_JSON : actualBody)
+                    .read(path);
+            BigDecimal expectedNum = new BigDecimal(expectedRaw);
+            if (!(actual instanceof Number))
+            {
+                return AssertionDetail.builder()
+                        .kind(Constant.Assertion.LESS_THAN).expected(expectedRaw).actual(actual).passed(false)
+                        .message(Constant.Message.LESS_THAN_MISMATCH_PREFIX + expectedRaw + " but value is not a number")
+                        .build();
+            }
+            BigDecimal actualNum = new BigDecimal(actual.toString());
+            boolean passed = actualNum.compareTo(expectedNum) < 0;
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.LESS_THAN).expected(expectedRaw).actual(actualNum).passed(passed)
+                    .message(passed ? Constant.Message.LESS_THAN_MATCHED
+                            : Constant.Message.LESS_THAN_MISMATCH_PREFIX + expectedRaw + " but was " + actualNum)
+                    .build();
+        }
+        catch (Exception e)
+        {
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.LESS_THAN).expected(expectedRaw).actual(null).passed(false)
+                    .message(Constant.Message.JSON_PATH_ERROR_PREFIX + e.getMessage()).build();
+        }
+    }
+
+    private AssertionDetail checkMatchesRegex(tools.jackson.databind.JsonNode assertion, String actualBody)
+    {
+        String path = assertion.path(Constant.Assertion.PATH).asString();
+        String pattern = assertion.path(Constant.Assertion.PATTERN).asString();
+        try
+        {
+            Object result = JsonPath.using(jsonPathConfig)
+                    .parse(actualBody == null ? Constant.Assertion.NULL_JSON : actualBody)
+                    .read(path);
+            String actualStr = result == null ? "" : String.valueOf(result);
+            boolean passed = actualStr.matches(pattern);
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.MATCHES_REGEX).expected(pattern).actual(actualStr).passed(passed)
+                    .message(passed ? Constant.Message.MATCHES_REGEX_MATCHED
+                            : Constant.Message.MATCHES_REGEX_MISMATCH_PREFIX + pattern + " but was " + actualStr)
+                    .build();
+        }
+        catch (Exception e)
+        {
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.MATCHES_REGEX).expected(pattern).actual(null).passed(false)
+                    .message(Constant.Message.JSON_PATH_ERROR_PREFIX + e.getMessage()).build();
+        }
+    }
+
+    private AssertionDetail checkAnyOf(tools.jackson.databind.JsonNode assertion,
+            String actualBody, VariableContext vars)
+    {
+        tools.jackson.databind.JsonNode subAssertions = assertion.path(Constant.Assertion.ASSERTIONS);
+        if (subAssertions == null || !subAssertions.isArray() || subAssertions.isEmpty())
+        {
+            return AssertionDetail.builder()
+                    .kind(Constant.Assertion.ANY_OF).passed(false)
+                    .message(Constant.Message.ANY_OF_MISMATCH_PREFIX + "no sub-assertions configured").build();
+        }
+        for (tools.jackson.databind.JsonNode sub : subAssertions)
+        {
+            String subKind = sub.path(Constant.Assertion.KIND).asString();
+            AssertionDetail subDetail = switch (subKind)
+            {
+                case Constant.Assertion.STATUS -> checkStatus(sub, 0); // status not meaningful in any_of without actual status context
+                case Constant.Assertion.CONTAINS -> checkContains(sub, actualBody);
+                case Constant.Assertion.JSON_PATH -> checkJsonPath(sub, actualBody);
+                case Constant.Assertion.BODY_EQUALS -> checkBodyEquals(sub, actualBody);
+                case Constant.Assertion.BODY_STRUCTURE -> checkBodyStructure(sub, actualBody);
+                case Constant.Assertion.FIELD_EQUALS -> checkFieldEquals(sub, actualBody, vars);
+                case Constant.Assertion.ARRAY_LENGTH -> checkArrayLength(sub, actualBody);
+                case Constant.Assertion.CONTAINS_ITEM -> checkContainsItem(sub, actualBody);
+                case Constant.Assertion.JSON_PATH_EQUALS -> checkJsonPathEquals(sub, actualBody, vars);
+                case Constant.Assertion.GREATER_THAN -> checkGreaterThan(sub, actualBody);
+                case Constant.Assertion.LESS_THAN -> checkLessThan(sub, actualBody);
+                case Constant.Assertion.MATCHES_REGEX -> checkMatchesRegex(sub, actualBody);
+                default -> AssertionDetail.builder()
+                        .kind(subKind).passed(false)
+                        .message(Constant.Message.UNKNOWN_ASSERTION_KIND_PREFIX + subKind).build();
+            };
+            if (subDetail.isPassed())
+            {
+                return AssertionDetail.builder()
+                        .kind(Constant.Assertion.ANY_OF).passed(true)
+                        .message(Constant.Message.ANY_OF_MATCHED).build();
+            }
+        }
+        return AssertionDetail.builder()
+                .kind(Constant.Assertion.ANY_OF).passed(false)
+                .message(Constant.Message.ANY_OF_MISMATCH_PREFIX + "none of the sub-assertions passed").build();
+    }
+
+    private int arrayLength(Object result)
+    {
+        if (result == null) return 0;
+        if (result instanceof List<?> list) return list.size();
+        if (result instanceof Object[]) return ((Object[]) result).length;
+        return 1;
+    }
+
+    private boolean containsItem(Object result, String expected)
+    {
+        if (result == null) return false;
+        if (result instanceof List<?> list)
+        {
+            for (Object item : list)
+            {
+                if (expected.equals(String.valueOf(item))) return true;
+            }
+            return false;
+        }
+        return expected.equals(String.valueOf(result));
     }
 
     /*

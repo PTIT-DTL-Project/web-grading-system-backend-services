@@ -104,14 +104,14 @@ public class ClassService {
             String studentCode = row[0].trim();
             String studentName = row[1].trim();
             String email = row.length > 2 ? row[2].trim() : null;
-            UUID studentUserId = null;
-            if (row.length > 3 && !row[3].isBlank()) {
-                try {
-                    studentUserId = UUID.fromString(row[3].trim());
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Invalid student_user_id UUID in row: " + studentCode);
-                }
-            }
+            // NOTE: student_user_id is intentionally left NULL on CSV import.
+            // The CSV column (index 3) may contain a UUID that is NOT the Keycloak
+            // subject (sub). Binding it here would permanently mismatch the roster
+            // row against the student's JWT sub, making the student invisible on
+            // GET /api/v1/student/classes. The correct student_user_id is filled
+            // lazily by StudentIdentityService.linkStudent() on the student's first
+            // class read, using the gateway-stamped X-User-Id (JWT sub) matched by
+            // email. See ClassStudentRepository.linkStudentIdentity().
             if (classStudentRepository.existsByClassIdAndStudentCode(classId, studentCode)) {
                 skipped++;
                 continue;
@@ -121,7 +121,7 @@ public class ClassService {
                     .studentCode(studentCode)
                     .studentName(studentName)
                     .email(email)
-                    .studentUserId(studentUserId)
+                    .studentUserId(null)
                     .build());
             imported++;
         }

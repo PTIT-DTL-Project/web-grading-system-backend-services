@@ -47,14 +47,16 @@ class ClassStudentLinkTest {
                 .classId(classId).studentCode("S3").studentName("Ba")
                 .email("other@ptit.edu.vn").build());
 
-        assertThat(studentRepo.linkStudentIdentity(newcomer, "student@ptit.edu.vn")).isEqualTo(1);
+        assertThat(studentRepo.linkStudentIdentity(newcomer, "student@ptit.edu.vn")).isEqualTo(2);
         // Bulk updates bypass the persistence context — clear it so the reads
         // below observe the database, not the stale managed instances.
         entityManager.clear();
         assertThat(studentRepo.findById(unlinked.getId()).orElseThrow().getStudentUserId())
                 .isEqualTo(newcomer);
+        // A stale student_user_id (e.g. from CSV import) is overwritten by the
+        // caller's JWT sub so the student becomes visible on GET /api/v1/student/classes.
         assertThat(studentRepo.findById(owned.getId()).orElseThrow().getStudentUserId())
-                .isEqualTo(incumbent);
+                .isEqualTo(newcomer);
         assertThat(studentRepo.findById(otherMail.getId()).orElseThrow().getStudentUserId())
                 .isNull();
     }

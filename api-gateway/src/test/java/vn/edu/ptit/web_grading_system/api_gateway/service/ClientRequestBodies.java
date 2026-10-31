@@ -7,6 +7,7 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.mock.http.client.reactive.MockClientHttpRequest;
 import org.springframework.web.reactive.function.BodyInserter;
 import org.springframework.web.reactive.function.client.ClientRequest;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
@@ -45,8 +46,18 @@ final class ClientRequestBodies {
             return "";
         }
         MockClientHttpRequest message = new MockClientHttpRequest(request.method(), request.url());
-        request.body().insert(message, CONTEXT).block();
-        String body = message.getBodyAsString().block();
+        await(request.body().insert(message, CONTEXT));
+        String body = await(message.getBodyAsString());
         return body == null ? "" : body;
+    }
+
+    /**
+     * Joins a synchronous write without Reactor's {@code block()} guard: a captured
+     * call can be replayed by a retry, which resubscribes on a scheduler thread where
+     * {@code block()} throws. The value-based bodies the client sends complete on
+     * subscription, so the future is already done here.
+     */
+    private static <T> T await(Mono<T> mono) {
+        return mono.toFuture().join();
     }
 }

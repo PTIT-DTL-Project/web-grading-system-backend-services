@@ -20,7 +20,9 @@ import vn.edu.ptit.web_grading_system.result_service.repository.StepResultReposi
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,24 +53,39 @@ public class ResultService {
     /**
      * Assignment exercise score = weight-weighted average of per-plan BEST
      * scores (max over every attempt, not the latest): a student who scored 10
-     * then resubmitted a broken zip for 0 keeps the 10. Unsubmitted plans are
-     * ignored (live partial score). Null when the student has no results.
+     * then resubmitted a broken zip for 0 keeps the 10. Unsubmitted plans now
+     * count as 0 and still add their weight to the denominator, so 4/5
+     * submitted @10 with equal weights yields 8.00 instead of 10.00.
+     *
+     * <p>A student who has not submitted anything at all reads {@code 0.00}
+     * (every plan unsubmitted counts weight × 0), not missing — an unsubmitted
+     * exercise drags the class average down just like a failed one.
+     * A student whose only attempt is a failed stepless FULL run still reads
+     * missing, not 0.00 (see {@link #maxPerPlanAverage}).
      *
      * <p>Review: 2026-10-10, max-per-plan policy (was latest-wins).
+     * Review: 2026-10-31, unsubmitted plans score 0 and still count weight.
+     * Review: 2026-11-01, no submission at all scores 0.00 instead of null.
      */
     public BigDecimal weightedScoreByPlan(List<UUID> assignmentIds, UUID studentId) {
         List<Result> rows =
                 resultRepository.findByAssignmentIdInAndStudentId(assignmentIds, studentId);
         if (rows.isEmpty()) {
-            return null;
+            return BigDecimal.ZERO;
         }
-        return maxPerPlanAverage(rows, stepsByResultIds(rows));
+        Map<UUID, List<StepResult>> stepsByResult = stepsByResultIds(rows);
+        PlanBests perPlan = perPlanBests(rows, stepsByResult);
+        Map<UUID, Map<UUID, Integer>> allPlanWeights =
+                coursePlanWeights(new HashSet<>(assignmentIds));
+        return maxPerPlanAverage(
+                perPlan, allPlanWeights, new HashSet<>(assignmentIds));
     }
 
     /**
      * Batch exercise scores for multiple students across multiple assignments.
      * Single DB query instead of N individual calls — used by lecturer transcript.
-     * Null when a student has no scorable results.
+     * A student with no submission at all scores {@code 0.00}; a student whose
+     * only attempt is a failed stepless FULL run reads missing ({@code null}).
      */
     public Map<UUID, BigDecimal> weightedScoreByPlanBatch(
             List<UUID> assignmentIds, List<UUID> studentIds) {
@@ -78,18 +95,25 @@ public class ResultService {
         }
         List<Result> rows =
                 resultRepository.findByAssignmentIdInAndStudentIdIn(assignmentIds, studentIds);
-        if (rows.isEmpty()) {
-            return Map.of();
-        }
         Map<UUID, List<StepResult>> stepsByResult = stepsByResultIds(rows);
+        Map<UUID, Map<UUID, Integer>> allPlanWeights =
+                coursePlanWeights(new HashSet<>(assignmentIds));
         Map<UUID, List<Result>> byStudent = new LinkedHashMap<>();
         for (Result row : rows) {
             byStudent.computeIfAbsent(row.getStudentId(), key -> new ArrayList<>()).add(row);
         }
         Map<UUID, BigDecimal> out = new LinkedHashMap<>();
-        byStudent.forEach((studentId, attempts) -> {
-            out.put(studentId, maxPerPlanAverage(attempts, stepsByResult));
-        });
+        Set<UUID> assignmentIdSet = new HashSet<>(assignmentIds);
+        for (UUID sid : studentIds) {
+            List<Result> attempts = byStudent.getOrDefault(sid, List.of());
+            if (attempts.isEmpty()) {
+                // No submission at all → every plan unsubmitted → 0.00.
+                out.put(sid, BigDecimal.ZERO);
+                continue;
+            }
+            PlanBests perPlan = perPlanBests(attempts, stepsByResult);
+            out.put(sid, maxPerPlanAverage(perPlan, allPlanWeights, assignmentIdSet));
+        }
         return out;
     }
 
@@ -99,29 +123,65 @@ public class ResultService {
      * transcript and the one in the lecturer's class-wide view use the **same formula**.
      * Null when there is nothing to average.
      *
+     * <p>Unsubmitted plans (present in {@code allPlanWeights} but absent from {@code best})
+     * count as 0 and still add their weight to the denominator — this is the behavior
+     * change from 2026-10-31. When course-service is unreachable, {@code allPlanWeights}
+     * is empty and only plans with results are scored (old behavior, carried weights).
+     *
      * <p>Attempt-status rule (explicit, 2026-10-10): a FAILED attempt is an infra
      * failure, not a score — a PLAN-scoped one still contributes its stored 0
      * (today's transcript behavior), while a FULL-scoped one is always stepless
      * (executor's fail path posts no items) and contributes nothing. A student
      * whose only attempt is a failed FULL run therefore reads missing, not 0.00.
      * A DONE FULL row without attributable steps is likewise unscorable.
+     *
+     * @param perPlan        per-plan bests computed from result rows
+     * @param allPlanWeights all plan weights per assignment from course-service
+     * @param assignmentIds  all assignment IDs in scope (used to enumerate all plan keys)
      */
-    private BigDecimal maxPerPlanAverage(List<Result> rows, Map<UUID, List<StepResult>> stepsByResult) {
-        PlanBests perPlan = perPlanBests(rows, stepsByResult);
+    private BigDecimal maxPerPlanAverage(
+            PlanBests perPlan,
+            Map<UUID, Map<UUID, Integer>> allPlanWeights,
+            Set<UUID> assignmentIds) {
         Map<PlanKey, PlanBest> best = perPlan.best();
+        Map<PlanKey, Integer> carried = perPlan.carried();
+
+        // Không có attempt scorable nào (ví dụ sinh viên chỉ nộp 1 lần FAILED FULL
+        // mà executor không post step) → missing, không tính weight dù course-service
+        // có trả plan gì. Giữ quy tắc: failed stepless FULL run chỉ có attempt này
+        // đọc là missing, không bị ép thành 0.00. Review: 2026-10-31.
         if (best.isEmpty()) {
             return null;
         }
-        Map<UUID, Map<UUID, Integer>> courseWeights = coursePlanWeights(
-                best.keySet().stream().map(PlanKey::assignmentId).collect(Collectors.toSet()));
+
+        // Enumerate every plan that should contribute: all plans known to course-service,
+        // plus any plan that has a result (fallback when course-service is down).
+        Set<PlanKey> allPlanKeys = new LinkedHashSet<>();
+        for (UUID assignmentId : assignmentIds) {
+            Map<UUID, Integer> weights = allPlanWeights.get(assignmentId);
+            if (weights != null) {
+                for (UUID planId : weights.keySet()) {
+                    allPlanKeys.add(new PlanKey(assignmentId, planId));
+                }
+            }
+        }
+        for (PlanKey key : best.keySet()) {
+            allPlanKeys.add(key);
+        }
+
+        if (allPlanKeys.isEmpty()) {
+            return null;
+        }
+
         BigDecimal weightedSum = BigDecimal.ZERO;
         BigDecimal weightTotal = BigDecimal.ZERO;
-        for (Map.Entry<PlanKey, PlanBest> e : best.entrySet()) {
-            int weight = courseWeights.getOrDefault(e.getKey().assignmentId(), Map.of())
-                    .getOrDefault(e.getKey().planId(),
-                            perPlan.carried().getOrDefault(e.getKey(), 1));
+        for (PlanKey key : allPlanKeys) {
+            int weight = allPlanWeights.getOrDefault(key.assignmentId(), Map.of())
+                    .getOrDefault(key.planId(), carried.getOrDefault(key, 1));
             BigDecimal weightBd = BigDecimal.valueOf(weight);
-            weightedSum = weightedSum.add(e.getValue().score().multiply(weightBd));
+            // Unsubmitted plan (no result row) scores 0 but still counts its weight.
+            BigDecimal score = best.containsKey(key) ? best.get(key).score() : BigDecimal.ZERO;
+            weightedSum = weightedSum.add(score.multiply(weightBd));
             weightTotal = weightTotal.add(weightBd);
         }
         if (weightTotal.signum() == 0) {
@@ -303,6 +363,7 @@ public class ResultService {
             return List.of();
         }
         Map<UUID, List<StepResult>> stepsByResult = stepsByResultIds(rows);
+        Map<UUID, Map<UUID, Integer>> allPlanWeights = coursePlanWeights(Set.of(assignmentId));
         Map<UUID, List<Result>> byStudent = new LinkedHashMap<>();
         for (Result row : rows) {
             byStudent.computeIfAbsent(row.getStudentId(), key -> new ArrayList<>()).add(row);
@@ -310,9 +371,10 @@ public class ResultService {
 
         List<AssignmentResultGroupResponse> groups = new ArrayList<>();
         byStudent.forEach((studentId, attempts) -> {
+            PlanBests perPlan = perPlanBests(attempts, stepsByResult);
             groups.add(AssignmentResultGroupResponse.builder()
                     .studentUserId(studentId)
-                    .exerciseScore(maxPerPlanAverage(attempts, stepsByResult))
+                    .exerciseScore(maxPerPlanAverage(perPlan, allPlanWeights, Set.of(assignmentId)))
                     .results(gradedRows(attempts, stepsByResult).stream()
                             .map(result -> toResponse(result,
                                     includeSteps

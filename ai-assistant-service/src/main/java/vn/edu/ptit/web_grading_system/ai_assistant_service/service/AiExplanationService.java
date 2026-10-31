@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.time.OffsetDateTime;
 
 /**
  * Reads and generates one submission's AI explanation for its two audiences.
@@ -273,14 +274,35 @@ public class AiExplanationService {
         String systemPrompt = promptBuilder.buildSystemPrompt();
         String userPrompt = promptBuilder.buildUserPrompt(assignment, result);
         AiExplanationResultDto structuredOutput = llmClient.generateEntity(systemPrompt, userPrompt, AiExplanationResultDto.class);
-        if (structuredOutput == null) {
-            String rawLlmResponse = llmClient.generateCompletion(systemPrompt, userPrompt);
-            if (rawLlmResponse != null && !rawLlmResponse.isBlank()) {
-                try {
-                    structuredOutput = outputConverter.convert(rawLlmResponse);
-                } catch (Exception e) {
-                    log.warn("BeanOutputConverter could not parse LLM fallback response: {}", e.getMessage());
+        boolean isFallback = structuredOutput == null;
+        if (isFallback) {
+            // generateEntity failed (offline mode or provider/parse error). Retry once via
+            // generateStrictCompletion, which returns null in offline mode and throws
+            // AiProviderException on provider failure — it never produces the synthetic
+            // fallback JSON that generateCompletion returns, so a successful parse here
+            // always means a genuine model response that may be cached.
+            // Review: 2026-10-31, Pullfrog PR #48 — previous attempt used generateCompletion,
+            // whose offline/catch branches return generateFallbackResponse() — synthetic JSON
+            // that also parses through BeanOutputConverter. That caused isFallback to be
+            // cleared for a fake payload, which was then persisted and never evicted.
+            try {
+                String rawLlmResponse = llmClient.generateStrictCompletion(systemPrompt, userPrompt);
+                if (rawLlmResponse != null && !rawLlmResponse.isBlank()) {
+                    // Review: 2026-10-31, Pullfrog PR #48 follow-up — generateStrictCompletion
+                    // returns raw provider text (no cleanJsonString fence stripping), so a
+                    // genuine retry wrapped in ```json fences would fail to parse. Strip the
+                    // fences before convert to preserve the retry's value.
+                    String cleaned = stripMarkdownFences(rawLlmResponse);
+                    structuredOutput = outputConverter.convert(cleaned);
+                    // Retry returned and parsed a genuine model response — allow caching.
+                    isFallback = structuredOutput == null;
                 }
+                // rawLlmResponse == null means offline mode: isFallback stays true.
+            } catch (AiProviderException e) {
+                // Provider failed on the retry too; keep isFallback=true and return degraded.
+                log.warn("LLM retry via strict completion also failed: {}", e.getMessage());
+            } catch (Exception e) {
+                log.warn("BeanOutputConverter could not parse LLM retry response: {}", e.getMessage());
             }
         }
 
@@ -293,45 +315,60 @@ public class AiExplanationService {
                 ? structuredOutput.stepAnalyses()
                 : new ArrayList<>();
 
-        // 6. Save in DB cache
-        AiExplanation entity = AiExplanation.builder()
-                .submissionId(submissionId)
-                .studentId(studentId)
-                .category(CATEGORY)
-                .diagnosis(diagnosis)
-                .overallSummary(overallSummary)
-                // Review: 2026-10-17, Pullfrog — a null hints/keywords list made
-                // the mapper return null; Stream.flatMap(null) then threw NPE and
-                // turned a valid LLM answer into a 500. Optional.ofNullable keeps
-                // the inner stream non-null for absent lists.
-                .actionableHints(gson.toJson(stepAnalyses.stream()
-                        .flatMap(s -> Optional.ofNullable(s.getActionableHints()).orElse(List.of()).stream())
-                        .toList()))
-                .learningKeywords(gson.toJson(stepAnalyses.stream()
-                        .flatMap(s -> Optional.ofNullable(s.getLearningKeywords()).orElse(List.of()).stream())
-                        .toList()))
-                .telemetryAudit(gson.toJson(stepAnalyses))
-                // Review: 2026-10-17, Pullfrog — was hardcoded "gpt-4o-mini";
-                // read the configured value (ai.model.model-name) instead.
-                .modelName(aiModelProperties.modelName())
-                .build();
+        // 6. Save in DB cache — only for a real model analysis, never for a degraded
+        // fallback result. A permanently cached default summary / empty steps would
+        // block every later retry from producing a real analysis, so skip the write
+        // and let the next request regenerate.
+        if (!isFallback && structuredOutput != null) {
+            AiExplanation entity = AiExplanation.builder()
+                    .submissionId(submissionId)
+                    .studentId(studentId)
+                    .category(CATEGORY)
+                    .diagnosis(diagnosis)
+                    .overallSummary(overallSummary)
+                    // Review: 2026-10-17, Pullfrog — a null hints/keywords list made
+                    // the mapper return null; Stream.flatMap(null) then threw NPE and
+                    // turned a valid LLM answer into a 500. Optional.ofNullable keeps
+                    // the inner stream non-null for absent lists.
+                    .actionableHints(gson.toJson(stepAnalyses.stream()
+                            .flatMap(s -> Optional.ofNullable(s.getActionableHints()).orElse(List.of()).stream())
+                            .toList()))
+                    .learningKeywords(gson.toJson(stepAnalyses.stream()
+                            .flatMap(s -> Optional.ofNullable(s.getLearningKeywords()).orElse(List.of()).stream())
+                            .toList()))
+                    .telemetryAudit(gson.toJson(stepAnalyses))
+                    // Review: 2026-10-17, Pullfrog — was hardcoded "gpt-4o-mini";
+                    // read the configured value (ai.model.model-name) instead.
+                    .modelName(aiModelProperties.modelName())
+                    .build();
 
-        AiExplanation saved;
-        try {
-            saved = explanationRepository.save(entity);
-        } catch (DataIntegrityViolationException conflict) {
-            // Review: 2026-10-17, Pullfrog — two concurrent POSTs for one
-            // submission both pass the idempotency check above; the partial
-            // unique index (V2) rejects the loser. Return the winner's cached
-            // row instead of surfacing a 500.
-            saved = explanationRepository.findBySubmissionIdAndCategory(submissionId, CATEGORY)
-                    .orElseThrow(() -> conflict);
-            return toResponse(saved, true);
+            AiExplanation saved;
+            try {
+                saved = explanationRepository.save(entity);
+            } catch (DataIntegrityViolationException conflict) {
+                // Review: 2026-10-17, Pullfrog — two concurrent POSTs for one
+                // submission both pass the idempotency check above; the partial
+                // unique index (V2) rejects the loser. Return the winner's cached
+                // row instead of surfacing a 500.
+                saved = explanationRepository.findBySubmissionIdAndCategory(submissionId, CATEGORY)
+                        .orElseThrow(() -> conflict);
+                return toResponse(saved, true);
+            }
+
+            AiExplanationResponse response = toResponse(saved, false);
+            response.setStepAnalyses(stepAnalyses);
+            return response;
         }
 
-        AiExplanationResponse response = toResponse(saved, false);
-        response.setStepAnalyses(stepAnalyses);
-        return response;
+        // Degraded path: return without caching so a later request can retry.
+        return AiExplanationResponse.builder()
+                .submissionId(submissionId)
+                .category(CATEGORY)
+                .fromCache(false)
+                .overallSummary(overallSummary)
+                .stepAnalyses(stepAnalyses)
+                .createdAt(OffsetDateTime.now())
+                .build();
     }
 
     private AiExplanationResponse toResponse(AiExplanation entity, boolean fromCache) {
@@ -355,5 +392,21 @@ public class AiExplanationService {
                 .stepAnalyses(stepAnalyses)
                 .createdAt(entity.getCreatedAt())
                 .build();
+    }
+
+    /** Strip leading {@code ```json} or {@code ```}, and trailing {@code ```} from LLM raw
+     *  text so {@code BeanOutputConverter} receives clean JSON. */
+    private String stripMarkdownFences(String raw) {
+        if (raw == null) return "";
+        String cleaned = raw.trim();
+        if (cleaned.startsWith("```json")) {
+            cleaned = cleaned.substring(7);
+        } else if (cleaned.startsWith("```")) {
+            cleaned = cleaned.substring(3);
+        }
+        if (cleaned.endsWith("```")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 3);
+        }
+        return cleaned.trim();
     }
 }

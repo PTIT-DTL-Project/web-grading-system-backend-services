@@ -11,10 +11,13 @@ import java.util.UUID;
 /**
  * Lazily binds a Keycloak identity to roster rows by email.
  *
- * <p>Lecturer CSV imports store {@code student_user_id = NULL} unless the UUID
- * column is hand-filled, which used to leave students invisible forever. On
- * each student read, this fills the caller's own UUID into still-unlinked rows
- * whose email matches — so previously imported rosters heal themselves on the
+ * <p>Lecturer CSV imports now deliberately store {@code student_user_id = NULL}
+ * (the CSV {@code studentUserId} column is ignored, see
+ * {@link vn.edu.ptit.web_grading_system.course_service.service.ClassService#importStudents}),
+ * so no stale UUID can permanently mismatch a roster row against the student's
+ * JWT subject. On each student read, this fills the caller's own UUID into rows
+ * whose email matches — including rows that previously held a wrong UUID, which
+ * are overwritten — so previously imported rosters heal themselves on the
  * student's next API call. The email comes from the gateway-stamped
  * {@code X-User-Email} header (validated JWT), never from the client.
  */
