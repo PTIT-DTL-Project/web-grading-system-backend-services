@@ -127,13 +127,15 @@ public class LlmClient {
             // generateConversationTitle, ConversationSummarizer, and streaming chat/agent turns,
             // which all expect plain text. The explanation prompt already contains "JSON",
             // satisfying OpenAI's requirement for json_object mode.
+            org.springframework.ai.openai.OpenAiChatModel.ResponseFormat jsonFormat =
+                    org.springframework.ai.openai.OpenAiChatModel.ResponseFormat.builder()
+                            .type(org.springframework.ai.openai.OpenAiChatModel.ResponseFormat.Type.JSON_OBJECT)
+                            .build();
             return chatClient.prompt()
                     .system(systemPrompt)
                     .user(userPrompt)
                     .options(org.springframework.ai.openai.OpenAiChatOptions.builder()
-                            .responseFormat(new org.springframework.ai.openai.api.ResponseFormat(
-                                    org.springframework.ai.openai.api.ResponseFormat.Type.JSON_OBJECT))
-                            .build())
+                            .responseFormat(jsonFormat))
                     .call()
                     .entity(entityClass);
         } catch (Exception e) {
