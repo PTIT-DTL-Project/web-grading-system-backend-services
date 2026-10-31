@@ -122,9 +122,18 @@ public class LlmClient {
             return null;
         }
         try {
+            // Review: 2026-10-31 — scope JSON mode to this call only (explanation analysis).
+            // Global response-format in application.yaml would break classifyPendingActionReply,
+            // generateConversationTitle, ConversationSummarizer, and streaming chat/agent turns,
+            // which all expect plain text. The explanation prompt already contains "JSON",
+            // satisfying OpenAI's requirement for json_object mode.
             return chatClient.prompt()
                     .system(systemPrompt)
                     .user(userPrompt)
+                    .options(org.springframework.ai.openai.OpenAiChatOptions.builder()
+                            .responseFormat(new org.springframework.ai.openai.api.ResponseFormat(
+                                    org.springframework.ai.openai.api.ResponseFormat.Type.JSON_OBJECT))
+                            .build())
                     .call()
                     .entity(entityClass);
         } catch (Exception e) {
