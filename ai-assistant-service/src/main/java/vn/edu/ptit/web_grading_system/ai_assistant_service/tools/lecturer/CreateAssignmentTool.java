@@ -36,7 +36,7 @@ public class CreateAssignmentTool implements AgentTool {
 
     @Override
     public String getDescription() {
-        return "Tạo bài tập sau khi giảng viên xác nhận. Cần title, classId (UUID), và topic (chủ đề bài kiểm tra). gradingStrategy mặc định là STUDENT_DOCKER_COMPOSE nếu không ghi rõ.";
+        return "Tạo bài tập GRADED (cần classId) hoặc PRACTICE (không có classId). Cần title và topic; gradingStrategy mặc định STUDENT_DOCKER_COMPOSE. Cần duyệt.";
     }
 
     @Override
@@ -47,8 +47,9 @@ public class CreateAssignmentTool implements AgentTool {
                 .inputSchema("""
                         {"type":"object","properties":{
                           "title":{"type":"string","description":"Tên bài tập"},
-                          "classId":{"type":"string","format":"uuid","description":"ID lớp do giảng viên phụ trách"},
-                          "topic":{"type":"string","description":"Chủ đề bài kiểm tra (ví dụ quản lý sinh viên)"},
+                          "classId":{"type":"string","format":"uuid","description":"Bắt buộc khi purpose=GRADED; không gửi khi PRACTICE"},
+                          "purpose":{"type":"string","enum":["GRADED","PRACTICE"],"description":"Mặc định GRADED"},
+                          "topic":{"type":"string","description":"Chủ đề bắt buộc cho cả GRADED và PRACTICE"},
                           "gradingStrategy":{"type":"string","enum":["STUDENT_DOCKER_COMPOSE","LECTURER_DOCKER_COMPOSE"]},
                           "description":{"type":"string"},
                           "dockerComposeTemplate":{"type":"string","description":"Bắt buộc với LECTURER_DOCKER_COMPOSE"},
@@ -57,7 +58,7 @@ public class CreateAssignmentTool implements AgentTool {
                           "executionTimeoutMs":{"type":"integer"},
                           "maxMemoryMb":{"type":"integer"},
                           "maxCpu":{"type":"number"}
-                        },"required":["title","classId","topic"],"additionalProperties":false}
+                        },"required":["title","topic"],"additionalProperties":false}
                         """)
                 .build();
     }
@@ -88,8 +89,8 @@ public class CreateAssignmentTool implements AgentTool {
             return ToolResult.error("INVALID_ARGUMENTS", "Tiêu đề bài tập 'title' là bắt buộc", false);
         }
 
-        if (!arguments.hasNonNull("classId") || arguments.get("classId").asText().isBlank()) {
-            return ToolResult.error("INVALID_ARGUMENTS", "Mã lớp 'classId' là bắt buộc", false);
+        if (!arguments.hasNonNull("topic") || arguments.get("topic").asText().isBlank()) {
+            return ToolResult.error("INVALID_ARGUMENTS", "Chủ đề bài tập 'topic' là bắt buộc", false);
         }
 
         if (!arguments.hasNonNull("topic") || arguments.get("topic").asText().isBlank()) {
@@ -97,11 +98,25 @@ public class CreateAssignmentTool implements AgentTool {
         }
 
         String title = arguments.get("title").asText().trim();
-        UUID classId;
-        try {
-            classId = UUID.fromString(arguments.get("classId").asText().trim());
-        } catch (IllegalArgumentException e) {
-            return ToolResult.error("INVALID_UUID", "Mã lớp 'classId' không đúng định dạng UUID: " + e.getMessage(), false);
+        String topic = arguments.get("topic").asText().trim();
+        String purpose = arguments.hasNonNull("purpose") ? arguments.get("purpose").asText() : "GRADED";
+        if (!purpose.equals("GRADED") && !purpose.equals("PRACTICE")) {
+            return ToolResult.error("INVALID_ARGUMENTS", "purpose phải là GRADED hoặc PRACTICE", false);
+        }
+        boolean hasClassId = arguments.hasNonNull("classId") && !arguments.get("classId").asText().isBlank();
+        if (purpose.equals("GRADED") && !hasClassId) {
+            return ToolResult.error("INVALID_ARGUMENTS", "classId là bắt buộc với GRADED", false);
+        }
+        if (purpose.equals("PRACTICE") && arguments.hasNonNull("classId")) {
+            return ToolResult.error("INVALID_ARGUMENTS", "PRACTICE không được gắn classId", false);
+        }
+        UUID classId = null;
+        if (hasClassId) {
+            try {
+                classId = UUID.fromString(arguments.get("classId").asText().trim());
+            } catch (IllegalArgumentException e) {
+                return ToolResult.error("INVALID_UUID", "Mã lớp 'classId' không đúng định dạng UUID: " + e.getMessage(), false);
+            }
         }
 
         String strategy = arguments.hasNonNull("gradingStrategy")
@@ -118,7 +133,7 @@ public class CreateAssignmentTool implements AgentTool {
         CreateAssignmentCommand command;
         try {
             command = new CreateAssignmentCommand(
-                    title, classId, strategy, optionalText(arguments, "description"), template,
+                    title, classId, purpose, topic, strategy, optionalText(arguments, "description"), template,
                     optionalInt(arguments, "dockerComposePort"),
                     optionalInt(arguments, "startupTimeoutMs"),
                     optionalInt(arguments, "executionTimeoutMs"),
@@ -132,7 +147,9 @@ public class CreateAssignmentTool implements AgentTool {
 
         String idempotencyKey = arguments.has("idempotencyKey")
                 ? arguments.get("idempotencyKey").asText()
-                : "assign-" + classId + "-" + title.toLowerCase().replaceAll("\\s+", "-");
+                : purpose.equals("PRACTICE")
+                        ? "assign-practice-" + context.userId() + "-" + title.toLowerCase().replaceAll("\\s+", "-")
+                        : "assign-" + classId + "-" + title.toLowerCase().replaceAll("\\s+", "-");
 
         try {
             Optional<Operation> existing = operationService.findByIdempotencyKey(idempotencyKey);

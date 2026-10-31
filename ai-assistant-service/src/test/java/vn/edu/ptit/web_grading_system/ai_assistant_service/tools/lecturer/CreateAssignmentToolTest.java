@@ -21,10 +21,63 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 public class CreateAssignmentToolTest {
+
+    @Test
+    void practiceCreationOmitsClassAndTransmitsPurposeAndTopic() throws Exception {
+        CourseServiceClient client = mock(CourseServiceClient.class);
+        OperationService operations = mock(OperationService.class);
+        ObjectMapper mapper = new JacksonConfig().objectMapper();
+        CreateAssignmentTool tool = new CreateAssignmentTool(client, operations, mapper);
+        AgentContext ctx = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"), null, null, "secret");
+        when(operations.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
+        when(client.createAssignment(anyString(), eq("ROLE_LECTURER"), any(), eq("secret")))
+                .thenReturn(ApiEnvelope.<AssignmentSummaryDto>builder().status(201)
+                        .data(AssignmentSummaryDto.builder().id(UUID.randomUUID()).build()).build());
+
+        ToolResult result = tool.execute(mapper.readTree(
+                "{\"title\":\"SQL practice\",\"purpose\":\"PRACTICE\",\"topic\":\"SQL\"}"), ctx);
+
+        assertTrue(result.isSuccess(), result.getMessage());
+        ArgumentCaptor<CreateAssignmentCommand> body = ArgumentCaptor.forClass(CreateAssignmentCommand.class);
+        verify(client).createAssignment(anyString(), anyString(), body.capture(), anyString());
+        JsonNode json = mapper.valueToTree(body.getValue());
+        assertEquals("PRACTICE", json.path("purpose").asText());
+        assertEquals("SQL", json.path("topic").asText());
+        assertFalse(json.has("classId"));
+        assertNull(body.getValue().classId());
+    }
+
+    @Test
+    void assignmentSchemaExposesPurposeAndRequiresTopicButNotClassId() throws Exception {
+        CreateAssignmentTool tool = new CreateAssignmentTool(
+                mock(CourseServiceClient.class), mock(OperationService.class), new JacksonConfig().objectMapper());
+        JsonNode schema = new ObjectMapper().readTree(tool.getToolDefinition().inputSchema());
+        assertEquals("PRACTICE", schema.path("properties").path("purpose").path("enum").get(1).asText());
+        assertTrue(schema.path("required").toString().contains("topic"));
+        assertFalse(schema.path("required").toString().contains("classId"));
+    }
+
+    @Test
+    void rejectsMissingTopicAndInvalidClassPurposeCombination() throws Exception {
+        CourseServiceClient client = mock(CourseServiceClient.class);
+        CreateAssignmentTool tool = new CreateAssignmentTool(client, mock(OperationService.class), new JacksonConfig().objectMapper());
+        AgentContext ctx = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"), null, null, "secret");
+        ObjectMapper mapper = new ObjectMapper();
+        String classId = UUID.randomUUID().toString();
+
+        assertEquals("INVALID_ARGUMENTS", tool.execute(mapper.readTree(
+                "{\"title\":\"A\",\"classId\":\"" + classId + "\"}"), ctx).getCode());
+        assertEquals("INVALID_ARGUMENTS", tool.execute(mapper.readTree(
+                "{\"title\":\"A\",\"purpose\":\"PRACTICE\",\"topic\":\"SQL\",\"classId\":\"" + classId + "\"}"), ctx).getCode());
+        assertEquals("INVALID_ARGUMENTS", tool.execute(mapper.readTree(
+                "{\"title\":\"A\",\"purpose\":\"GRADED\",\"topic\":\"SQL\"}"), ctx).getCode());
+        verifyNoInteractions(client);
+    }
 
     @Test
     void testValidateFailsWhenRequiredFieldsMissing() throws Exception {
@@ -54,7 +107,7 @@ public class CreateAssignmentToolTest {
 
         // Review: 2026-10-27 — gradingStrategy is optional now. The tool must fill in the
         // lecturer-created default and still create the assignment instead of rejecting the call.
-        ToolResult result = tool.execute(mapper.readTree("{\"title\":\"Bài 1\",\"classId\":\"" + classId + "\",\"topic\":\"Quản lý sinh viên\"}"), ctx);
+        ToolResult result = tool.execute(mapper.readTree("{\"title\":\"Bài 1\",\"topic\":\"Web\",\"classId\":\"" + classId + "\"}"), ctx);
 
         assertTrue(result.isSuccess());
         ArgumentCaptor<CreateAssignmentCommand> body = ArgumentCaptor.forClass(CreateAssignmentCommand.class);
@@ -71,7 +124,7 @@ public class CreateAssignmentToolTest {
         AgentContext ctx = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"), null, null, "secret");
 
         ToolResult result = tool.execute(new ObjectMapper().readTree(
-                "{\"title\":\"Bài 1\",\"classId\":\"" + classId + "\",\"topic\":\"Quản lý sinh viên\",\"gradingStrategy\":\"LECTURER_DOCKER_COMPOSE\"}"), ctx);
+                "{\"title\":\"Bài 1\",\"topic\":\"Web\",\"classId\":\"" + classId + "\",\"gradingStrategy\":\"LECTURER_DOCKER_COMPOSE\"}"), ctx);
 
         assertFalse(result.isSuccess());
         assertEquals("INVALID_ARGUMENTS", result.getCode());
@@ -92,8 +145,7 @@ public class CreateAssignmentToolTest {
         assertTrue(required.isArray());
         assertFalse(required.toString().contains("gradingStrategy"));
         assertTrue(required.toString().contains("title"));
-        assertTrue(required.toString().contains("classId"));
-        assertTrue(required.toString().contains("topic"));
+        assertFalse(required.toString().contains("classId"));
     }
 
     @Test
@@ -110,7 +162,7 @@ public class CreateAssignmentToolTest {
                 .thenReturn(ApiEnvelope.<AssignmentSummaryDto>builder()
                         .status(201).data(AssignmentSummaryDto.builder().id(assignmentId).title("Bài 1").build()).build());
 
-        ToolResult result = tool.execute(mapper.readTree("{\"title\":\"Bài 1\",\"classId\":\"" + classId + "\",\"topic\":\"Quản lý sinh viên\",\"gradingStrategy\":\"STUDENT_DOCKER_COMPOSE\"}"), ctx);
+        ToolResult result = tool.execute(mapper.readTree("{\"title\":\"Bài 1\",\"topic\":\"Web\",\"classId\":\"" + classId + "\",\"gradingStrategy\":\"STUDENT_DOCKER_COMPOSE\"}"), ctx);
 
         assertTrue(result.isSuccess());
         ArgumentCaptor<CreateAssignmentCommand> body = ArgumentCaptor.forClass(CreateAssignmentCommand.class);
@@ -134,7 +186,7 @@ public class CreateAssignmentToolTest {
         when(client.createAssignment(anyString(), anyString(), any(), anyString()))
                 .thenReturn(ApiEnvelope.<AssignmentSummaryDto>builder().status(201).build());
 
-        ToolResult result = tool.execute(mapper.readTree("{\"title\":\"Bài 1\",\"classId\":\"" + UUID.randomUUID() + "\",\"topic\":\"Quản lý sinh viên\",\"gradingStrategy\":\"STUDENT_DOCKER_COMPOSE\"}"), ctx);
+        ToolResult result = tool.execute(mapper.readTree("{\"title\":\"Bài 1\",\"topic\":\"Web\",\"classId\":\"" + UUID.randomUUID() + "\",\"gradingStrategy\":\"STUDENT_DOCKER_COMPOSE\"}"), ctx);
 
         assertFalse(result.isSuccess());
         verify(operations, never()).markSuccess(anyString(), anyString());
@@ -154,7 +206,7 @@ public class CreateAssignmentToolTest {
         when(operations.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
         when(client.createAssignment(anyString(), anyString(), any(), anyString())).thenThrow(badRequest);
 
-        ToolResult result = tool.execute(mapper.readTree("{\"title\":\"Bài 1\",\"classId\":\"" + UUID.randomUUID() + "\",\"topic\":\"Quản lý sinh viên\",\"gradingStrategy\":\"STUDENT_DOCKER_COMPOSE\"}"), ctx);
+        ToolResult result = tool.execute(mapper.readTree("{\"title\":\"Bài 1\",\"topic\":\"Web\",\"classId\":\"" + UUID.randomUUID() + "\",\"gradingStrategy\":\"STUDENT_DOCKER_COMPOSE\"}"), ctx);
 
         assertFalse(result.isSuccess());
         assertEquals("VALIDATION_ERROR", result.getCode());
