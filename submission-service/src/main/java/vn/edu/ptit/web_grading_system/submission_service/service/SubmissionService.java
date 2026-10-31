@@ -124,12 +124,6 @@ public class SubmissionService {
         handleUploadComplete(objectName);
     }
 
-    @Transactional(readOnly = true)
-    public Page<SubmissionResponse> listByStudent(UUID studentId, Pageable pageable) {
-        return submissionRepository.findByStudentIdOrderByCreatedAtDesc(studentId, pageable)
-                .map(submissionMapper::toResponse);
-    }
-
     /**
      * Student search (MySubmissionsPage): server-side {@code ?search} match on the zip
      * file name only — {@code Assignment} lives in {@code assignment_db}, not
@@ -157,11 +151,6 @@ public class SubmissionService {
                 .findByStudentIdAndAssignmentIdAndZipFileNameContainingIgnoreCaseOrderByCreatedAtDesc(
                         studentId, assignmentId, search, pageable)
                 .map(submissionMapper::toResponse);
-    }
-
-    @Transactional(readOnly = true)
-    public Page<SubmissionResponse> listByStudent(UUID studentId, String search, Pageable pageable) {
-        return listByStudent(studentId, null, search, pageable);
     }
 
     @Transactional(readOnly = true)

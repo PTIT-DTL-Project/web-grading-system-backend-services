@@ -72,7 +72,8 @@ public class SubmissionController {
             @RequestParam(required = false) UUID assignmentId) {
         Pageable pageable = PageRequest.of(page, size);
         Page<SubmissionResponse> body = submissionService.listByStudent(
-                UUID.fromString(studentId), assignmentId, search, pageable);
+                UUID.fromString(studentId), assignmentId,
+                search == null ? null : search.trim(), pageable);
         return ResponseEntity.ok(body);
     }
 
