@@ -49,6 +49,7 @@ public class AgentRuntime {
     private static final Pattern REJECTED_FIELD = Pattern.compile(
             "`(/[A-Za-z0-9_/-]+)`: expected ([a-z]+), but got ([a-z]+)");
     private enum LookupPhase { NORMAL, SEARCH, READ }
+    private enum CreationTarget { NONE, ASSIGNMENT, PLAN, PLAN_WITH_STEPS, STEP }
     private record StepIntent(boolean active, String suggestedStep) {}
 
     private final ToolRegistry registry;
@@ -125,7 +126,26 @@ public class AgentRuntime {
             }
         }
         String toolRequest = recentToolRequest(context, latestUserText);
-        StepIntent stepIntent = stepIntent(context, latestUserText);
+        String suggestedCreation = acceptedCreationSuggestion(context, latestUserText);
+        StepIntent stepIntent = stepIntent(latestUserText, suggestedCreation);
+        CreationTarget creationTarget = creationTarget(latestUserText, suggestedCreation, stepIntent);
+        if (creationTarget != CreationTarget.NONE && !suggestedCreation.isBlank()
+                && creationTarget != CreationTarget.STEP) {
+            systemPrompt += "\nNgười dùng vừa chấp nhận mẫu tạo trước đó: " + suggestedCreation
+                    + "\nDùng thông tin được gợi ý làm giả định cho đề xuất chờ duyệt; "
+                    + "nếu vẫn thiếu dữ liệu bắt buộc thì hỏi riêng phần còn thiếu.";
+        }
+        if (creationTarget == CreationTarget.ASSIGNMENT) {
+            systemPrompt += "\nYÊU CẦU HIỆN TẠI: tạo BÀI TẬP. Chỉ dùng createAssignment cho thao tác ghi. "
+                    + "Xác định purpose, title, topic và classId theo quy tắc bài tập; hỏi dữ liệu còn thiếu, không tạo câu kiểm tra hay bước chấm.";
+        } else if (creationTarget == CreationTarget.PLAN || creationTarget == CreationTarget.PLAN_WITH_STEPS) {
+            systemPrompt += "\nYÊU CẦU HIỆN TẠI: tạo CÂU KIỂM TRA trong bài tập đã có. "
+                    + "Tra cứu bài tập theo tên và các câu hiện có để chọn sequenceOrder. "
+                    + (creationTarget == CreationTarget.PLAN_WITH_STEPS
+                    ? "Người dùng muốn tạo câu cùng các bước; dùng createTestQuestion cho thao tác ghi. "
+                    : "Chỉ dùng createTestPlan cho thao tác ghi. ")
+                    + "Không chuyển sang tạo riêng bước chấm; hỏi đúng dữ liệu còn thiếu.";
+        }
         if (stepIntent.active()) {
             toolRequest += "\nCurrent task: create a grading step in an existing test plan. "
                     + "Resolve the assignment and plan by name before preparing createTestStep.";
@@ -156,15 +176,26 @@ public class AgentRuntime {
         } catch (AiProviderException error) {
             log.warn("AI runId={} phase=toolSelection errorType={}",
                     context.runId(), error.getClass().getSimpleName());
-            if (!stepIntent.active()) throw error;
+            if (creationTarget == CreationTarget.NONE) throw error;
         }
-        if (stepIntent.active()) {
-            constrainStepWrites(selected);
-            selected.addAll(registry.planReferenceLookups(Set.of("planId"), context.roles()).stream()
+        if (creationTarget != CreationTarget.NONE) {
+            constrainCreationWrites(selected, creationTarget);
+            Set<String> requiredIds = switch (creationTarget) {
+                case ASSIGNMENT -> Set.of("classId");
+                case PLAN, PLAN_WITH_STEPS -> Set.of("assignmentId");
+                case STEP -> Set.of("planId");
+                default -> Set.of();
+            };
+            selected.addAll(registry.planReferenceLookups(requiredIds, context.roles()).stream()
                     .map(AgentTool::getName).toList());
-            for (String name : List.of("listTestSteps", "getTestStepCapabilities", "createTestStep")) {
-                if (registry.find(name).isPresent()) selected.add(name);
-            }
+            List<String> usefulTools = switch (creationTarget) {
+                case ASSIGNMENT -> List.of("createAssignment");
+                case PLAN -> List.of("listTestPlans", "createTestPlan");
+                case PLAN_WITH_STEPS -> List.of("listTestPlans", "getTestStepCapabilities", "createTestQuestion");
+                case STEP -> List.of("listTestSteps", "getTestStepCapabilities", "createTestStep");
+                default -> List.of();
+            };
+            for (String name : usefulTools) if (registry.find(name).isPresent()) selected.add(name);
         }
         log.info("AI runId={} phase=toolSelection selectedTools={}", context.runId(), selected);
         List<org.springframework.ai.chat.messages.Message> inFlight =
@@ -188,7 +219,7 @@ public class AgentRuntime {
         try {
         for (int step = 0; step < properties.getLimits().getMaxModelSteps(); step++) {
             checkCancelled(isCancelled);
-            if (stepIntent.active()) constrainStepWrites(selected);
+            if (creationTarget != CreationTarget.NONE) constrainCreationWrites(selected, creationTarget);
             int modelStep = modelSteps.incrementAndGet();
             long stepStarted = System.nanoTime();
             log.info("AI runId={} modelStep={} started selectedTools={}",
@@ -274,7 +305,7 @@ public class AgentRuntime {
                 }
                 throw overflow;
             }
-            String modelPrompt = stepIntent.active() || prepared.summary().isBlank() ? stepPrompt
+            String modelPrompt = creationTarget != CreationTarget.NONE || prepared.summary().isBlank() ? stepPrompt
                     : stepPrompt + "\nTÓM TẮT QUYẾT ĐỊNH CŨ:\n" + prepared.summary();
             StringBuilder response = new StringBuilder();
             String toolChoice = lookupPhase == LookupPhase.SEARCH ? "search_tools"
@@ -460,7 +491,7 @@ public class AgentRuntime {
                 + "state what is missing. Do not request or call another tool.";
         ContextPreflight.PreparedContext finalContext = preflight.prepare(context.conversationId(),
                 context.userId(), context.roles(), finalPrompt, List.of(), inFlight);
-        String modelPrompt = stepIntent.active() || finalContext.summary().isBlank() ? finalPrompt
+        String modelPrompt = creationTarget != CreationTarget.NONE || finalContext.summary().isBlank() ? finalPrompt
                 : finalPrompt + "\nPrevious context summary:\n" + finalContext.summary();
         StringBuilder finalResponse = new StringBuilder();
         modelCalls.incrementAndGet();
@@ -525,36 +556,47 @@ public class AgentRuntime {
         return request.toString();
     }
 
-    private StepIntent stepIntent(AgentContext context, String latestUserText) {
+    private StepIntent stepIntent(String latestUserText, String suggestedCreation) {
         String normalized = normalizeIntent(latestUserText);
-        boolean explicit = (normalized.contains("tao") || normalized.contains("them"))
+        boolean explicit = !isPlanCreation(normalized)
+                && (normalized.contains("tao") || normalized.contains("them")
+                    || normalized.contains("create") || normalized.contains("add"))
                 && (normalized.contains("buoc cham") || normalized.contains("buoc kiem tra")
-                    || normalized.matches("(?s).*\\b(create|add|tao|them) (a )?(grading )?step\\b.*"));
+                    || normalized.matches("(?s).*\\bstep\\b.*"));
         if (explicit) return new StepIntent(true, "");
+        String suggestion = normalizeIntent(suggestedCreation);
+        if (!suggestion.isBlank() && !isPlanCreation(suggestion)
+                && (suggestion.contains("buoc cham") || suggestion.contains("buoc kiem tra")
+                    || suggestion.matches("(?s).*\\bstep\\b.*"))) {
+            return new StepIntent(true, suggestedCreation);
+        }
+        return new StepIntent(false, "");
+    }
+
+    private String acceptedCreationSuggestion(AgentContext context, String latestUserText) {
+        String normalized = normalizeIntent(latestUserText);
         boolean acceptance = (normalized.startsWith("ok") || normalized.startsWith("duoc")
                 || normalized.startsWith("dong y") || normalized.startsWith("cu tao"))
                 && (normalized.contains("mau") || normalized.contains("goi y")
                     || normalized.contains("nhu tren"));
-        if (!acceptance) return new StepIntent(false, "");
+        if (!acceptance) return "";
         try {
             String roleScope = context.roles().stream().sorted().collect(Collectors.joining(","));
             var page = messages.findScopedRecent(context.conversationId(), roleScope,
                     org.springframework.data.domain.PageRequest.of(0, 4));
-            if (page == null) return new StepIntent(false, "");
+            if (page == null) return "";
             return page.getContent().stream()
                     .sorted(Comparator.comparingInt((vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message message) ->
                             message.getSequenceNo() == null ? 0 : message.getSequenceNo()).reversed())
                     .filter(message -> "assistant".equals(message.getRole()))
                     .map(vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message::getContent)
-                    .findFirst().filter(content -> content != null && (normalizeIntent(content).contains("buoc cham")
-                            || normalizeIntent(content).contains("buoc kiem tra")))
-                    .map(content -> new StepIntent(true,
-                            content.length() > 3000 ? content.substring(0, 3000) : content))
-                    .orElse(new StepIntent(false, ""));
+                    .findFirst().filter(content -> content != null && !content.isBlank())
+                    .map(content -> content.length() > 3000 ? content.substring(0, 3000) : content)
+                    .orElse("");
         } catch (RuntimeException error) {
-            log.warn("AI runId={} phase=stepIntentHistory errorType={}",
+            log.warn("AI runId={} phase=creationSuggestionHistory errorType={}",
                     context.runId(), error.getClass().getSimpleName());
-            return new StepIntent(false, "");
+            return "";
         }
     }
 
@@ -564,10 +606,43 @@ public class AgentRuntime {
                 .replaceAll("\\p{M}", "").replace('đ', 'd');
     }
 
-    private void constrainStepWrites(Set<String> selected) {
+    private static CreationTarget creationTarget(String latestUserText, String suggestedCreation,
+                                                 StepIntent stepIntent) {
+        if (stepIntent.active()) return CreationTarget.STEP;
+        String normalized = normalizeIntent(latestUserText);
+        if (!suggestedCreation.isBlank()) normalized = normalizeIntent(suggestedCreation);
+        if (!(normalized.contains("tao") || normalized.contains("them")
+                || normalized.contains("create") || normalized.contains("add"))) return CreationTarget.NONE;
+        if (isPlanCreation(normalized)) {
+            return (normalized.matches("(?s).*\\b(va|kem|cung) (cac )?buoc (cham|kiem tra)\\b.*")
+                    || normalized.contains("with steps"))
+                    ? CreationTarget.PLAN_WITH_STEPS : CreationTarget.PLAN;
+        }
+        if (normalized.contains("bai tap") || normalized.contains("assignment")) return CreationTarget.ASSIGNMENT;
+        return CreationTarget.NONE;
+    }
+
+    private static boolean isPlanCreation(String normalized) {
+        var matcher = Pattern.compile("\\b(tao|them|create|add) (mot )?(cau kiem tra|test plan)\\b")
+                .matcher(normalized);
+        while (matcher.find()) {
+            String prefix = normalized.substring(Math.max(0, matcher.start() - 3), matcher.start());
+            if (!prefix.equals("da ")) return true;
+        }
+        return false;
+    }
+
+    private void constrainCreationWrites(Set<String> selected, CreationTarget target) {
+        String writer = switch (target) {
+            case ASSIGNMENT -> "createAssignment";
+            case PLAN -> "createTestPlan";
+            case PLAN_WITH_STEPS -> "createTestQuestion";
+            case STEP -> "createTestStep";
+            default -> "";
+        };
         selected.removeIf(name -> registry.find(name).map(tool ->
                 tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE
-                        && !name.equals("createTestStep")).orElse(false));
+                        && !name.equals(writer)).orElse(false));
     }
 
     private static boolean asksForPlanCreationFields(String completion) {
