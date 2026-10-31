@@ -41,6 +41,23 @@ public class DomainApiTool implements AgentTool {
     @Override public String getDescription() { return description; }
 
     @Override
+    public Set<String> resolvedIdentifiers() {
+        if (!method.equals("GET")) return Set.of();
+        return switch (name) {
+            case "listTestPlans", "listMyTestPlans" -> Set.of("planId");
+            case "listTestSteps" -> Set.of("stepId");
+            case "listMySubmissions" -> Set.of("submissionId");
+            case "getClassRoster" -> Set.of("studentCode");
+            default -> Set.of();
+        };
+    }
+
+    @Override
+    public Set<String> lookupPrerequisites() {
+        return Set.of(pathKeys);
+    }
+
+    @Override
     public vn.edu.ptit.web_grading_system.ai_assistant_service.tools.ToolDefinition getDefinition() {
         return new vn.edu.ptit.web_grading_system.ai_assistant_service.tools.ToolDefinition(
                 name, description, "1.0", role.equals("ROLE_STUDENT") ? "student" : "lecturer",

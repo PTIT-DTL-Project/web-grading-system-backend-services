@@ -29,6 +29,12 @@ public interface AgentTool extends ToolCallback {
     /** Safe, caller-scoped read that can resolve a named entity without knowing its UUID. */
     default String referenceLookupKeywords() { return ""; }
 
+    /** Identifiers present in the result of this caller-scoped read. */
+    default Set<String> resolvedIdentifiers() { return Set.of(); }
+
+    /** Identifiers required before this lookup can be called. */
+    default Set<String> lookupPrerequisites() { return Set.of(); }
+
     @Override
     default org.springframework.ai.tool.definition.ToolDefinition getToolDefinition() {
         return org.springframework.ai.tool.definition.ToolDefinition.builder()

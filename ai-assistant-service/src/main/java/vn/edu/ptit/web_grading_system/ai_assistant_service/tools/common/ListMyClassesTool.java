@@ -36,6 +36,9 @@ public class ListMyClassesTool implements AgentTool {
     }
 
     @Override
+    public Set<String> resolvedIdentifiers() { return Set.of("classId"); }
+
+    @Override
     public org.springframework.ai.tool.definition.ToolDefinition getToolDefinition() {
         return org.springframework.ai.tool.definition.ToolDefinition.builder()
                 .name(getName())

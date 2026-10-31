@@ -37,12 +37,15 @@ public class ListVisibleAssignmentsTool implements AgentTool {
     }
 
     @Override
+    public Set<String> resolvedIdentifiers() { return Set.of("assignmentId"); }
+
+    @Override
     public org.springframework.ai.tool.definition.ToolDefinition getToolDefinition() {
         return org.springframework.ai.tool.definition.ToolDefinition.builder()
                 .name(getName())
                 .description(getDescription() + " Dùng khi người dùng nói tên bài tập nhưng chưa biết ID; "
                         + "search là tên hoặc một phần tên, để trống nếu cần liệt kê.")
-                .inputSchema("{\"type\":\"object\",\"properties\":{\"classId\":{\"type\":\"string\",\"format\":\"uuid\"},"
+                .inputSchema("{\"type\":\"object\",\"properties\":{\"classId\":{\"type\":\"string\",\"description\":\"Optional class UUID; omit or use an empty string when unknown\"},"
                         + "\"search\":{\"type\":\"string\"},"
                         + "\"page\":{\"type\":\"integer\",\"minimum\":0},"
                         + "\"size\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":50}},"

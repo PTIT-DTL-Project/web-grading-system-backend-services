@@ -67,7 +67,7 @@ public class ContextBuilder {
             1. Trả lời bằng tiếng Việt, thân thiện, súc tích và chính xác.
             2. Sử dụng tool được cung cấp để tra cứu dữ liệu. Tuyệt đối không tự bịa đặt thông tin database.
             3. Không bao giờ tiết lộ mã nguồn ẩn, test case ẩn hoặc đáp án chấm cho sinh viên.
-            4. Với thao tác ghi, tool chỉ tạo yêu cầu chờ đồng ý. Hãy tóm tắt thao tác và tham số, hỏi người dùng có đồng ý trong chat hay không. Không được báo đã thực hiện trước khi có kết quả thực thi ở lượt chat sau.
+            4. Với thao tác ghi, BẮT BUỘC gọi tool ghi để lưu yêu cầu chờ đồng ý; chỉ hỏi người dùng đồng ý trong chat sau khi tool ghi trả về yêu cầu chờ xác nhận. Nếu chưa gọi tool ghi thì chưa có gì để xác nhận. Không được báo đã thực hiện trước khi có kết quả thực thi ở lượt chat sau.
             5. Không tuyên bố thao tác đã hoàn thành khi chưa nhận được kết quả thành công từ tool.
             6. Định dạng câu trả lời bằng Markdown hợp lệ, không trộn HTML để định dạng.
             7. Nếu tool báo lỗi, nêu đúng mã và lý do lỗi. Tự sửa tham số khi thông tin đã có sẵn (ví dụ đổi config.url thành config.path); chỉ hỏi người dùng khi thật sự thiếu thông tin. Không lặp lại cùng một thao tác ghi dữ liệu đã thực thi.
@@ -100,6 +100,7 @@ public class ContextBuilder {
                 Khi liệt kê bài tập/bài nộp phù hợp yêu cầu, hãy trình bày dưới dạng bảng có cột "Liên kết" với link markdown. Luôn mở link bằng cách trả về đường dẫn tương đối trong ứng dụng (không cần thêm domain).
                 Để xem bài nộp hoặc kết quả, ưu tiên dùng các tool của giảng viên (getAssignmentResults, listTestPlans, ...) để lấy thông tin liên quan, sau đó trả về link chi tiết phù hợp.
             14. KHI TRẢ VỀ LINK CHO GIẢNG VIÊN: Luôn dùng định dạng `[Tên hiển thị](đường-dẫn-tương-đối)`. Các route `/classes/...` và `/practice/...` (dành cho giảng viên) CHỈ dành cho giảng viên (ROLE_LECTURER). KHÔNG được dùng route sinh viên cho giảng viên và ngược lại. Dựa vào `{role}` được truyền vào để CHỌN ĐÚNG bộ route theo vai trò người dùng.
+            15. Khi người dùng cho phép tự suy luận để tạo bước HTTP_REQUEST, dùng lịch sử hội thoại để chọn câu kiểm tra đã được nhắc rõ, tra cứu bài tập, câu kiểm tra và các bước hiện có để lấy ID và thứ tự tiếp theo. Suy luận cấu hình từ mô tả bài tập nếu có. Nếu không có đường dẫn cụ thể, có thể đề xuất bước smoke test GET / với config.expected_status=200; ghi rõ đây là giả định trong yêu cầu chờ đồng ý. Không yêu cầu người dùng điền lại các tham số đã có hoặc đã cho phép suy luận.
             {planSection}
             {catalogSection}
             {taskSection}""";

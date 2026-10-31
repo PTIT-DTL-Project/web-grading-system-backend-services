@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.GatewayTrustProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Conversation;
@@ -107,7 +106,6 @@ public class AgentOrchestrator {
                 null, null, null, null);
     }
 
-    @Transactional
     public void executeRun(UUID runId) {
         Run run = runRepository.findById(runId).orElse(null);
         if (run == null) {
@@ -175,16 +173,16 @@ public class AgentOrchestrator {
                     try {
                         agentRuntime.execute(agentContext, systemPrompt, latestUserText, llmClient,
                                 delta -> {
+                                    if (isCancelled(runId)) return;
                                     responseBuffer.append(delta);
                                     sseBroadcaster.sendDelta(runId, delta);
                                 }, (tool, result) -> {
                                     if (tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE) {
                                         failedWrite.set(result.isSuccess() ? null : result);
                                     }
-                                    sseBroadcaster.sendEvent(runId, "tool.finished",
-                                            Map.of("tool", tool.getName(), "success", result.isSuccess()));
-                                });
+                                }, () -> isCancelled(runId));
                     } catch (Exception ex) {
+                        if (ex instanceof RunCancelledException || isCancelled(runId)) throw new RunCancelledException();
                         log.warn("AI runId={} agent execution error: {}", runId, ex.getMessage());
                         if (failedWrite.get() == null) throw ex;
                     }
@@ -201,15 +199,21 @@ public class AgentOrchestrator {
                     if (stream != null) {
                         try {
                             stream.doOnNext(delta -> {
+                                if (isCancelled(runId)) return;
                                 responseBuffer.append(delta);
                                 sseBroadcaster.sendDelta(runId, delta);
-                            }).blockLast();
+                            }).takeUntilOther(Flux.interval(java.time.Duration.ofMillis(200))
+                                    .filter(tick -> isCancelled(runId)).next()).blockLast();
+                            if (isCancelled(runId)) throw new RunCancelledException();
                         } catch (Exception ex) {
+                            if (isCancelled(runId)) throw new RunCancelledException();
                             log.warn("AI runId={} streaming error: {}", runId, ex.getMessage());
                             if (failedWrite.get() == null) throw ex;
                         }
                     }
                 }
+
+                if (isCancelled(runId)) throw new RunCancelledException();
 
                 String completion = responseBuffer.toString().trim();
                 ToolResult writeFailure = failedWrite.get();
@@ -261,7 +265,15 @@ public class AgentOrchestrator {
             }
             sseBroadcaster.complete(runId);
 
+        } catch (RunCancelledException cancelled) {
+            log.info("AI runId={} cancelled", runId);
+            sseBroadcaster.sendEvent(runId, "run.cancelled", Map.of("runId", runId.toString()));
+            sseBroadcaster.complete(runId);
         } catch (Exception e) {
+            if (isCancelled(runId)) {
+                sseBroadcaster.complete(runId);
+                return;
+            }
             log.error("Execution failed for run {}", runId, e);
             boolean providerFailure = hasProviderFailure(e);
             String userMessage = providerFailure
@@ -288,6 +300,12 @@ public class AgentOrchestrator {
             log.info("AI runId={} totalMs={}", runId,
                     java.time.Duration.ofNanos(System.nanoTime() - runStarted).toMillis());
         }
+    }
+
+    private boolean isCancelled(UUID runId) {
+        return runRepository.findById(runId)
+                .map(current -> current.getStatus() == RunStatus.CANCELLED)
+                .orElse(false);
     }
 
     private boolean hasProviderFailure(Throwable error) {

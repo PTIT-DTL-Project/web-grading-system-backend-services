@@ -11,9 +11,12 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.run.RunStatus;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.response.RunResponse;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.orchestrator.SseBroadcaster;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.repository.RunRepository;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.repository.ConversationRepository;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.security.UserPrincipal;
 
 import java.util.UUID;
+import java.time.Instant;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/ai/runs")
@@ -21,12 +24,16 @@ import java.util.UUID;
 public class RunController {
 
     private final RunRepository runRepository;
+    private final ConversationRepository conversationRepository;
     private final SseBroadcaster sseBroadcaster;
 
     @GetMapping(value = "/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter subscribeEvents(
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable UUID id) {
+        Run run = runRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Run not found: " + id));
+        verifyOwner(principal, run);
         return sseBroadcaster.subscribe(id);
     }
 
@@ -36,6 +43,7 @@ public class RunController {
             @PathVariable UUID id) {
         Run run = runRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Run not found: " + id));
+        verifyOwner(principal, run);
 
         return ResponseEntity.ok(new RunResponse(
                 run.getId(),
@@ -54,12 +62,15 @@ public class RunController {
             @PathVariable UUID id) {
         Run run = runRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Run not found: " + id));
-
-        if (run.getStatus() == RunStatus.QUEUED || run.getStatus() == RunStatus.RUNNING
-                || run.getStatus() == RunStatus.WAITING_USER || run.getStatus() == RunStatus.WAITING_APPROVAL) {
-            run.setStatus(RunStatus.CANCELLED);
-            runRepository.save(run);
-        }
+        verifyOwner(principal, run);
+        runRepository.cancelActiveRun(id, RunStatus.CANCELLED, Instant.now(),
+                List.of(RunStatus.QUEUED, RunStatus.RUNNING, RunStatus.WAITING_USER,
+                        RunStatus.WAITING_APPROVAL));
         return ResponseEntity.ok().build();
+    }
+
+    private void verifyOwner(UserPrincipal principal, Run run) {
+        conversationRepository.findByIdAndOwnerId(run.getConversationId(), principal.userId())
+                .orElseThrow(() -> new IllegalArgumentException("Run not found: " + run.getId()));
     }
 }

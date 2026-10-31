@@ -205,6 +205,32 @@ public class AgentOrchestratorTest {
     }
 
     @Test
+    void cancelledRunDoesNotPersistAssistantOrBecomeFailed() {
+        UUID runId = UUID.randomUUID(), convId = UUID.randomUUID();
+        Run run = Run.builder().id(runId).conversationId(convId).status(RunStatus.QUEUED).build();
+        Conversation conv = Conversation.builder().id(convId).ownerId(UUID.randomUUID()).build();
+        AgentRuntime runtime = mock(AgentRuntime.class);
+        orchestrator = new AgentOrchestrator(runRepository, conversationRepository, messageRepository,
+                taskRepository, runEventRepository, guardChecker, contextBuilder, sseBroadcaster,
+                llmClient, mock(ToolRegistry.class), null, null, runtime);
+        when(runRepository.findById(runId)).thenReturn(Optional.of(run));
+        when(runRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        when(conversationRepository.findById(convId)).thenReturn(Optional.of(conv));
+        when(guardChecker.canContinue(any(), eq(0))).thenReturn(true);
+        when(contextBuilder.buildSystemPrompt(any(), any())).thenReturn("system");
+        when(runtime.execute(any(), any(), any(), any(), any(), any(), any())).thenAnswer(call -> {
+            run.setStatus(RunStatus.CANCELLED);
+            throw new RunCancelledException();
+        });
+
+        orchestrator.executeRun(runId);
+
+        assertEquals(RunStatus.CANCELLED, run.getStatus());
+        verify(messageRepository, never()).save(any(Message.class));
+        verify(sseBroadcaster).complete(runId);
+    }
+
+    @Test
     void productionPathUsesAgentRuntimeAndPersistsReplyWithRunId() {
         UUID runId = UUID.randomUUID(), convId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
@@ -224,7 +250,7 @@ public class AgentOrchestratorTest {
         when(contextBuilder.buildSystemPrompt(any(), any())).thenReturn("system");
         when(messageRepository.findFirstByRunIdAndRoleOrderBySequenceNoAsc(runId, "user"))
                 .thenReturn(Optional.of(Message.builder().content("Xem bài nộp").build()));
-        when(runtime.execute(any(), eq("system"), eq("Xem bài nộp"), eq(llmClient), any(), any()))
+        when(runtime.execute(any(), eq("system"), eq("Xem bài nộp"), eq(llmClient), any(), any(), any()))
                 .thenAnswer(call -> {
                     java.util.function.Consumer<String> delta = call.getArgument(4);
                     delta.accept("Đây là bài nộp");
@@ -233,7 +259,7 @@ public class AgentOrchestratorTest {
 
         orchestrator.executeRun(runId);
 
-        verify(runtime).execute(any(), eq("system"), eq("Xem bài nộp"), eq(llmClient), any(), any());
+        verify(runtime).execute(any(), eq("system"), eq("Xem bài nộp"), eq(llmClient), any(), any(), any());
         verify(memory).addForRun(eq(convId.toString()), eq(runId), anyList());
         assertEquals(RunStatus.SUCCEEDED, run.getStatus());
     }

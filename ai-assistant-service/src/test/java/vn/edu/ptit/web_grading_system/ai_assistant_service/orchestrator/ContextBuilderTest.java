@@ -16,6 +16,8 @@ public class ContextBuilderTest {
         assertTrue(prompt.contains("WGS"), "Prompt should mention WGS");
         assertTrue(prompt.contains("ROLE_STUDENT"), "Prompt should mention role");
         assertTrue(prompt.contains("đồng ý trong chat"));
+        assertTrue(prompt.contains("chỉ hỏi người dùng đồng ý trong chat sau khi tool ghi trả về yêu cầu chờ xác nhận"));
+        assertTrue(prompt.contains("người dùng cho phép tự suy luận"));
         assertTrue(!prompt.contains("bấm xác nhận trên giao diện"));
     }
 

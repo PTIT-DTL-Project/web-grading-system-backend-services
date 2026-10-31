@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.BooleanSupplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -67,6 +68,13 @@ public class AgentRuntime {
     public String execute(AgentContext context, String systemPrompt, String latestUserText,
                           LlmClient llm, Consumer<String> onFinalDelta,
                           BiConsumer<AgentTool, ToolResult> onResult) {
+        return execute(context, systemPrompt, latestUserText, llm, onFinalDelta, onResult, () -> false);
+    }
+
+    public String execute(AgentContext context, String systemPrompt, String latestUserText,
+                          LlmClient llm, Consumer<String> onFinalDelta,
+                          BiConsumer<AgentTool, ToolResult> onResult, BooleanSupplier isCancelled) {
+        checkCancelled(isCancelled);
         String unpersistedProposal = "";
         boolean pendingActionInChat = false;
         if (approvalService != null) {
@@ -78,6 +86,7 @@ public class AgentRuntime {
                         ? LlmClient.ApprovalDecision.CONFIRM
                         : llm.classifyPendingActionReply(latestUserText, action.summary());
                 if (decision == LlmClient.ApprovalDecision.CONFIRM) {
+                    checkCancelled(isCancelled);
                     Object outcome = approvalService.confirmFromChat(action.id(), context);
                     String completion = confirmationReply(action, outcome);
                     if (outcome instanceof java.util.Map<?, ?> map
@@ -100,6 +109,7 @@ public class AgentRuntime {
                     return completion;
                 }
                 if (decision == LlmClient.ApprovalDecision.REJECT) {
+                    checkCancelled(isCancelled);
                     approvalService.rejectFromChat(action.id(), context);
                     String completion = "Đã hủy yêu cầu: " + action.description();
                     onFinalDelta.accept(completion);
@@ -142,6 +152,7 @@ public class AgentRuntime {
 
         try {
         for (int step = 0; step < properties.getLimits().getMaxModelSteps(); step++) {
+            checkCancelled(isCancelled);
             int modelStep = modelSteps.incrementAndGet();
             long stepStarted = System.nanoTime();
             log.info("AI runId={} modelStep={} started selectedTools={}",
@@ -161,7 +172,7 @@ public class AgentRuntime {
             Set<String> activeNames = lookupPhase == LookupPhase.SEARCH ? Set.of()
                     : lookupPhase == LookupPhase.READ ? Set.of(lookupToolName) : selected;
             for (ToolCallback domain : registry.callbacksForNames(activeNames, context, trackResult)) {
-                callbacks.add(boundedResult(domain, context, inFlight, usedTool, toolCalls, modelStep));
+                callbacks.add(boundedResult(domain, context, inFlight, usedTool, toolCalls, modelStep, isCancelled));
             }
             ToolCallback discovery = new SearchToolsTool(registry, mapper,
                     properties.getContext().getToolSearchLimit(), llm).callback(context, selected);
@@ -171,6 +182,7 @@ public class AgentRuntime {
                 }
                 @Override public ToolMetadata getToolMetadata() { return discovery.getToolMetadata(); }
                 @Override public String call(String input) {
+                    checkCancelled(isCancelled);
                     searched.set(true);
                     return loggedToolCall(context, modelStep, toolCalls, discovery, () -> discovery.call(input));
                 }
@@ -179,10 +191,10 @@ public class AgentRuntime {
                 }
             });
             callbacks.add(directUtility(new SearchConversationTool(conversations, messages, mapper).callback(context),
-                    context, inFlight, usedTool, toolCalls, modelStep));
+                    context, inFlight, usedTool, toolCalls, modelStep, isCancelled));
             callbacks.add(directUtility(new GetToolResultPageTool(resultStore, mapper,
                     Math.max(100, properties.getContext().getToolMaxTokens() / 2)).callback(context),
-                    context, inFlight, usedTool, toolCalls, modelStep));
+                    context, inFlight, usedTool, toolCalls, modelStep, isCancelled));
             String stepPrompt = hideUnboundToolNames(prompt, callbacks);
             if (lookupPhase == LookupPhase.SEARCH) {
                 stepPrompt += "\nTrước khi hỏi người dùng về mã định danh, BẮT BUỘC gọi search_tools "
@@ -263,11 +275,14 @@ public class AgentRuntime {
                                     response.setLength(0);
                                 })
                                 .onRetryExhaustedThrow((spec, signal) -> signal.failure()))
+                        .takeUntilOther(cancellationSignal(isCancelled))
                         .blockLast();
+                checkCancelled(isCancelled);
                 log.info("AI runId={} modelStep={} modelTurnMs={} stepMs={} toolCallsSoFar={} searched={} usedTool={}",
                         context.runId(), modelStep, elapsedMs(modelStarted), elapsedMs(stepStarted),
                         toolCalls.get(), searched.get(), usedTool.get());
             } catch (RuntimeException error) {
+                checkCancelled(isCancelled);
                 log.warn("AI runId={} modelStep={} modelFailedMs={} toolCallsSoFar={} errorType={}",
                         context.runId(), modelStep, elapsedMs(modelStarted), toolCalls.get(),
                         error.getClass().getSimpleName());
@@ -307,6 +322,7 @@ public class AgentRuntime {
                 }
                 throw error;
             }
+            checkCancelled(isCancelled);
             if (pendingQuestion.get() != null) {
                 onFinalDelta.accept(pendingQuestion.get());
                 return pendingQuestion.get();
@@ -349,6 +365,24 @@ public class AgentRuntime {
             }
             if (usedTool.get()) continue;
             String completion = response.toString().trim();
+            Set<String> requestedIds = requestedIdentifiers(completion, context.roles());
+            if (!requestedIds.isEmpty()
+                    && lookupRounds < Math.max(0, properties.getLimits().getMaxLookupRounds())
+                    && toolCalls.get() < properties.getLimits().getMaxToolCalls()) {
+                List<AgentTool> lookups = registry.planReferenceLookups(requestedIds, context.roles());
+                if (!lookups.isEmpty()) {
+                    selected.addAll(lookups.stream().map(AgentTool::getName).toList());
+                    selected.addAll(selector.selectFromModel(toolRequest + "\n" + completion, context.roles(), llm));
+                    lookupRounds++;
+                    inFlight.add(new UserMessage("Người dùng đã cung cấp tên hoặc ngữ cảnh của đối tượng. "
+                            + "Trước khi hỏi ID, hãy dùng các công cụ đọc theo thứ tự "
+                            + lookups.stream().map(AgentTool::getName).collect(Collectors.joining(" -> "))
+                            + " để xác định " + String.join(", ", requestedIds)
+                            + ". Lấy ID từ kết quả trước để gọi công cụ phụ thuộc, rồi tiếp tục đúng yêu cầu hiện tại. "
+                            + "Nếu có nhiều kết quả, hỏi người dùng chọn bằng tên hoặc ngữ cảnh."));
+                    continue;
+                }
+            }
             if (approvalService != null && !pendingActionInChat && looksLikeApprovalRequest(completion)) {
                 if (unstoredApprovalRepairs++ == 0 && step + 1 < properties.getLimits().getMaxModelSteps()) {
                     selected.addAll(selector.selectFromModel(toolRequest + "\n" + completion, context.roles(), llm));
@@ -357,7 +391,7 @@ public class AgentRuntime {
                             + "Không tự viết lời xin xác nhận. Nếu thiếu tham số, hãy hỏi đúng thông tin còn thiếu."));
                     continue;
                 }
-                completion = "Mình chưa tạo được yêu cầu xác nhận cho thao tác này. Vui lòng thử lại.";
+                completion = unpreparedApprovalReply(selected);
             }
             if (asksForLookupInformation(completion, context.roles())
                     && lookupRounds < Math.max(0, properties.getLimits().getMaxLookupRounds())
@@ -368,6 +402,9 @@ public class AgentRuntime {
                         + completion + "\nTrước khi hỏi, hãy tìm và dùng công cụ đọc dữ liệu theo quyền hiện tại."));
                 log.info("AI runId={} lookupBeforeClarification round={}", context.runId(), lookupRounds + 1);
                 continue;
+            }
+            if (!requestedIds.isEmpty()) {
+                completion = clarificationWithoutIdentifiers(completion);
             }
             if (!completion.isEmpty()) onFinalDelta.accept(completion);
             return completion;
@@ -382,10 +419,15 @@ public class AgentRuntime {
         StringBuilder finalResponse = new StringBuilder();
         modelCalls.incrementAndGet();
         llm.streamAgentTurn(modelPrompt, finalContext.messages(), List.of())
-                .doOnNext(finalResponse::append).blockLast();
+                .doOnNext(finalResponse::append)
+                .takeUntilOther(cancellationSignal(isCancelled)).blockLast();
         String completion = finalResponse.toString().trim();
+        checkCancelled(isCancelled);
+        if (!requestedIdentifiers(completion, context.roles()).isEmpty()) {
+            completion = clarificationWithoutIdentifiers(completion);
+        }
         if (approvalService != null && !pendingActionInChat && looksLikeApprovalRequest(completion)) {
-            completion = "Mình chưa tạo được yêu cầu xác nhận cho thao tác này. Vui lòng thử lại.";
+            completion = unpreparedApprovalReply(selected);
         }
         if (!completion.isEmpty()) onFinalDelta.accept(completion);
         return completion;
@@ -397,6 +439,16 @@ public class AgentRuntime {
 
     private static long elapsedMs(long started) {
         return Duration.ofNanos(System.nanoTime() - started).toMillis();
+    }
+
+    private static void checkCancelled(BooleanSupplier isCancelled) {
+        if (isCancelled.getAsBoolean()) throw new RunCancelledException();
+    }
+
+    private static reactor.core.publisher.Mono<Long> cancellationSignal(BooleanSupplier isCancelled) {
+        return Flux.interval(Duration.ofMillis(200))
+                .filter(tick -> isCancelled.getAsBoolean())
+                .next();
     }
 
     private String recentToolRequest(AgentContext context, String latestUserText) {
@@ -480,11 +532,49 @@ public class AgentRuntime {
         return asksConfirm && writeVerb;
     }
 
+    private Set<String> requestedIdentifiers(String completion, Set<String> roles) {
+        if (completion == null || completion.isBlank()) return Set.of();
+        String lower = completion.toLowerCase(java.util.Locale.ROOT);
+        if (!(completion.contains("?") || lower.contains("cung cấp") || lower.contains("cho biết")
+                || lower.contains("gửi") || lower.contains("cần thêm"))) return Set.of();
+        Set<String> identifiers = registry.getToolsForRoles(roles).stream()
+                .flatMap(tool -> tool.resolvedIdentifiers().stream())
+                .filter(id -> Pattern.compile("(?i)(?<![\\p{Alnum}_])" + Pattern.quote(id)
+                        + "(?![\\p{Alnum}_])").matcher(completion).find())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return identifiers;
+    }
+
+    private String clarificationWithoutIdentifiers(String completion) {
+        String reply = completion;
+        for (var entry : java.util.Map.of(
+                "assignmentId", "tên bài tập",
+                "planId", "tên câu kiểm tra",
+                "classId", "tên lớp",
+                "stepId", "tên bước chấm").entrySet()) {
+            String identifier = Pattern.quote(entry.getKey());
+            reply = reply.replaceAll("(?i)\\s*\\(" + identifier + "\\)", "");
+            reply = reply.replaceAll("(?i)(?<![\\p{Alnum}_])" + identifier + "(?![\\p{Alnum}_])",
+                    entry.getValue());
+        }
+        return reply.trim();
+    }
+
     private boolean looksLikeApprovalRequest(String completion) {
         if (completion == null || !completion.contains("?")) return false;
         String lower = completion.toLowerCase(java.util.Locale.ROOT);
         return lower.contains("đồng ý") || lower.contains("dong y")
                 || lower.contains("xác nhận") || lower.contains("xac nhan");
+    }
+
+    private String unpreparedApprovalReply(Set<String> selected) {
+        if (selected.contains("createTestStep")) {
+            return "Mình chưa chuẩn bị được bước chấm để bạn xác nhận. "
+                    + "Bạn cho biết bước này cần kiểm tra điều gì (ví dụ HTTP endpoint và kết quả mong đợi, "
+                    + "hoặc truy vấn và kết quả mong đợi) nhé?";
+        }
+        return "Mình chưa chuẩn bị được thao tác để bạn xác nhận. "
+                + "Bạn cho biết rõ nội dung cần thực hiện để mình chuẩn bị lại nhé?";
     }
 
     private String loggedToolCall(AgentContext context, int modelStep, AtomicInteger toolCalls,
@@ -643,7 +733,8 @@ public class AgentRuntime {
 
     private ToolCallback boundedResult(ToolCallback delegate, AgentContext context,
                                        List<org.springframework.ai.chat.messages.Message> inFlight,
-                                       AtomicBoolean usedTool, AtomicInteger toolCalls, int modelStep) {
+                                       AtomicBoolean usedTool, AtomicInteger toolCalls, int modelStep,
+                                       BooleanSupplier isCancelled) {
         return new ToolCallback() {
             @Override public org.springframework.ai.tool.definition.ToolDefinition getToolDefinition() {
                 return delegate.getToolDefinition();
@@ -653,6 +744,7 @@ public class AgentRuntime {
                 return ToolMetadata.builder().returnDirect(true).build();
             }
             @Override public String call(String input, org.springframework.ai.chat.model.ToolContext toolContext) {
+                checkCancelled(isCancelled);
                 usedTool.set(true);
                 String full = loggedToolCall(context, modelStep, toolCalls, delegate,
                         () -> delegate.call(input, toolContext));
@@ -673,7 +765,8 @@ public class AgentRuntime {
     private ToolCallback directUtility(ToolCallback delegate,
                                        AgentContext context,
                                        List<org.springframework.ai.chat.messages.Message> inFlight,
-                                       AtomicBoolean usedTool, AtomicInteger toolCalls, int modelStep) {
+                                       AtomicBoolean usedTool, AtomicInteger toolCalls, int modelStep,
+                                       BooleanSupplier isCancelled) {
         return new ToolCallback() {
             @Override public org.springframework.ai.tool.definition.ToolDefinition getToolDefinition() {
                 return delegate.getToolDefinition();
@@ -683,6 +776,7 @@ public class AgentRuntime {
             }
             @Override public String call(String input) { return call(input, null); }
             @Override public String call(String input, org.springframework.ai.chat.model.ToolContext toolContext) {
+                checkCancelled(isCancelled);
                 usedTool.set(true);
                 String result = loggedToolCall(context, modelStep, toolCalls, delegate,
                         () -> delegate.call(input, toolContext));
