@@ -43,7 +43,14 @@ spring:
       chat:
         options:
           model: ${AI_MODEL_NAME:gpt-4o-mini}
-          max-completion-tokens: ${AI_MAX_COMPLETION_TOKENS:2048}
+          # Review: 2026-10-31 — truncated JSON when submissions have many steps.
+          # 2048 was too low for complex analyses; 4096 provides room for ~8-10
+          # steps with full hints/keywords without hitting the limit.
+          max-completion-tokens: ${AI_MAX_COMPLETION_TOKENS:4096}
+          # Review: 2026-10-31 — enforce JSON mode to reduce fence-wrapping and
+          # improve parse reliability (gpt-4o-mini supports response-format json_object).
+          response-format:
+            type: json_object
 
 management:
   endpoints:
