@@ -114,6 +114,8 @@ class ResultServiceTest {
         ScoringFixture f = scoringFixture();
         UUID student = UUID.randomUUID();
         UUID assignment = UUID.randomUUID();
+        UUID planA = UUID.randomUUID();
+        UUID planB = UUID.randomUUID();
         Result failedFull = Result.builder()
                 .studentId(student)
                 .assignmentId(assignment)
@@ -126,10 +128,34 @@ class ResultServiceTest {
         failedFull.setId(UUID.randomUUID());
         Mockito.when(f.repo().findByAssignmentIdInAndStudentId(Mockito.any(), Mockito.eq(student)))
                 .thenReturn(List.of(failedFull));
+        // Stub real plan list — with the fix, best is empty so we return null
+        // even though course-service knows about plans.
+        Mockito.when(f.plans().plans(assignment)).thenReturn(List.of(
+                new CourseServicePlansClient.PlanWeight(planA, 1),
+                new CourseServicePlansClient.PlanWeight(planB, 2)));
 
         // Executor's fail path posts no step items, so there is nothing to
         // decompose — reads missing, not 0.00 (acked 2026-10-10).
         assertNull(f.service().weightedScoreByPlan(List.of(assignment), student));
+    }
+
+    @Test
+    void weightedScoreByPlan_unsubmittedPlanScoresZeroWhenBestNotEmpty() {
+        ScoringFixture f = scoringFixture();
+        UUID student = UUID.randomUUID();
+        UUID assignment = UUID.randomUUID();
+        UUID planA = UUID.randomUUID();
+        UUID planB = UUID.randomUUID(); // unsubmitted
+        Mockito.when(f.repo().findByAssignmentIdInAndStudentId(Mockito.any(), Mockito.eq(student)))
+                .thenReturn(List.of(
+                        result(student, assignment, planA, "8.00", "10.00", 1)));
+        Mockito.when(f.plans().plans(assignment)).thenReturn(List.of(
+                new CourseServicePlansClient.PlanWeight(planA, 1),
+                new CourseServicePlansClient.PlanWeight(planB, 3)));
+
+        // Plan A: 8.00 × 1 = 8. Plan B: unsubmitted → 0 × 3 = 0. Total = 8 / 4 = 2.00.
+        assertEquals(new BigDecimal("2.00"),
+                f.service().weightedScoreByPlan(List.of(assignment), student));
     }
 
     private record ScoringFixture(ResultService service, ResultRepository repo,

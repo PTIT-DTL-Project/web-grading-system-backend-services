@@ -26,12 +26,14 @@ import java.util.UUID;
  * individual plan's best row may still sit below it (e.g. 10 and 5 at equal
  * weights → 7.50, with the plan-B row showing 5). That cross-plan caveat
  * remains; what changed is that every displayed row is the attempt counted for
- * its plan.
+ * its plan. Unsubmitted plans count as 0 and still add their weight to the
+ * denominator (e.g. 5 equal-weight plans, 4 submitted @10 → 8.00, not 10.00).
  *
  * <p>Review: 2026-10-10, max-per-plan policy (was latest-wins average).
  * Updated 2026-10-17: displayed rows are now the graded attempts, not the
  * latest ones (a 10-scored-then-5-resubmit student read 10 next to a 5 row).
  * Refined 2026-10-18 after review feedback on the multi-plan invariant.
+ * Review: 2026-10-31, unsubmitted plans score 0 and still count weight.
  */
 @Data
 @Builder
