@@ -17,7 +17,7 @@ public class ContextBuilderTest {
         assertTrue(prompt.contains("ROLE_STUDENT"), "Prompt should mention role");
         assertTrue(prompt.contains("đồng ý trong chat"));
         assertTrue(prompt.contains("chỉ hỏi người dùng đồng ý trong chat sau khi tool ghi trả về yêu cầu chờ xác nhận"));
-        assertTrue(prompt.contains("người dùng cho phép tự suy luận"));
+        assertTrue(!prompt.contains("QUY TẮC SOẠN BÀI"));
         assertTrue(!prompt.contains("bấm xác nhận trên giao diện"));
     }
 
@@ -96,21 +96,22 @@ public class ContextBuilderTest {
         assertTrue(prompt.contains("ROLE_LECTURER"));
     }
 
-    // Review: 2026-11-02 — SystemPromptTemplate (StringTemplate) throws for every `{name}`
-    // not present in the render map, so the route placeholders must be escaped to reach the
-    // model as literal text. The student practice route is `/student/practice/{id}`, not the
-    // lecturer-only `/practice/{id}` — the prompt must mirror the router's role guards.
     @Test
-    void studentPromptRendersLiteralDeepLinkRoutes() {
-        ContextBuilder builder = new ContextBuilder();
-        String prompt = builder.buildSystemPrompt("ROLE_STUDENT", null);
-        assertTrue(prompt.contains("/student/assignments/{assignmentId}"),
-                "assignment route must render as literal text");
-        assertTrue(prompt.contains("/student/assignments/{assignmentId}?submit=1"),
-                "submit deep link must render as literal text");
-        assertTrue(prompt.contains("/student/practice/{assignmentId}"),
-                "student practice route must point at the STUDENT-gated path");
-        assertTrue(prompt.contains("/student/submissions/{submissionId}/results"),
-                "result route must render as literal text");
+    void lecturerPromptExplainsAuthoringRulesWithoutInventingAssignmentData() {
+        String prompt = new ContextBuilder().buildSystemPrompt("ROLE_LECTURER", null);
+        for (String rule : java.util.List.of("PRACTICE", "GRADED", "topic", "classId", "plan", "stepOrder",
+                "query_params", "db_service", "db_port", "PRIMARY_KEY", "table_name", "row_count", "COUNT(*)")) {
+            assertTrue(prompt.contains(rule), rule);
+        }
+        assertTrue(prompt.contains("không tự bịa"));
+        assertTrue(prompt.contains("đồng ý trong chat"));
+    }
+
+    @Test
+    void studentPromptDoesNotExposeLecturerAuthoringRules() {
+        String prompt = new ContextBuilder().buildSystemPrompt("ROLE_STUDENT", null);
+        assertTrue(prompt.contains("test case ẩn"));
+        assertTrue(!prompt.contains("db_service"));
+        assertTrue(!prompt.contains("PRACTICE không gắn classId"));
     }
 }
