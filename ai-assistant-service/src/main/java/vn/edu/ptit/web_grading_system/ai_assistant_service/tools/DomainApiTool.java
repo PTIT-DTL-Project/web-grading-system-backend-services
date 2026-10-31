@@ -165,8 +165,18 @@ public class DomainApiTool implements AgentTool {
                         ? !args.path("payload").isArray() : !args.path("payload").isObject()))) {
             return ToolResult.error("INVALID_ARGUMENTS", "payload không đúng cấu trúc JSON", false);
         }
-        if (name.equals("createTestQuestion") || name.equals("createTestStep") || name.equals("updateTestStep")) {
-            return validateStepPayloads(args);
+        if (name.equals("createTestQuestion")) {
+            JsonNode plan = args.path("payload").path("plan");
+            JsonNode steps = args.path("payload").path("steps");
+            if (!plan.isObject() || plan.path("name").asText().isBlank() || !plan.path("sequenceOrder").isInt())
+                return invalidStep("payload.plan", "cần name và sequenceOrder");
+            if (!steps.isArray() || steps.isEmpty()) return invalidStep("payload.steps", "cần mảng bước không rỗng");
+            for (int i = 0; i < steps.size(); i++) {
+                ToolResult invalid = validateStepConfig(steps.get(i), "payload.steps[" + i + "]");
+                if (invalid != null) return invalid;
+            }
+        } else if (name.equals("createTestStep")) {
+            return validateStepConfig(args.path("payload"), "payload");
         }
         return null;
     }
@@ -293,14 +303,132 @@ public class DomainApiTool implements AgentTool {
     private ToolResult checkStepConfig(JsonNode step, String location) {
         String stepType = step.path("stepType").asText();
         JsonNode config = step.path("config");
-        String missing = switch (stepType) {
-            case "HTTP_REQUEST" -> config.path("method").asText().isBlank() ? "method"
-                    : config.path("path").asText().isBlank() ? "path" : null;
-            case "DB_QUERY" -> config.path("query").asText().isBlank() ? "query" : null;
-            default -> null;
-        };
-        return missing == null ? null : ToolResult.error("INVALID_ARGUMENTS",
-                location + ".config thiếu '" + missing + "' cho " + stepType, false);
+        if (!config.isObject()) return invalidStep(location, "config phải là JSON object");
+        switch (stepType) {
+            case "HTTP_REQUEST" -> {
+                String method = config.path("method").asText();
+                if (method.isBlank()) return invalidStep(location, "config thiếu 'method' cho HTTP_REQUEST");
+                if (!Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")
+                        .contains(method.toUpperCase(Locale.ROOT))) return invalidStep(location, "config.method không hợp lệ");
+                String path = config.path("path").asText();
+                if (path.isBlank()) return invalidStep(location, "config thiếu 'path' cho HTTP_REQUEST");
+                if (!path.startsWith("/")) return invalidStep(location, "config.path phải bắt đầu bằng /");
+                JsonNode status = config.path("expected_status");
+                if (!status.isMissingNode() && !status.isNull() && (!status.isInt() || status.intValue() < 100 || status.intValue() > 599))
+                    return invalidStep(location, "config.expected_status phải từ 100 đến 599");
+                if (config.hasNonNull("query_params") && !config.path("query_params").isObject())
+                    return invalidStep(location, "config.query_params phải là object");
+                if (config.hasNonNull("headers") && !config.path("headers").isObject())
+                    return invalidStep(location, "config.headers phải là object");
+                JsonNode data = config.path("data");
+                if (!data.isMissingNode() && !data.isNull()) {
+                    if (!data.isArray() || data.isEmpty() || data.size() > 10)
+                        return invalidStep(location, "config.data phải là mảng 1–10 object");
+                    for (JsonNode item : data) if (!item.isObject())
+                        return invalidStep(location, "config.data chỉ nhận object");
+                }
+                JsonNode autoHeaders = config.path("auto_inject_headers");
+                if (!autoHeaders.isMissingNode() && !autoHeaders.isNull()) {
+                    if (!autoHeaders.isObject()) return invalidStep(location, "config.auto_inject_headers phải là object");
+                    for (var header : autoHeaders.properties()) if (!header.getValue().isTextual())
+                        return invalidStep(location, "config.auto_inject_headers chỉ nhận chuỗi");
+                }
+                JsonNode extract = config.path("extract");
+                if (!extract.isMissingNode() && !extract.isNull()) {
+                    if (!extract.isArray()) return invalidStep(location, "config.extract phải là mảng");
+                    for (JsonNode item : extract) if (item.path("name").asText().isBlank()
+                            || item.path("from").asText().isBlank() || item.path("expression").asText().isBlank())
+                        return invalidStep(location, "config.extract cần name, from, expression");
+                }
+                JsonNode assertions = config.path("assertions");
+                if (!assertions.isMissingNode() && !assertions.isNull()) {
+                    if (!assertions.isArray()) return invalidStep(location, "config.assertions phải là mảng");
+                    ToolResult invalid = validateAssertions(assertions, location);
+                    if (invalid != null) return invalid;
+                }
+            }
+            case "DB_QUERY", "DB_SCHEMA_CHECK", "DB_MIGRATION" -> {
+                ToolResult connectionError = validateDbConnection(config.path("connection"), location);
+                if (connectionError != null) return connectionError;
+                if (stepType.equals("DB_QUERY")) {
+                    String query = config.path("query").asText();
+                    if (query.isBlank()) return invalidStep(location, "config thiếu 'query' cho DB_QUERY");
+                    JsonNode expected = config.path("expected");
+                    if (!expected.isMissingNode() && !expected.isNull() && !expected.isObject())
+                        return invalidStep(location, "config.expected phải là object");
+                    if (query.matches("(?is).*\\bcount\\s*\\(\\s*\\*\\s*\\).*" )
+                            && expected.path("row_count").isNumber() && expected.path("row_count").asInt() == 0)
+                        return invalidStep(location, "COUNT(*) luôn trả một dòng; không dùng row_count: 0");
+                } else if (stepType.equals("DB_SCHEMA_CHECK")) {
+                    JsonNode checks = config.path("checks");
+                    if (!checks.isArray() || checks.isEmpty()) return invalidStep(location, "config.checks phải là mảng không rỗng");
+                    for (JsonNode check : checks) {
+                        String kind = check.path("kind").asText();
+                        if (!Set.of("TABLE_EXISTS", "COLUMN_EXISTS", "INDEX_EXISTS", "PRIMARY_KEY").contains(kind))
+                            return invalidStep(location, "config.checks.kind không hợp lệ");
+                        if ((kind.equals("TABLE_EXISTS") || kind.equals("COLUMN_EXISTS") || kind.equals("PRIMARY_KEY"))
+                                && check.path("table_name").asText().isBlank())
+                            return invalidStep(location, "config.checks cần table_name");
+                        if (kind.equals("COLUMN_EXISTS") && check.path("column_name").asText().isBlank())
+                            return invalidStep(location, "COLUMN_EXISTS cần column_name");
+                        if (kind.equals("INDEX_EXISTS") && (check.path("table_name").asText().isBlank()
+                                || check.path("index_name").asText().isBlank()))
+                            return invalidStep(location, "INDEX_EXISTS cần table_name và index_name");
+                        if (kind.equals("PRIMARY_KEY") && check.path("column").asText().isBlank())
+                            return invalidStep(location, "PRIMARY_KEY cần column");
+                    }
+                } else {
+                    JsonNode statements = config.path("statements");
+                    if (!statements.isArray() || statements.isEmpty()) return invalidStep(location, "config.statements phải là mảng không rỗng");
+                    for (JsonNode sql : statements) if (!sql.isTextual() || sql.asText().isBlank())
+                        return invalidStep(location, "config.statements chỉ nhận chuỗi SQL không rỗng");
+                }
+            }
+            default -> { return invalidStep(location, "stepType không được hỗ trợ"); }
+        }
+        return null;
+    }
+
+    private ToolResult validateAssertions(JsonNode assertions, String location) {
+        for (JsonNode assertion : assertions) {
+            String kind = assertion.path("kind").asText();
+            if (!Set.of("status", "json_path", "contains", "body_structure", "body_equals", "field_equals",
+                    "array_length", "contains_item", "json_path_equals", "greater_than", "less_than",
+                    "matches_regex", "any_of").contains(kind)) return invalidStep(location, "assertions.kind không hợp lệ");
+            if (Set.of("json_path", "field_equals", "array_length", "contains_item", "json_path_equals",
+                    "greater_than", "less_than", "matches_regex").contains(kind)
+                    && assertion.path("path").asText().isBlank()) return invalidStep(location, kind + " cần path");
+            if (Set.of("status", "field_equals", "array_length", "contains_item", "json_path_equals").contains(kind)
+                    && assertion.path("equals").isMissingNode()) return invalidStep(location, kind + " cần equals");
+            if (kind.equals("contains") && assertion.path("text").asText().isBlank()) return invalidStep(location, "contains cần text");
+            if (Set.of("greater_than", "less_than").contains(kind) && assertion.path("value").isMissingNode())
+                return invalidStep(location, kind + " cần value");
+            if (kind.equals("matches_regex") && assertion.path("pattern").asText().isBlank())
+                return invalidStep(location, "matches_regex cần pattern");
+            if (kind.equals("any_of")) {
+                JsonNode children = assertion.path("assertions");
+                if (!children.isArray() || children.isEmpty()) return invalidStep(location, "any_of cần assertions không rỗng");
+                ToolResult nested = validateAssertions(children, location);
+                if (nested != null) return nested;
+            }
+        }
+        return null;
+    }
+
+    private ToolResult validateDbConnection(JsonNode connection, String location) {
+        if (connection.isMissingNode() || connection.isNull()) return null;
+        if (!connection.isObject()) return invalidStep(location, "config.connection phải là object");
+        String dbType = connection.path("db_type").asText();
+        if (!dbType.isBlank() && !Set.of("postgres", "mysql", "mariadb").contains(dbType.toLowerCase(Locale.ROOT)))
+            return invalidStep(location, "config.connection.db_type không được hỗ trợ");
+        JsonNode port = connection.path("db_port");
+        if (!port.isMissingNode() && !port.isNull() && (!port.isInt() || port.intValue() < 1 || port.intValue() > 65535))
+            return invalidStep(location, "config.connection.db_port phải là port nội bộ 1–65535");
+        return null;
+    }
+
+    private ToolResult invalidStep(String location, String reason) {
+        return ToolResult.error("INVALID_ARGUMENTS", location + "." + reason, false);
     }
 
     /**
@@ -453,10 +581,38 @@ public class DomainApiTool implements AgentTool {
     }
 
     private Map<String, Object> stepConfigSchema() {
-        return Map.of("type", "object", "description",
+        Map<String, Object> properties = new LinkedHashMap<>();
+        Map<String, Object> text = Map.of("type", "string");
+        Map<String, Object> object = Map.of("type", "object");
+        properties.put("method", Map.of("type", "string", "enum", List.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")));
+        properties.put("path", Map.of("type", "string", "pattern", "^/"));
+        properties.put("headers", object);
+        properties.put("query_params", object);
+        properties.put("body", Map.of("description", "JSON body tùy endpoint"));
+        properties.put("expected_status", Map.of("type", "integer", "minimum", 100, "maximum", 599));
+        properties.put("assertions", Map.of("type", "array", "items", Map.of("type", "object", "properties", Map.of(
+                "kind", Map.of("type", "string", "enum", List.of("status", "json_path", "contains", "body_structure", "body_equals", "field_equals", "array_length", "contains_item", "json_path_equals", "greater_than", "less_than", "matches_regex", "any_of")),
+                "path", text, "equals", Map.of("description", "Giá trị mong đợi"), "text", text,
+                "json", Map.of("description", "JSON mong đợi"), "value", Map.of("description", "Ngưỡng so sánh"),
+                "pattern", text, "exists", Map.of("type", "boolean"), "assertions", Map.of("type", "array")),
+                "required", List.of("kind"))));
+        properties.put("extract", Map.of("type", "array", "items", Map.of("type", "object", "properties", Map.of(
+                "name", text, "from", text, "expression", text, "as", Map.of("type", "string", "enum", List.of("scalar", "json")), "fallback", text),
+                "required", List.of("name", "from", "expression"))));
+        properties.put("data", Map.of("type", "array", "minItems", 1, "maxItems", 10, "items", object));
+        properties.put("auto_inject_headers", object);
+        properties.put("required", Map.of("type", "boolean"));
+        properties.put("timeoutMs", Map.of("type", "integer", "minimum", 1));
+        properties.put("connection", Map.of("type", "object", "description", "db_type postgres/mysql/mariadb; db_service là tên service Compose; db_port là port DB nội bộ; database/username/password phải khớp Compose"));
+        properties.put("query", text);
+        properties.put("expected", object);
+        properties.put("checks", Map.of("type", "array", "items", object));
+        properties.put("statements", Map.of("type", "array", "items", text));
+        return Map.of("type", "object", "properties", properties, "additionalProperties", true, "description",
                 "Theo stepType: HTTP_REQUEST cần method và path (đường dẫn bắt đầu bằng /, không dùng url); "
-                        + "DB_QUERY cần query (câu SQL, không dùng sql); "
-                        + "DB_SCHEMA_CHECK cần checks (mảng không rỗng); "
-                        + "DB_MIGRATION cần statements (mảng không rỗng).");
+                        + "query_params dùng giá trị thô; extract trước khi dùng ${...}; "
+                        + "DB_QUERY cần query (câu SQL, không dùng sql), row_count đếm số dòng kết quả; "
+                        + "DB_SCHEMA_CHECK cần checks (mảng không rỗng), PRIMARY_KEY cần table_name và column; "
+                        + "DB_MIGRATION cần statements (mảng không rỗng). DB connection phải khớp Docker Compose.");
     }
 }
