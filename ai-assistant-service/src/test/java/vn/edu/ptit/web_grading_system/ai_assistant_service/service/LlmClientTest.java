@@ -16,8 +16,10 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import reactor.core.publisher.Flux;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.AiExplanationResultDto;
 
 import java.util.List;
+import java.util.UUID;
 import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -182,5 +184,39 @@ class LlmClientTest {
 
         assertEquals(LlmClient.ApprovalDecision.OTHER,
                 client.classifyPendingActionReply("có thể xem lại không", "Tạo câu kiểm tra Q1"));
+    }
+
+    // Regression: offline mode (no API key) cannot produce a real analysis — generateEntity
+    // returns null so AiExplanationService treats it as degraded and skips the cache write.
+    @Test
+    void generateEntityOfflineModeReturnsNull() {
+        LlmClient client = new LlmClient(dummyProperties, chatModel);
+
+        AiExplanationResultDto result = client.generateEntity("system", "any prompt", AiExplanationResultDto.class);
+
+        assertNull(result);
+    }
+
+    // Regression: live-path provider failure makes generateEntity return null instead of
+    // throwing — AiExplanationService.generate then skips the cache write so a retry
+    // can regenerate a real analysis.
+    @Test
+    void generateEntityLivePathReturnsNullOnProviderFailure() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+
+        AiExplanationResultDto result = client.generateEntity("system", "any prompt", AiExplanationResultDto.class);
+
+        assertNull(result);
+    }
+
+    // Regression: generateEntity returns null instead of throwing when the live call fails —
+    // AiExplanationService.generate skips the cache write so a retry can regenerate.
+    @Test
+    void generateEntityReturnsNullOnParseFailure() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        // Integer.class expects a JSON number primitive, but the response is a JSON object.
+        Integer result = client.generateEntity("system", "any prompt", Integer.class);
+
+        assertNull(result);
     }
 }

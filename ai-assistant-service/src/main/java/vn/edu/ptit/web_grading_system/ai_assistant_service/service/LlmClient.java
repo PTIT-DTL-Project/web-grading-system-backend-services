@@ -28,7 +28,6 @@ public class LlmClient {
     private final String baseUrl;
     private final ChatModel chatModel;
     private final ChatClient chatClient;
-    private final Gson gson = new Gson();
 
     public LlmClient(AiModelProperties props, ChatModel chatModel) {
         this.provider = props.provider();
@@ -119,9 +118,8 @@ public class LlmClient {
 
     public <T> T generateEntity(String systemPrompt, String userPrompt, Class<T> entityClass) {
         if (isOfflineMode()) {
-            log.info("AI API key not configured — generating fallback structured entity");
-            String fallback = generateFallbackResponse(userPrompt);
-            return gson.fromJson(fallback, entityClass);
+            log.info("AI API key not configured — no real analysis possible, returning null");
+            return null;
         }
         try {
             return chatClient.prompt()
@@ -131,8 +129,7 @@ public class LlmClient {
                     .entity(entityClass);
         } catch (Exception e) {
             log.error("Failed to generate structured entity via Spring AI: {}", e.getMessage(), e);
-            String fallback = generateFallbackResponse(userPrompt);
-            return gson.fromJson(fallback, entityClass);
+            return null;
         }
     }
 
