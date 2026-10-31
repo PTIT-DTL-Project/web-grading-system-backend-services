@@ -276,22 +276,28 @@ public class AiExplanationService {
         AiExplanationResultDto structuredOutput = llmClient.generateEntity(systemPrompt, userPrompt, AiExplanationResultDto.class);
         boolean isFallback = structuredOutput == null;
         if (isFallback) {
-            // LLM provider failed or returned unparseable JSON. Try once more via the
-            // raw completion path. If the retry parses successfully it is a real model
-            // result and should be cached; only leave isFallback=true when this second
-            // attempt also fails to produce a usable analysis.
-            // Review: 2026-10-31, Pullfrog PR #48 — original code never cleared
-            // isFallback after a successful retry, so every retried result was returned
-            // uncached and both LLM calls were re-issued on every subsequent request.
-            String rawLlmResponse = llmClient.generateCompletion(systemPrompt, userPrompt);
-            if (rawLlmResponse != null && !rawLlmResponse.isBlank()) {
-                try {
+            // generateEntity failed (offline mode or provider/parse error). Retry once via
+            // generateStrictCompletion, which returns null in offline mode and throws
+            // AiProviderException on provider failure — it never produces the synthetic
+            // fallback JSON that generateCompletion returns, so a successful parse here
+            // always means a genuine model response that may be cached.
+            // Review: 2026-10-31, Pullfrog PR #48 — previous attempt used generateCompletion,
+            // whose offline/catch branches return generateFallbackResponse() — synthetic JSON
+            // that also parses through BeanOutputConverter. That caused isFallback to be
+            // cleared for a fake payload, which was then persisted and never evicted.
+            try {
+                String rawLlmResponse = llmClient.generateStrictCompletion(systemPrompt, userPrompt);
+                if (rawLlmResponse != null && !rawLlmResponse.isBlank()) {
                     structuredOutput = outputConverter.convert(rawLlmResponse);
-                    // Retry parsed successfully — treat as a real result and allow caching.
+                    // Retry returned and parsed a genuine model response — allow caching.
                     isFallback = structuredOutput == null;
-                } catch (Exception e) {
-                    log.warn("BeanOutputConverter could not parse LLM fallback response: {}", e.getMessage());
                 }
+                // rawLlmResponse == null means offline mode: isFallback stays true.
+            } catch (AiProviderException e) {
+                // Provider failed on the retry too; keep isFallback=true and return degraded.
+                log.warn("LLM retry via strict completion also failed: {}", e.getMessage());
+            } catch (Exception e) {
+                log.warn("BeanOutputConverter could not parse LLM retry response: {}", e.getMessage());
             }
         }
 

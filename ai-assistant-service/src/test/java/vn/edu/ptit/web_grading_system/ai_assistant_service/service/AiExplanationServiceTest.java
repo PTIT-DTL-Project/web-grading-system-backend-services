@@ -34,6 +34,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -177,9 +178,12 @@ public class AiExplanationServiceTest {
     }
 
     // Regression: LLM returns truncated/invalid JSON (UnexpectedEndOfInputException).
-    // generateEntity returns null instead of throwing; explainSubmission falls back to a
-    // default summary and returns a 200 response — but does NOT cache the degraded result,
-    // so a later request can retry and get a real analysis.
+    // generateEntity returns null; the strict retry also fails (AiProviderException).
+    // explainSubmission returns a degraded 200 response and does NOT cache, so a later
+    // request can retry and get a real analysis.
+    // Review: 2026-10-31, Pullfrog PR #48 — retry now uses generateStrictCompletion,
+    // which throws AiProviderException on provider failure instead of returning synthetic
+    // fallback JSON that BeanOutputConverter would parse and isFallback would be cleared.
     @Test
     void explainSubmission_doesNotThrowOrCache_whenLlmFailsCompletely() {
         when(explanationRepository.findBySubmissionIdAndCategory(submissionId, "FULL_ANALYSIS"))
@@ -196,13 +200,78 @@ public class AiExplanationServiceTest {
         when(promptBuilder.buildSystemPrompt()).thenReturn("system");
         when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
         when(llmClient.generateEntity(any(), any(), any())).thenReturn(null);
-        when(llmClient.generateCompletion(any(), any())).thenReturn("{ truncated json ");
+        when(llmClient.generateStrictCompletion(any(), any()))
+                .thenThrow(new AiProviderException(new RuntimeException("provider unavailable")));
 
         AiExplanationResponse res = explanationService.explainSubmission(submissionId, studentId);
 
         assertThat(res.getFromCache()).isFalse();
         assertThat(res.getOverallSummary()).isEqualTo("Bài nộp đã được phân tích toàn diện.");
         assertThat(res.getStepAnalyses()).isEmpty();
+        verify(explanationRepository, never()).save(any());
+    }
+
+    // Retry branch — real model response: generateEntity fails, strict retry returns genuine
+    // JSON, parse succeeds → isFallback cleared → result cached.
+    // Review: 2026-10-31, Pullfrog PR #48 — verifies the happy-retry path: a genuine second
+    // attempt is persisted so subsequent requests get a cache hit.
+    @Test
+    void explainSubmission_cachesRetryResult_whenStrictRetrySucceeds() {
+        when(explanationRepository.findBySubmissionIdAndCategory(submissionId, "FULL_ANALYSIS"))
+                .thenReturn(Optional.empty());
+
+        ResultDto result = ResultDto.builder()
+                .id(UUID.randomUUID())
+                .submissionId(submissionId)
+                .studentId(studentId)
+                .assignmentId(UUID.randomUUID())
+                .build();
+        when(resultServiceClient.getBySubmissionId(any(), any(), any()))
+                .thenReturn(ApiEnvelope.<List<ResultDto>>builder().status(200).data(List.of(result)).build());
+        when(promptBuilder.buildSystemPrompt()).thenReturn("system");
+        when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
+        when(llmClient.generateEntity(any(), any(), any())).thenReturn(null);
+        when(llmClient.generateStrictCompletion(any(), any())).thenReturn(
+                "{\"overallSummary\":\"retry-ok\",\"stepAnalyses\":[{\"stepId\":\""
+                        + UUID.randomUUID()
+                        + "\",\"stepName\":\"s\",\"passed\":true}]}");
+        when(explanationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AiExplanationResponse res = explanationService.explainSubmission(submissionId, studentId);
+
+        assertThat(res.getFromCache()).isFalse();
+        assertThat(res.getOverallSummary()).isEqualTo("retry-ok");
+        verify(explanationRepository).save(any());
+    }
+
+    // Retry branch — offline mode: generateEntity returns null, strict retry returns null
+    // (offline guard) → isFallback stays true → degraded response, nothing cached.
+    // Review: 2026-10-31, Pullfrog PR #48 — verifies that the offline synthetic payload
+    // is never persisted even when the retry path is reached.
+    @Test
+    void explainSubmission_doesNotCache_whenStrictRetryReturnsNullOffline() {
+        when(explanationRepository.findBySubmissionIdAndCategory(submissionId, "FULL_ANALYSIS"))
+                .thenReturn(Optional.empty());
+
+        ResultDto result = ResultDto.builder()
+                .id(UUID.randomUUID())
+                .submissionId(submissionId)
+                .studentId(studentId)
+                .assignmentId(UUID.randomUUID())
+                .build();
+        when(resultServiceClient.getBySubmissionId(any(), any(), any()))
+                .thenReturn(ApiEnvelope.<List<ResultDto>>builder().status(200).data(List.of(result)).build());
+        when(promptBuilder.buildSystemPrompt()).thenReturn("system");
+        when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
+        // Both paths return null — simulates offline mode where generateStrictCompletion
+        // returns null without calling the model.
+        when(llmClient.generateEntity(any(), any(), any())).thenReturn(null);
+        when(llmClient.generateStrictCompletion(any(), any())).thenReturn(null);
+
+        AiExplanationResponse res = explanationService.explainSubmission(submissionId, studentId);
+
+        assertThat(res.getFromCache()).isFalse();
+        assertThat(res.getOverallSummary()).isEqualTo("Bài nộp đã được phân tích toàn diện.");
         verify(explanationRepository, never()).save(any());
     }
 
