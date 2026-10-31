@@ -124,22 +124,32 @@ public class SubmissionService {
         handleUploadComplete(objectName);
     }
 
-    @Transactional(readOnly = true)
-    public Page<SubmissionResponse> listByStudent(UUID studentId, Pageable pageable) {
-        return submissionRepository.findByStudentIdOrderByCreatedAtDesc(studentId, pageable)
-                .map(submissionMapper::toResponse);
-    }
-
     /**
      * Student search (MySubmissionsPage): server-side {@code ?search} match on the zip
      * file name only — {@code Assignment} lives in {@code assignment_db}, not
      * {@code submission_db}, so title search can't be done with a join here.
+     * When {@code assignmentId} is present, only submissions for that assignment are returned.
      */
     @Transactional(readOnly = true)
-    public Page<SubmissionResponse> listByStudent(UUID studentId, String search, Pageable pageable) {
+    public Page<SubmissionResponse> listByStudent(UUID studentId, UUID assignmentId, String search, Pageable pageable) {
+        if (assignmentId == null) {
+            if (search == null || search.isBlank()) {
+                return submissionRepository.findByStudentIdOrderByCreatedAtDesc(studentId, pageable)
+                        .map(submissionMapper::toResponse);
+            }
+            return submissionRepository
+                    .findByStudentIdAndZipFileNameContainingIgnoreCaseOrderByCreatedAtDesc(
+                            studentId, search, pageable)
+                    .map(submissionMapper::toResponse);
+        }
+        if (search == null || search.isBlank()) {
+            return submissionRepository.findByStudentIdAndAssignmentIdOrderByCreatedAtDesc(
+                    studentId, assignmentId, pageable)
+                    .map(submissionMapper::toResponse);
+        }
         return submissionRepository
-                .findByStudentIdAndZipFileNameContainingIgnoreCaseOrderByCreatedAtDesc(
-                        studentId, search, pageable)
+                .findByStudentIdAndAssignmentIdAndZipFileNameContainingIgnoreCaseOrderByCreatedAtDesc(
+                        studentId, assignmentId, search, pageable)
                 .map(submissionMapper::toResponse);
     }
 
