@@ -6,10 +6,12 @@ import vn.edu.ptit.web_grading_system.result_service.entity.Result;
 import vn.edu.ptit.web_grading_system.result_service.entity.ResultScope;
 import vn.edu.ptit.web_grading_system.result_service.entity.ResultStatus;
 import vn.edu.ptit.web_grading_system.result_service.repository.ResultRepository;
+import vn.edu.ptit.web_grading_system.result_service.repository.StepResultRepository;
 import org.mockito.Mockito;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,12 +61,14 @@ class ResultServiceTest {
     }
 
     @Test
-    void weightedScoreByPlan_nullWhenNoResults() {
+    void weightedScoreByPlan_zeroWhenNoResults() {
         UUID student = UUID.randomUUID();
         ResultRepository repo = Mockito.mock(ResultRepository.class);
         Mockito.when(repo.findByAssignmentIdInAndStudentId(Mockito.any(), Mockito.eq(student)))
                 .thenReturn(List.of());
-        assertNull(service(repo).weightedScoreByPlan(List.of(UUID.randomUUID()), student));
+        // No submission at all → every plan unsubmitted → 0.00, not null.
+        assertEquals(BigDecimal.ZERO, service(repo)
+                .weightedScoreByPlan(List.of(UUID.randomUUID()), student));
     }
 
     private Result failedPlanRow(UUID student, UUID assignment, UUID plan) {
@@ -278,6 +282,71 @@ class ResultServiceTest {
         // Course weights 3:1 win over carried 1:3 → (24+6)/4 = 7.50.
         assertEquals(new BigDecimal("7.50"),
                 f.service().weightedScoreByPlan(List.of(assignment), student));
+    }
+
+    @Test
+    void weightedScoreByPlanBatch_studentWithoutSubmissionScoresZero() {
+        UUID assignment = UUID.randomUUID();
+        UUID planA = UUID.randomUUID();
+        UUID planB = UUID.randomUUID();
+        UUID studentWithSub = UUID.randomUUID();
+        UUID studentWithoutSub = UUID.randomUUID();
+        ResultRepository repo = Mockito.mock(ResultRepository.class);
+        StepResultRepository steps = Mockito.mock(StepResultRepository.class);
+        CourseServicePlansClient plans = Mockito.mock(CourseServicePlansClient.class);
+        Mockito.when(plans.plans(Mockito.eq(assignment))).thenReturn(List.of(
+                new CourseServicePlansClient.PlanWeight(planA, 1),
+                new CourseServicePlansClient.PlanWeight(planB, 2)
+        ));
+        Mockito.when(repo.findByAssignmentIdInAndStudentIdIn(
+                Mockito.eq(List.of(assignment)), Mockito.anyList()))
+                .thenReturn(List.of(
+                        result(studentWithSub, assignment, planA, "8.00", "10.00", 1),
+                        result(studentWithSub, assignment, planB, "8.00", "10.00", 2)
+                ));
+        Mockito.when(steps.findByResultIdIn(Mockito.anyList())).thenReturn(List.of());
+
+        ResultService service = new ResultService(repo, steps, plans);
+        Map<UUID, BigDecimal> out = service.weightedScoreByPlanBatch(
+                List.of(assignment), List.of(studentWithSub, studentWithoutSub));
+
+        assertEquals(new BigDecimal("8.00"), out.get(studentWithSub));
+        assertEquals(BigDecimal.ZERO, out.get(studentWithoutSub));
+    }
+
+    @Test
+    void weightedScoreByPlanBatch_failedSteplessFullRunStaysNull() {
+        UUID assignment = UUID.randomUUID();
+        UUID planA = UUID.randomUUID();
+        UUID planB = UUID.randomUUID();
+        UUID student = UUID.randomUUID();
+        ResultRepository repo = Mockito.mock(ResultRepository.class);
+        StepResultRepository steps = Mockito.mock(StepResultRepository.class);
+        CourseServicePlansClient plans = Mockito.mock(CourseServicePlansClient.class);
+        Mockito.when(plans.plans(Mockito.eq(assignment))).thenReturn(List.of(
+                new CourseServicePlansClient.PlanWeight(planA, 1),
+                new CourseServicePlansClient.PlanWeight(planB, 2)
+        ));
+        Result failedFull = Result.builder()
+                .studentId(student)
+                .assignmentId(assignment)
+                .scope(ResultScope.FULL)
+                .score(BigDecimal.ZERO.setScale(2))
+                .maxScore(new BigDecimal("10.00"))
+                .planWeight(1)
+                .status(ResultStatus.FAILED)
+                .build();
+        failedFull.setId(UUID.randomUUID());
+        Mockito.when(repo.findByAssignmentIdInAndStudentIdIn(
+                Mockito.eq(List.of(assignment)), Mockito.anyList()))
+                .thenReturn(List.of(failedFull));
+        Mockito.when(steps.findByResultIdIn(Mockito.anyList())).thenReturn(List.of());
+
+        ResultService service = new ResultService(repo, steps, plans);
+        Map<UUID, BigDecimal> out = service.weightedScoreByPlanBatch(
+                List.of(assignment), List.of(student));
+
+        assertNull(out.get(student));
     }
 
     private Result result(UUID student, UUID assignment, UUID plan, String score, String maxScore,
