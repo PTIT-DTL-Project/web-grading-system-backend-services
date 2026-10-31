@@ -136,6 +136,14 @@ public class ResultService {
         Map<PlanKey, PlanBest> best = perPlan.best();
         Map<PlanKey, Integer> carried = perPlan.carried();
 
+        // Không có attempt scorable nào (ví dụ sinh viên chỉ nộp 1 lần FAILED FULL
+        // mà executor không post step) → missing, không tính weight dù course-service
+        // có trả plan gì. Giữ quy tắc: failed stepless FULL run chỉ có attempt này
+        // đọc là missing, không bị ép thành 0.00. Review: 2026-10-31.
+        if (best.isEmpty()) {
+            return null;
+        }
+
         // Enumerate every plan that should contribute: all plans known to course-service,
         // plus any plan that has a result (fallback when course-service is down).
         Set<PlanKey> allPlanKeys = new LinkedHashSet<>();
