@@ -130,7 +130,24 @@ public class AgentRuntime {
                         "actionId", action.id().toString(), "decision", decision.name()));
                 if (decision == LlmClient.ApprovalDecision.CONFIRM) {
                     checkCancelled(isCancelled);
-                    Object outcome = approvalService.confirmFromChat(action.id(), context);
+                    String approvalItemId = "tool-confirm-" + action.id();
+                    long approvalStarted = System.nanoTime();
+                    timeline(context, "tool.started", 0, approvalItemId, Map.of(
+                            "name", action.toolName(), "arguments", String.valueOf(action.arguments())));
+                    Object outcome;
+                    try {
+                        outcome = approvalService.confirmFromChat(action.id(), context);
+                    } catch (RuntimeException error) {
+                        timeline(context, "tool.failed", 0, approvalItemId, Map.of(
+                                "name", action.toolName(), "error", String.valueOf(error),
+                                "durationMs", elapsedMs(approvalStarted)));
+                        throw error;
+                    }
+                    boolean approvalSucceeded = outcome instanceof java.util.Map<?, ?> outcomeMap
+                            && "COMPLETED".equals(outcomeMap.get("status"));
+                    timeline(context, approvalSucceeded ? "tool.completed" : "tool.failed", 0,
+                            approvalItemId, Map.of("name", action.toolName(),
+                                    "result", String.valueOf(outcome), "durationMs", elapsedMs(approvalStarted)));
                     AgentTrace.record(context.runId(), context.gatewaySecret(), "approval.execution", Map.of(
                             "actionId", action.id().toString(), "tool", action.toolName(),
                             "arguments", String.valueOf(action.arguments()),

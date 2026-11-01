@@ -1282,10 +1282,13 @@ class AgentRuntimeTest {
         AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
                 UUID.randomUUID(), UUID.randomUUID(), "");
 
+        List<AgentRuntime.RuntimeEvent> events = new java.util.ArrayList<>();
         String reply = runtime.execute(context, "system", "có", llm,
-                delta -> {}, (tool, result) -> {});
+                delta -> {}, (tool, result) -> {}, events::add, () -> false);
 
         assertTrue(reply.contains("HTTP_REQUEST: missing or empty 'path'"));
+        assertEquals(List.of("tool.started", "tool.failed"),
+                events.stream().map(AgentRuntime.RuntimeEvent::type).toList());
         verify(llm, never()).classifyPendingActionReply(anyString(), anyString());
         assertFalse(reply.contains("Trạng thái: FAILED"));
     }
