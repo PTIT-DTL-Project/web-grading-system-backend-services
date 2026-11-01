@@ -10,6 +10,8 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.run.Run;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.run.RunStatus;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.response.RunResponse;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.orchestrator.SseBroadcaster;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.orchestrator.RunTimelineService;
+import org.springframework.beans.factory.annotation.Autowired;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.repository.RunRepository;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.repository.ConversationRepository;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.security.UserPrincipal;
@@ -26,15 +28,20 @@ public class RunController {
     private final RunRepository runRepository;
     private final ConversationRepository conversationRepository;
     private final SseBroadcaster sseBroadcaster;
+    @Autowired(required = false)
+    private RunTimelineService timeline;
 
     @GetMapping(value = "/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter subscribeEvents(
             @AuthenticationPrincipal UserPrincipal principal,
-            @PathVariable UUID id) {
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "0") int afterSequence) {
         Run run = runRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Run not found: " + id));
         verifyOwner(principal, run);
-        return sseBroadcaster.subscribe(id);
+        if (afterSequence < 0) throw new IllegalArgumentException("afterSequence must be nonnegative");
+        return timeline == null ? sseBroadcaster.subscribe(id)
+                : sseBroadcaster.subscribeReplay(id, afterSequence, timeline::listAfter);
     }
 
     @GetMapping("/{id}")

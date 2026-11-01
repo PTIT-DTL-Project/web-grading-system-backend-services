@@ -32,6 +32,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.BooleanSupplier;
@@ -42,6 +44,26 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class AgentRuntime {
+    public record RuntimeEvent(String type, int modelTurn, String itemId, Map<String, Object> data) {}
+    private final Map<UUID, Consumer<RuntimeEvent>> timelineHooks = new ConcurrentHashMap<>();
+
+    public String execute(AgentContext context, String systemPrompt, String latestUserText,
+                          LlmClient llm, Consumer<String> onFinalDelta,
+                          BiConsumer<AgentTool, ToolResult> onResult,
+                          Consumer<RuntimeEvent> onTimelineEvent, BooleanSupplier isCancelled) {
+        timelineHooks.put(context.runId(), onTimelineEvent);
+        try {
+            return execute(context, systemPrompt, latestUserText, llm, onFinalDelta, onResult, isCancelled);
+        } finally {
+            timelineHooks.remove(context.runId(), onTimelineEvent);
+        }
+    }
+
+    private void timeline(AgentContext context, String type, int modelTurn, String itemId,
+                          Map<String, Object> data) {
+        Consumer<RuntimeEvent> hook = timelineHooks.get(context.runId());
+        if (hook != null) hook.accept(new RuntimeEvent(type, modelTurn, itemId, data));
+    }
     private static final Pattern UNLISTED_TOOL = Pattern.compile(
             "attempted to call tool '([^']+)' which was not in request\\.tools");
     private static final Pattern CATALOG_TOOL = Pattern.compile("(•\\s*)`([^`]+)`(:\\s*)");
@@ -338,23 +360,41 @@ public class AgentRuntime {
             try {
                 Flux.defer(() -> {
                             int attempt = modelCalls.incrementAndGet();
+                            String reasoningId = "reasoning-" + modelStep + "-" + attempt;
+                            AtomicBoolean hasReasoning = new AtomicBoolean();
+                            timeline(context, "reasoning.started", modelStep, reasoningId,
+                                    Map.of("attempt", attempt));
                             log.info("AI runId={} modelStep={} modelCall={} started", context.runId(), modelStep, attempt);
                             AgentTrace.modelRequest(context, modelStep, attempt, modelPrompt,
                                     prepared.messages(), callbacks, toolChoice);
                             StringBuilder attemptResponse = new StringBuilder();
                             Flux<String> modelStream;
                             try (AgentTrace.Scope modelTraceScope = AgentTrace.bind(context)) {
-                                modelStream = toolChoice == null
-                                        ? llm.streamAgentTurn(modelPrompt, prepared.messages(), callbacks)
-                                        : llm.streamAgentTurn(modelPrompt, prepared.messages(), callbacks, toolChoice);
+                                Consumer<RuntimeEvent> hook = timelineHooks.get(context.runId());
+                                if (hook == null) {
+                                    modelStream = toolChoice == null
+                                            ? llm.streamAgentTurn(modelPrompt, prepared.messages(), callbacks)
+                                            : llm.streamAgentTurn(modelPrompt, prepared.messages(), callbacks, toolChoice);
+                                } else {
+                                    modelStream = llm.streamAgentTurn(modelPrompt, prepared.messages(), callbacks,
+                                            toolChoice, delta -> {
+                                                hasReasoning.set(true);
+                                                timeline(context, "reasoning.delta", modelStep, reasoningId,
+                                                        Map.of("text", delta));
+                                            });
+                                }
                             }
                             return modelStream.doOnNext(chunk -> {
                                         attemptResponse.append(chunk);
                                         response.append(chunk);
                                     })
-                                    .doOnComplete(() -> AgentTrace.record(context.runId(), context.gatewaySecret(),
-                                            "model.response", Map.of("modelStep", modelStep,
-                                                    "attempt", attempt, "content", attemptResponse.toString())))
+                                    .doOnComplete(() -> {
+                                        timeline(context, "reasoning.completed", modelStep, reasoningId,
+                                                Map.of("available", hasReasoning.get()));
+                                        AgentTrace.record(context.runId(), context.gatewaySecret(),
+                                                "model.response", Map.of("modelStep", modelStep,
+                                                        "attempt", attempt, "content", attemptResponse.toString()));
+                                    })
                                     .doOnError(error -> AgentTrace.record(context.runId(), context.gatewaySecret(),
                                             "model.error", Map.of("modelStep", modelStep,
                                                     "attempt", attempt, "partialContent", attemptResponse.toString(),
@@ -915,6 +955,9 @@ public class AgentRuntime {
         int toolCall = toolCalls.incrementAndGet();
         long started = System.nanoTime();
         String name = tool.getToolDefinition().name();
+        String itemId = "tool-" + modelStep + "-" + toolCall;
+        timeline(context, "tool.started", modelStep, itemId,
+                Map.of("name", name, "arguments", input == null ? "" : input));
         log.info("AI runId={} modelStep={} toolCall={} tool={} started",
                 context.runId(), modelStep, toolCall, name);
         AgentTrace.record(context.runId(), context.gatewaySecret(), "tool.request", Map.of(
@@ -927,6 +970,9 @@ public class AgentRuntime {
             AgentTrace.record(context.runId(), context.gatewaySecret(), "tool.result", Map.of(
                     "modelStep", modelStep, "toolCall", toolCall, "tool", name,
                     "durationMs", elapsedMs(started), "output", result == null ? "" : result));
+            timeline(context, "tool.completed", modelStep, itemId,
+                    Map.of("name", name, "result", result == null ? "" : result,
+                            "durationMs", elapsedMs(started)));
             return result;
         } catch (RuntimeException error) {
             log.warn("AI runId={} modelStep={} toolCall={} tool={} toolMs={} status=failed errorType={}",
@@ -936,6 +982,9 @@ public class AgentRuntime {
                     "modelStep", modelStep, "toolCall", toolCall, "tool", name,
                     "durationMs", elapsedMs(started), "input", input == null ? "" : input,
                     "error", String.valueOf(error)));
+            timeline(context, "tool.failed", modelStep, itemId,
+                    Map.of("name", name, "error", String.valueOf(error),
+                            "durationMs", elapsedMs(started)));
             throw error;
         }
     }

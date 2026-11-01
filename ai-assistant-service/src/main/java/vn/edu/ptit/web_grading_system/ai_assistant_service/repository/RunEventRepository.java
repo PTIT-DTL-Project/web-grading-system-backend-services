@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface RunEventRepository extends JpaRepository<RunEvent, Long> {
     List<RunEvent> findByRunIdOrderBySequenceAsc(UUID runId);
+    List<RunEvent> findByRunIdAndSequenceGreaterThanOrderBySequenceAsc(UUID runId, int sequence);
 }

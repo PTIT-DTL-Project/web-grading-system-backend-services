@@ -34,6 +34,41 @@ import static org.mockito.Mockito.*;
 
 class AgentRuntimeTest {
     @Test
+    void liveRunEmitsReasoningTurnAroundProviderChunks() {
+        var mapper = new JacksonConfig().objectMapper();
+        ToolRegistry registry = new ToolRegistry(List.of(), mapper);
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("question")), "", 10, 10, 30));
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of());
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList(), nullable(String.class), any()))
+                .thenAnswer(call -> {
+                    java.util.function.Consumer<String> reasoning = call.getArgument(4);
+                    return Flux.defer(() -> {
+                        reasoning.accept("Check the data.");
+                        return Flux.just("Final answer.");
+                    });
+                });
+        AgentProperties props = new AgentProperties();
+        props.getLimits().setMaxModelSteps(1);
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight,
+                mock(ToolResultStore.class), mock(ConversationRepository.class), mock(MessageRepository.class),
+                mapper, props);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_STUDENT"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+        List<AgentRuntime.RuntimeEvent> events = new java.util.ArrayList<>();
+
+        String answer = runtime.execute(context, "system", "question", llm, delta -> {},
+                (tool, result) -> {}, events::add, () -> false);
+
+        assertEquals("Final answer.", answer);
+        assertEquals(List.of("reasoning.started", "reasoning.delta", "reasoning.completed"),
+                events.stream().map(AgentRuntime.RuntimeEvent::type).toList());
+        assertEquals("Check the data.", events.get(1).data().get("text"));
+    }
+
+    @Test
     void ordinaryWordContainingIdDoesNotTriggerReadPlanner() {
         var mapper = new JacksonConfig().objectMapper();
         ToolRegistry registry = new ToolRegistry(List.of(

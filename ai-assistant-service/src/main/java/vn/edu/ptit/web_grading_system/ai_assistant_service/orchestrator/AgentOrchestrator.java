@@ -47,6 +47,9 @@ public class AgentOrchestrator {
     private final GatewayTrustProperties gatewayProperties;
     private final JpaChatMemory jpaChatMemory;
     private final AgentRuntime agentRuntime;
+    @Autowired(required = false)
+    private RunTimelineService timeline;
+    private final com.fasterxml.jackson.databind.ObjectMapper timelineMapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
     @Autowired
     public AgentOrchestrator(
@@ -129,7 +132,7 @@ public class AgentOrchestrator {
                         "callerRoles", run.getCallerRoles() == null ? "" : run.getCallerRoles()));
 
         recordEvent(runId, 1, "run.started", Map.of("runId", runId.toString()));
-        sseBroadcaster.sendEvent(runId, "run.started", Map.of("runId", runId));
+        publish(runId, "run.started", null, null, Map.of("runId", runId.toString()));
 
         try {
             Conversation conv = conversationRepository.findById(conversationId)
@@ -174,16 +177,24 @@ public class AgentOrchestrator {
                     String latestUserText = messageRepository.findFirstByRunIdAndRoleOrderBySequenceNoAsc(runId, "user")
                             .map(Message::getContent).orElse("");
                     try {
-                        agentRuntime.execute(agentContext, systemPrompt, latestUserText, llmClient,
-                                delta -> {
+                        java.util.function.Consumer<String> onDelta = delta -> {
                                     if (isCancelled(runId)) return;
                                     responseBuffer.append(delta);
-                                    sseBroadcaster.sendDelta(runId, delta);
-                                }, (tool, result) -> {
+                                    publish(runId, "assistant.delta", null, "answer", Map.of("text", delta));
+                                };
+                        java.util.function.BiConsumer<vn.edu.ptit.web_grading_system.ai_assistant_service.tools.AgentTool, ToolResult> onResult = (tool, result) -> {
                                     if (tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE) {
                                         failedWrite.set(result.isSuccess() ? null : result);
                                     }
-                                }, () -> isCancelled(runId));
+                                };
+                        if (timeline == null) {
+                            agentRuntime.execute(agentContext, systemPrompt, latestUserText, llmClient,
+                                    onDelta, onResult, () -> isCancelled(runId));
+                        } else {
+                            agentRuntime.execute(agentContext, systemPrompt, latestUserText, llmClient,
+                                    onDelta, onResult, event -> publish(runId, event.type(), event.modelTurn(),
+                                            event.itemId(), event.data()), () -> isCancelled(runId));
+                        }
                     } catch (Exception ex) {
                         if (ex instanceof RunCancelledException || isCancelled(runId)) throw new RunCancelledException();
                         log.warn("AI runId={} agent execution error: {}", runId, ex.getMessage());
@@ -204,7 +215,7 @@ public class AgentOrchestrator {
                             stream.doOnNext(delta -> {
                                 if (isCancelled(runId)) return;
                                 responseBuffer.append(delta);
-                                sseBroadcaster.sendDelta(runId, delta);
+                                publish(runId, "assistant.delta", null, "answer", Map.of("text", delta));
                             }).takeUntilOther(Flux.interval(java.time.Duration.ofMillis(200))
                                     .filter(tick -> isCancelled(runId)).next()).blockLast();
                             if (isCancelled(runId)) throw new RunCancelledException();
@@ -224,7 +235,7 @@ public class AgentOrchestrator {
                 ToolResult writeFailure = failedWrite.get();
                 if (writeFailure != null) {
                     completion = "Không thể hoàn tất thao tác: " + writeFailure.getMessage();
-                    sseBroadcaster.sendEvent(runId, "assistant.replace", completion);
+                    publish(runId, "assistant.replace", null, "answer", Map.of("text", completion));
                 }
                 if (completion.isEmpty()) {
                     throw new IllegalStateException("AI returned no response");
@@ -261,14 +272,14 @@ public class AgentOrchestrator {
                 runRepository.save(finishedRun);
 
                 recordEvent(runId, eventSeq++, "run.completed", Map.of("runId", runId.toString(), "status", "SUCCEEDED"));
-                sseBroadcaster.sendEvent(runId, "run.completed", Map.of("runId", runId.toString(), "status", "SUCCEEDED"));
+                publish(runId, "run.completed", null, null, Map.of("status", "SUCCEEDED"));
                 AgentTrace.record(runId, gatewayProperties == null ? "" : gatewayProperties.secret(),
                         "run.completed", Map.of("status", "SUCCEEDED"));
             } else if (finishedRun.getStatus() == RunStatus.FAILED) {
                 finishedRun.setFinishedAt(Instant.now());
                 runRepository.save(finishedRun);
                 recordEvent(runId, eventSeq++, "run.failed", Map.of("runId", runId.toString(), "error", finishedRun.getErrorMessage()));
-                sseBroadcaster.sendEvent(runId, "run.failed", Map.of("runId", runId.toString(), "error", finishedRun.getErrorMessage()));
+                publish(runId, "run.failed", null, null, Map.of("error", finishedRun.getErrorMessage()));
                 AgentTrace.record(runId, gatewayProperties == null ? "" : gatewayProperties.secret(),
                         "run.failed", Map.of("status", "FAILED", "error",
                                 String.valueOf(finishedRun.getErrorMessage())));
@@ -282,7 +293,7 @@ public class AgentOrchestrator {
             log.info("AI runId={} cancelled", runId);
             AgentTrace.record(runId, gatewayProperties == null ? "" : gatewayProperties.secret(),
                     "run.cancelled", Map.of("status", "CANCELLED"));
-            sseBroadcaster.sendEvent(runId, "run.cancelled", Map.of("runId", runId.toString()));
+            publish(runId, "run.cancelled", null, null, Map.of("status", "CANCELLED"));
             sseBroadcaster.complete(runId);
         } catch (Exception e) {
             if (isCancelled(runId)) {
@@ -320,9 +331,9 @@ public class AgentOrchestrator {
             } catch (Exception saveError) {
                 log.warn("Could not persist user-facing failure for run {}", runId, saveError);
             }
-            sseBroadcaster.sendEvent(runId, "assistant.replace", userMessage);
+            publish(runId, "assistant.replace", null, "answer", Map.of("text", userMessage));
             recordEvent(runId, 999, "run.failed", Map.of("runId", runId.toString(), "error", userMessage));
-            sseBroadcaster.sendEvent(runId, "run.failed", Map.of("runId", runId.toString(), "error", userMessage));
+            publish(runId, "run.failed", null, null, Map.of("error", userMessage));
             AgentTrace.record(runId, gatewayProperties == null ? "" : gatewayProperties.secret(),
                     "run.failed", Map.of("status", "FAILED", "error", userMessage));
             sseBroadcaster.complete(runId);
@@ -355,6 +366,7 @@ public class AgentOrchestrator {
     private final com.google.gson.Gson gson = new com.google.gson.Gson();
 
     private void recordEvent(UUID runId, int seq, String type, Map<String, Object> payload) {
+        if (timeline != null) return;
         try {
             RunEvent event = RunEvent.builder()
                     .runId(runId)
@@ -365,6 +377,18 @@ public class AgentOrchestrator {
             runEventRepository.save(event);
         } catch (Exception ex) {
             log.warn("Could not persist run event {}: {}", type, ex.getMessage());
+        }
+    }
+
+    private void publish(UUID runId, String type, Integer modelTurn, String itemId, Object data) {
+        if (timeline != null) {
+            timeline.append(runId, type, modelTurn, itemId, timelineMapper.valueToTree(data));
+        } else if ("assistant.delta".equals(type)) {
+            sseBroadcaster.sendDelta(runId, String.valueOf(((Map<?, ?>) data).get("text")));
+        } else if ("assistant.replace".equals(type)) {
+            sseBroadcaster.sendEvent(runId, type, ((Map<?, ?>) data).get("text"));
+        } else {
+            sseBroadcaster.sendEvent(runId, type, data);
         }
     }
 }
