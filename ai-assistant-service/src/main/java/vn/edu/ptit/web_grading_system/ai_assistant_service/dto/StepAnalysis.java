@@ -13,7 +13,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class StepAnalysis {
-    private UUID stepId;
+    private String stepId;
     private String stepName;
     private String stepType;
     private Boolean passed;

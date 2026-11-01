@@ -53,7 +53,7 @@ public class AiExplanationServiceTest {
     private PromptBuilder promptBuilder;
 
     @Mock
-    private LlmClient llmClient;
+    private ExplanationLlmClient explanationLlmClient;
 
     @Mock
     private GatewayTrustProperties gatewayProperties;
@@ -111,7 +111,7 @@ public class AiExplanationServiceTest {
 
         AiExplanationResponse res = explanationService.explainSubmission(submissionId, studentId);
         assertThat(res.getFromCache()).isTrue();
-        verifyNoInteractions(llmClient);
+        verifyNoInteractions(explanationLlmClient);
     }
 
     @Test
@@ -134,7 +134,7 @@ public class AiExplanationServiceTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Forbidden");
 
-        verifyNoInteractions(llmClient);
+        verifyNoInteractions(explanationLlmClient);
     }
 
     // Review: 2026-10-31, Pullfrog PR #48 — regression for the 500 when the LLM omits
@@ -159,10 +159,10 @@ public class AiExplanationServiceTest {
         when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
         // Stub generateEntity to return a DTO whose step has null hints/keywords — this reaches
         // the cache-write path so a regression of the Stream.flatMap(null) guard will fail here.
-        when(llmClient.generateEntity(any(), any(), any()))
+        when(explanationLlmClient.generateEntity(any(), any(), any()))
                 .thenReturn(new AiExplanationResultDto("ok",
                         List.of(StepAnalysis.builder()
-                                .stepId(UUID.randomUUID())
+                                .stepId(UUID.randomUUID().toString())
                                 .stepName("s")
                                 .actionableHints(null)
                                 .learningKeywords(null)
@@ -199,8 +199,8 @@ public class AiExplanationServiceTest {
                 .thenReturn(ApiEnvelope.<List<ResultDto>>builder().status(200).data(List.of(result)).build());
         when(promptBuilder.buildSystemPrompt()).thenReturn("system");
         when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
-        when(llmClient.generateEntity(any(), any(), any())).thenReturn(null);
-        when(llmClient.generateStrictCompletion(any(), any()))
+        when(explanationLlmClient.generateEntity(any(), any(), any())).thenReturn(null);
+        when(explanationLlmClient.generateStrictCompletion(any(), any()))
                 .thenThrow(new AiProviderException(new RuntimeException("provider unavailable")));
 
         AiExplanationResponse res = explanationService.explainSubmission(submissionId, studentId);
@@ -230,10 +230,10 @@ public class AiExplanationServiceTest {
                 .thenReturn(ApiEnvelope.<List<ResultDto>>builder().status(200).data(List.of(result)).build());
         when(promptBuilder.buildSystemPrompt()).thenReturn("system");
         when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
-        when(llmClient.generateEntity(any(), any(), any())).thenReturn(null);
-        when(llmClient.generateStrictCompletion(any(), any())).thenReturn(
+        when(explanationLlmClient.generateEntity(any(), any(), any())).thenReturn(null);
+        when(explanationLlmClient.generateStrictCompletion(any(), any())).thenReturn(
                 "{\"overallSummary\":\"retry-ok\",\"stepAnalyses\":[{\"stepId\":\""
-                        + UUID.randomUUID()
+                        + UUID.randomUUID().toString()
                         + "\",\"stepName\":\"s\",\"passed\":true}]}");
         when(explanationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -265,8 +265,8 @@ public class AiExplanationServiceTest {
         when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
         // Both paths return null — simulates offline mode where generateStrictCompletion
         // returns null without calling the model.
-        when(llmClient.generateEntity(any(), any(), any())).thenReturn(null);
-        when(llmClient.generateStrictCompletion(any(), any())).thenReturn(null);
+        when(explanationLlmClient.generateEntity(any(), any(), any())).thenReturn(null);
+        when(explanationLlmClient.generateStrictCompletion(any(), any())).thenReturn(null);
 
         AiExplanationResponse res = explanationService.explainSubmission(submissionId, studentId);
 
@@ -295,8 +295,8 @@ public class AiExplanationServiceTest {
                 .thenReturn(ApiEnvelope.<List<ResultDto>>builder().status(200).data(List.of(result)).build());
         when(promptBuilder.buildSystemPrompt()).thenReturn("system");
         when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
-        when(llmClient.generateEntity(any(), any(), any())).thenReturn(null);
-        when(llmClient.generateStrictCompletion(any(), any())).thenReturn(
+        when(explanationLlmClient.generateEntity(any(), any(), any())).thenReturn(null);
+        when(explanationLlmClient.generateStrictCompletion(any(), any())).thenReturn(
                 "```json\n{\"overallSummary\":\"fenced-ok\",\"stepAnalyses\":[{\"stepId\":\""
                         + UUID.randomUUID()
                         + "\",\"stepName\":\"s\",\"passed\":true}]}\n```");
@@ -325,7 +325,7 @@ public class AiExplanationServiceTest {
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY));
 
-        verifyNoInteractions(llmClient);
+        verifyNoInteractions(explanationLlmClient);
     }
 
     // --- lecturer audience ------------------------------------------------------
@@ -414,7 +414,7 @@ public class AiExplanationServiceTest {
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY));
 
-        verifyNoInteractions(llmClient);
+        verifyNoInteractions(explanationLlmClient);
     }
 
     @Test
@@ -440,7 +440,7 @@ public class AiExplanationServiceTest {
 
         assertThat(res).isPresent();
         assertThat(res.get().getFromCache()).isTrue();
-        verifyNoInteractions(llmClient);
+        verifyNoInteractions(explanationLlmClient);
     }
 
     // A cached row owned by anyone other than the submission's true student is not this
@@ -489,7 +489,7 @@ public class AiExplanationServiceTest {
                 explanationService.explainSubmissionForLecturer(assignmentId, submissionId, lecturerId);
 
         assertThat(res.getFromCache()).isTrue();
-        verifyNoInteractions(llmClient);
+        verifyNoInteractions(explanationLlmClient);
     }
 
     // The row is written under the student's id, never the lecturer's, so the generate warms the
@@ -506,10 +506,10 @@ public class AiExplanationServiceTest {
                 .thenReturn(Optional.empty());
         when(promptBuilder.buildSystemPrompt()).thenReturn("system");
         when(promptBuilder.buildUserPrompt(any(), any())).thenReturn("user");
-        when(llmClient.generateEntity(any(), any(), any()))
+        when(explanationLlmClient.generateEntity(any(), any(), any()))
                 .thenReturn(new AiExplanationResultDto("ok",
                         List.of(StepAnalysis.builder()
-                                .stepId(UUID.randomUUID())
+                                .stepId(UUID.randomUUID().toString())
                                 .stepName("s")
                                 .stepType("HTTP_REQUEST")
                                 .passed(true)
