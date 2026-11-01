@@ -59,12 +59,15 @@ class LlmClientTraceTest {
             UUID runId = UUID.randomUUID();
             AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_STUDENT"),
                     UUID.randomUUID(), runId, "");
+            StringBuilder streamedReasoning = new StringBuilder();
 
             try (var scope = AgentTrace.bind(context)) {
                 assertEquals("Đáp án", String.join("", client.streamAgentTurn("system",
-                        List.of(new org.springframework.ai.chat.messages.UserMessage("question")), List.of())
+                        List.of(new org.springframework.ai.chat.messages.UserMessage("question")), List.of(),
+                        null, streamedReasoning::append)
                         .collectList().block()));
             }
+            assertEquals("Kiểm tra dữ liệu. Chọn kết quả.", streamedReasoning.toString());
 
             var reasoning = event(captured, "model.reasoning");
             assertEquals(runId.toString(), reasoning.path("runId").asText());

@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.orchestrator.ReasoningChunkNormalizer;
 
 @Slf4j
 @Component
@@ -367,6 +369,12 @@ public class LlmClient {
     public Flux<String> streamAgentTurn(String systemPrompt,
             List<org.springframework.ai.chat.messages.Message> messages,
             List<ToolCallback> toolCallbacks, String toolChoice) {
+        return streamAgentTurn(systemPrompt, messages, toolCallbacks, toolChoice, delta -> {});
+    }
+
+    public Flux<String> streamAgentTurn(String systemPrompt,
+            List<org.springframework.ai.chat.messages.Message> messages,
+            List<ToolCallback> toolCallbacks, String toolChoice, Consumer<String> onReasoningDelta) {
         if (isOfflineMode()) {
             String last = messages == null || messages.isEmpty() ? "" : messages.getLast().getText();
             return Flux.just(generateFallbackResponse(last));
@@ -381,8 +389,18 @@ public class LlmClient {
                 spec.options(OpenAiChatOptions.builder().toolChoice(choice));
             }
             AgentTrace.ReasoningCapture reasoning = AgentTrace.captureReasoning();
+            ReasoningChunkNormalizer normalizer = new ReasoningChunkNormalizer();
             return spec.stream().chatResponse()
-                    .doOnNext(reasoning::accept)
+                    .doOnNext(response -> {
+                        reasoning.accept(response);
+                        if (response.getResult() == null || response.getResult().getOutput() == null) return;
+                        Object raw = response.getResult().getOutput().getMetadata().get("reasoningContent");
+                        if (!(raw instanceof String)) raw = response.getResult().getOutput().getMetadata().get("reasoning");
+                        if (raw instanceof String text) {
+                            String delta = normalizer.accept(text);
+                            if (!delta.isEmpty()) onReasoningDelta.accept(delta);
+                        }
+                    })
                     .map(response -> response.getResult() == null || response.getResult().getOutput() == null
                             || response.getResult().getOutput().getText() == null
                             ? "" : response.getResult().getOutput().getText())
