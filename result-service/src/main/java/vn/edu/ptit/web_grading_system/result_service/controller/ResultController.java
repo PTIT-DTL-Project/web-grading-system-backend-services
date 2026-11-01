@@ -10,10 +10,12 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import vn.edu.ptit.web_grading_system.result_service.dto.response.AssignmentResultGroupResponse;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.ResultResponse;
 import vn.edu.ptit.web_grading_system.result_service.service.ResultService;
 import vn.edu.ptit.web_grading_system.result_service.util.annotation.ApiMessage;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -54,24 +56,34 @@ public class ResultController {
     }
 
     /**
-     * Latest results of one student on one assignment, each with its step rows.
-     * Used by the student's assignment detail page. Empty when the student hasn't
-     * submitted anything yet.
+     * The calling student's results on one assignment shown on the assignment
+     * detail page: the weighted exercise score plus the best attempt per plan
+     * with its step rows. Identity comes from the gateway-injected X-User-Id
+     * header — there is no student id in the path, so a caller can never ask
+     * for someone else's results. Delegates to the same {@code getByAssignment}
+     * the lecturer's view uses, so both audiences read identical numbers.
+     *
+     * <p>No submission at all reads {@code exerciseScore = 0.00} (unsubmitted
+     * plans count as 0 by policy, Review: 2026-10-31).
      */
-    @GetMapping("/student/{studentId}/assignment/{assignmentId}")
-    @ApiMessage("Student assignment results fetched")
-    public ResponseEntity<List<ResultResponse>> getStudentAssignmentResults(
-            @PathVariable UUID studentId,
+    @GetMapping("/student/assignment/{assignmentId}")
+    @ApiMessage("My assignment results fetched")
+    public ResponseEntity<AssignmentResultGroupResponse> myAssignmentResults(
             @PathVariable UUID assignmentId,
             @RequestHeader(value = "X-User-Id", required = false) String xUserId) {
         if (xUserId == null || xUserId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Caller identity required");
         }
-        UUID callerId = UUID.fromString(xUserId);
-        if (!callerId.equals(studentId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not owner of results");
+        UUID studentId = UUID.fromString(xUserId);
+        List<AssignmentResultGroupResponse> groups =
+                resultService.getByAssignment(assignmentId, studentId, true);
+        if (groups.isEmpty()) {
+            return ResponseEntity.ok(AssignmentResultGroupResponse.builder()
+                    .studentUserId(studentId)
+                    .exerciseScore(BigDecimal.ZERO)
+                    .results(List.of())
+                    .build());
         }
-        List<ResultResponse> results = resultService.getStudentAssignmentResults(studentId, assignmentId);
-        return ResponseEntity.ok(results);
+        return ResponseEntity.ok(groups.get(0));
     }
 }

@@ -3,6 +3,7 @@ package vn.edu.ptit.web_grading_system.result_service.controller;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.ResponseEntity;
+import vn.edu.ptit.web_grading_system.result_service.dto.response.AssignmentResultGroupResponse;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.ResultResponse;
 import vn.edu.ptit.web_grading_system.result_service.service.ResultService;
 
@@ -67,6 +68,57 @@ class ResultControllerTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
                 new ResultController(service).getBySubmission(submissionId,
                         "00000000-0000-0000-0000-000000000002"));
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+    }
+
+    @Test
+    void myAssignmentResults_noSubmission_returnsZeroScoreAndEmptyRows() {
+        ResultService service = Mockito.mock(ResultService.class);
+        UUID assignmentId = UUID.randomUUID();
+        UUID studentId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        Mockito.when(service.getByAssignment(assignmentId, studentId, true))
+                .thenReturn(List.of());
+
+        ResponseEntity<AssignmentResultGroupResponse> response =
+                new ResultController(service).myAssignmentResults(assignmentId, studentId.toString());
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals(studentId, response.getBody().getStudentUserId());
+        assertEquals(BigDecimal.ZERO, response.getBody().getExerciseScore());
+        assertTrue(response.getBody().getResults().isEmpty());
+    }
+
+    @Test
+    void myAssignmentResults_withResults_returnsTheSingleGroup() {
+        ResultService service = Mockito.mock(ResultService.class);
+        UUID assignmentId = UUID.randomUUID();
+        UUID studentId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        AssignmentResultGroupResponse group = AssignmentResultGroupResponse.builder()
+                .studentUserId(studentId)
+                .exerciseScore(new BigDecimal("5.11"))
+                .results(List.of(ResultResponse.builder()
+                        .score(new BigDecimal("8.00"))
+                        .maxScore(new BigDecimal("10.00"))
+                        .build()))
+                .build();
+        Mockito.when(service.getByAssignment(assignmentId, studentId, true))
+                .thenReturn(List.of(group));
+
+        ResponseEntity<AssignmentResultGroupResponse> response =
+                new ResultController(service).myAssignmentResults(assignmentId, studentId.toString());
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals(new BigDecimal("5.11"), response.getBody().getExerciseScore());
+        assertEquals(1, response.getBody().getResults().size());
+    }
+
+    @Test
+    void myAssignmentResults_missingIdentity_returnsForbidden() {
+        ResultService service = Mockito.mock(ResultService.class);
+        UUID assignmentId = UUID.randomUUID();
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                new ResultController(service).myAssignmentResults(assignmentId, null));
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
     }
 }
