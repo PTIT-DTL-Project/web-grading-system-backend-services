@@ -615,14 +615,27 @@ public class AgentRuntime {
                     + "\nThe previous response contained no text. Reply with a short plain-text status. "
                     + "Do not claim a write succeeded unless a tool result confirms it.";
             int finalAttempt = modelCalls.incrementAndGet();
+            int finalTurn = properties.getLimits().getMaxModelSteps() + 1;
+            String finalReasoningId = "reasoning-final-" + finalAttempt;
+            AtomicBoolean finalHasReasoning = new AtomicBoolean();
+            timeline(context, "reasoning.started", finalTurn, finalReasoningId,
+                    Map.of("attempt", finalAttempt));
             AgentTrace.modelRequest(context, properties.getLimits().getMaxModelSteps() + 1,
                     finalAttempt, textPrompt, finalContext.messages(), List.of(), null);
             StringBuilder attemptResponse = new StringBuilder();
             Flux<String> finalStream;
             try (AgentTrace.Scope modelTraceScope = AgentTrace.bind(context)) {
-                finalStream = llm.streamAgentTurn(textPrompt, finalContext.messages(), List.of());
+                finalStream = timelineHooks.containsKey(context.runId())
+                        ? llm.streamAgentTurn(textPrompt, finalContext.messages(), List.of(), null, delta -> {
+                            finalHasReasoning.set(true);
+                            timeline(context, "reasoning.delta", finalTurn, finalReasoningId,
+                                    Map.of("text", delta));
+                        })
+                        : llm.streamAgentTurn(textPrompt, finalContext.messages(), List.of());
             }
             finalStream
+                    .doOnComplete(() -> timeline(context, "reasoning.completed", finalTurn,
+                            finalReasoningId, Map.of("available", finalHasReasoning.get())))
                     .doOnNext(attemptResponse::append)
                     .doOnError(error -> AgentTrace.record(context.runId(), context.gatewaySecret(),
                             "model.error", Map.of("attempt", finalAttempt, "error", String.valueOf(error),
