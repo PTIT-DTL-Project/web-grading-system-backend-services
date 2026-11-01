@@ -232,7 +232,15 @@ public class ResultService {
 
     /** Keeps the higher-scoring attempt; the earlier one wins a tie. */
     private static PlanBest higher(PlanBest a, PlanBest b) {
-        return b.score().compareTo(a.score()) > 0 ? b : a;
+        BigDecimal aScore = a.score();
+        BigDecimal bScore = b.score();
+        // Null scores are treated as "worse" than any non-null score for picking
+        if (aScore == null && bScore == null) {
+            return a; // tie, earlier wins
+        }
+        if (aScore == null) return b;
+        if (bScore == null) return a;
+        return bScore.compareTo(aScore) > 0 ? b : a;
     }
 
     /**

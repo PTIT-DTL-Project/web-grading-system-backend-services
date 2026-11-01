@@ -349,6 +349,90 @@ class ResultServiceTest {
         assertNull(out.get(student));
     }
 
+    @Test
+    void weightedScoreByPlan_twoAssignmentsOnePartiallySubmitted() {
+        ScoringFixture f = scoringFixture();
+        UUID student = UUID.randomUUID();
+        UUID fullAssignment = UUID.randomUUID();
+        UUID partialAssignment = UUID.randomUUID();
+        UUID fullPlan = UUID.randomUUID();
+        UUID partialPlanA = UUID.randomUUID();
+        UUID partialPlanB = UUID.randomUUID(); // unsubmitted
+        UUID partialPlanC = UUID.randomUUID(); // unsubmitted
+        Mockito.when(f.plans().plans(fullAssignment)).thenReturn(List.of(
+                new CourseServicePlansClient.PlanWeight(fullPlan, 1)));
+        Mockito.when(f.plans().plans(partialAssignment)).thenReturn(List.of(
+                new CourseServicePlansClient.PlanWeight(partialPlanA, 1),
+                new CourseServicePlansClient.PlanWeight(partialPlanB, 1),
+                new CourseServicePlansClient.PlanWeight(partialPlanC, 1)));
+        Mockito.when(f.repo().findByAssignmentIdInAndStudentId(Mockito.any(), Mockito.eq(student)))
+                .thenReturn(List.of(
+                        result(student, fullAssignment, fullPlan, "10.00", "10.00", 1),
+                        result(student, partialAssignment, partialPlanA, "10.00", "10.00", 1)));
+
+        // Bài 1 nộp đủ 1 câu @10.00; bài 2 mới nộp 1/3 câu @10.00. Hai câu chưa nộp
+        // vẫn cộng weight và ăn 0 điểm: (10 + 10 + 0 + 0) / 4 = 5.00 — không phải
+        // 10.00 (chỉ tính phần đã nộp) cũng không phải 6.67 (chia đều theo bài).
+        assertEquals(new BigDecimal("5.00"),
+                f.service().weightedScoreByPlan(List.of(fullAssignment, partialAssignment), student));
+    }
+
+    @Test
+    void weightedScoreByPlanBatch_twoAssignmentsOnePartiallySubmitted() {
+        UUID fullAssignment = UUID.randomUUID();
+        UUID partialAssignment = UUID.randomUUID();
+        UUID fullPlan = UUID.randomUUID();
+        UUID partialPlanA = UUID.randomUUID();
+        UUID partialPlanB = UUID.randomUUID(); // unsubmitted
+        UUID student = UUID.randomUUID();
+        UUID studentWithoutSubmission = UUID.randomUUID();
+        ResultRepository repo = Mockito.mock(ResultRepository.class);
+        StepResultRepository steps = Mockito.mock(StepResultRepository.class);
+        CourseServicePlansClient plans = Mockito.mock(CourseServicePlansClient.class);
+        Mockito.when(plans.plans(fullAssignment)).thenReturn(List.of(
+                new CourseServicePlansClient.PlanWeight(fullPlan, 1)));
+        Mockito.when(plans.plans(partialAssignment)).thenReturn(List.of(
+                new CourseServicePlansClient.PlanWeight(partialPlanA, 1),
+                new CourseServicePlansClient.PlanWeight(partialPlanB, 1)));
+        Mockito.when(repo.findByAssignmentIdInAndStudentIdIn(Mockito.anyList(), Mockito.anyList()))
+                .thenReturn(List.of(
+                        result(student, fullAssignment, fullPlan, "10.00", "10.00", 1),
+                        result(student, partialAssignment, partialPlanA, "10.00", "10.00", 1)));
+        Mockito.when(steps.findByResultIdIn(Mockito.anyList())).thenReturn(List.of());
+
+        // Transcript đọc cùng công thức: 2 bài / 3 câu, 1 câu chưa nộp ăn 0 điểm
+        // → (10 + 10 + 0) / 3 = 6.67; sinh viên chưa nộp gì = 0.00.
+        Map<UUID, BigDecimal> out = new ResultService(repo, steps, plans).weightedScoreByPlanBatch(
+                List.of(fullAssignment, partialAssignment),
+                List.of(student, studentWithoutSubmission));
+
+        assertEquals(new BigDecimal("6.67"), out.get(student));
+        assertEquals(BigDecimal.ZERO, out.get(studentWithoutSubmission));
+    }
+
+    @Test
+    void weightedScoreByPlan_unavailablePlanWeightsDropUnsubmittedPlansKnownGap() {
+        ScoringFixture f = scoringFixture();
+        UUID student = UUID.randomUUID();
+        UUID fullAssignment = UUID.randomUUID();
+        UUID partialAssignment = UUID.randomUUID();
+        UUID fullPlan = UUID.randomUUID();
+        UUID partialPlanA = UUID.randomUUID();
+        Mockito.when(f.plans().plans(Mockito.any()))
+                .thenThrow(new RuntimeException("course-service unreachable"));
+        Mockito.when(f.repo().findByAssignmentIdInAndStudentId(Mockito.any(), Mockito.eq(student)))
+                .thenReturn(List.of(
+                        result(student, fullAssignment, fullPlan, "10.00", "10.00", 1),
+                        result(student, partialAssignment, partialPlanA, "10.00", "10.00", 1)));
+
+        // KNOWN GAP (chưa xử lý): khi course-service không trả được danh sách câu,
+        // các câu CHƯA nộp của bài 2 trở nên vô hình nên điểm bị thổi lên 10.00
+        // thay vì 5.00. Test này khoá hành vi HIỆN TẠI; bản sửa fail-closed
+        // (trả null thay vì số sai) phải cập nhật test này một cách có chủ đích.
+        assertEquals(new BigDecimal("10.00"),
+                f.service().weightedScoreByPlan(List.of(fullAssignment, partialAssignment), student));
+    }
+
     private Result result(UUID student, UUID assignment, UUID plan, String score, String maxScore,
             int planWeight) {
         return Result.builder()
