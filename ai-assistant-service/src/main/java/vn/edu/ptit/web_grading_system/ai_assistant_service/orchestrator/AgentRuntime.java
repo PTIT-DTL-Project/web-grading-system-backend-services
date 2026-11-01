@@ -970,7 +970,7 @@ public class AgentRuntime {
             AgentTrace.record(context.runId(), context.gatewaySecret(), "tool.result", Map.of(
                     "modelStep", modelStep, "toolCall", toolCall, "tool", name,
                     "durationMs", elapsedMs(started), "output", result == null ? "" : result));
-            timeline(context, "tool.completed", modelStep, itemId,
+            timeline(context, isToolFailure(result) ? "tool.failed" : "tool.completed", modelStep, itemId,
                     Map.of("name", name, "result", result == null ? "" : result,
                             "durationMs", elapsedMs(started)));
             return result;
@@ -986,6 +986,17 @@ public class AgentRuntime {
                     Map.of("name", name, "error", String.valueOf(error),
                             "durationMs", elapsedMs(started)));
             throw error;
+        }
+    }
+
+    static boolean isToolFailure(String result) {
+        if (result == null || !result.startsWith("{")) return false;
+        try {
+            var json = new ObjectMapper().readTree(result);
+            return json.has("code") && json.path("success").isBoolean()
+                    && !json.path("success").asBoolean();
+        } catch (Exception ignored) {
+            return false;
         }
     }
 

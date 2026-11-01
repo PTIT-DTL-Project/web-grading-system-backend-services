@@ -66,5 +66,7 @@ class RunEventsReplayTest {
         assertTrue(body.contains("id:2"));
         assertTrue(body.contains("id:3"));
         assertTrue(body.indexOf("id:2") < body.indexOf("id:3"));
+        assertTrue(body.contains("\"version\":1"));
+        assertTrue(body.contains("\"text\":\"thinking\""));
     }
 }

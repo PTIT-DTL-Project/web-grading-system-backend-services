@@ -22,6 +22,8 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Component
 public class SseBroadcaster {
+    private static final com.fasterxml.jackson.databind.ObjectMapper JSON =
+            new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
 
     private final Map<UUID, List<SseEmitter>> emitters = new ConcurrentHashMap<>();
     private final Map<UUID, List<ReplaySubscriber>> timelineEmitters = new ConcurrentHashMap<>();
@@ -73,7 +75,7 @@ public class SseBroadcaster {
             if (event.sequence() <= lastSequence) return;
             try {
                 emitter.send(SseEmitter.event().id(Integer.toString(event.sequence()))
-                        .name(event.type()).data(event));
+                        .name(event.type()).data(JSON.writeValueAsString(event)));
                 lastSequence = event.sequence();
                 if (event.type().equals("run.completed") || event.type().equals("run.failed")
                         || event.type().equals("run.cancelled")) emitter.complete();

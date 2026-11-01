@@ -29,6 +29,9 @@ class RunTimelineServiceTest {
         assertEquals(2, event.sequence());
         assertFalse(event.data().toString().contains("abc123"));
         assertFalse(event.data().toString().contains("secret"));
+        RunTimelineEvent keyEvent = service.append(runId, "tool.completed", 1, "tool-1",
+                mapper.readTree("{\"result\":\"gsk_abcdef123456789\"}"));
+        assertFalse(keyEvent.data().toString().contains("gsk_abcdef123456789"));
         var order = inOrder(repository, broadcaster);
         order.verify(repository).save(any(RunEvent.class));
         order.verify(broadcaster).sendTimelineEvent(eq(runId), eq(event));

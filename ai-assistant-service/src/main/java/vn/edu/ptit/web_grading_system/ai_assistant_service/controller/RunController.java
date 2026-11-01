@@ -40,8 +40,13 @@ public class RunController {
                 .orElseThrow(() -> new IllegalArgumentException("Run not found: " + id));
         verifyOwner(principal, run);
         if (afterSequence < 0) throw new IllegalArgumentException("afterSequence must be nonnegative");
-        return timeline == null ? sseBroadcaster.subscribe(id)
-                : sseBroadcaster.subscribeReplay(id, afterSequence, timeline::listAfter);
+        if (timeline == null) return sseBroadcaster.subscribe(id);
+        SseEmitter emitter = sseBroadcaster.subscribeReplay(id, afterSequence, timeline::listAfter);
+        if (run.getStatus() == RunStatus.SUCCEEDED || run.getStatus() == RunStatus.FAILED
+                || run.getStatus() == RunStatus.CANCELLED || run.getStatus() == RunStatus.LIMIT_REACHED) {
+            emitter.complete();
+        }
+        return emitter;
     }
 
     @GetMapping("/{id}")
