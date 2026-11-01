@@ -94,6 +94,7 @@ public class LlmClient {
                             + "\nKết quả thực thi: " + gson.toJson(result))));
             AgentTrace.recordCurrent("model.request.confirmedAction", Map.of("prompt", prompt.getContents()));
             ChatResponse response = chatModel.call(prompt);
+            AgentTrace.recordCurrentReasoning(response);
             String content = response == null || response.getResult() == null || response.getResult().getOutput() == null
                     ? null : response.getResult().getOutput().getText();
             AgentTrace.recordCurrent("model.response.confirmedAction", Map.of("content",
@@ -128,6 +129,7 @@ public class LlmClient {
                     new UserMessage("Recent request:\n" + userRequest + "\nAvailable tools (name | short description | parameters):\n" + catalog)));
             AgentTrace.recordCurrent("model.request.toolSelection", Map.of("prompt", prompt.getContents()));
             ChatResponse response = chatModel.call(prompt);
+            AgentTrace.recordCurrentReasoning(response);
             String raw = response == null || response.getResult() == null || response.getResult().getOutput() == null
                     ? "[]" : response.getResult().getOutput().getText();
             AgentTrace.recordCurrent("model.response.toolSelection", Map.of("content", raw));
@@ -204,6 +206,7 @@ public class LlmClient {
                     new UserMessage(input)));
             AgentTrace.recordCurrent("model.request.approvalClassification", Map.of("prompt", prompt.getContents()));
             ChatResponse response = chatModel.call(prompt);
+            AgentTrace.recordCurrentReasoning(response);
             String answer = response == null || response.getResult() == null
                     || response.getResult().getOutput() == null ? ""
                     : response.getResult().getOutput().getText();
@@ -265,6 +268,7 @@ public class LlmClient {
         }
         try {
             ChatResponse response = chatModel.call(prompt);
+            AgentTrace.recordCurrentReasoning(response);
             if (response != null && response.getResult() != null && response.getResult().getOutput() != null) {
                 String content = response.getResult().getOutput().getText();
                 return cleanJsonString(content);
@@ -376,7 +380,16 @@ public class LlmClient {
                         : java.util.Map.of("type", "function", "function", java.util.Map.of("name", toolChoice));
                 spec.options(OpenAiChatOptions.builder().toolChoice(choice));
             }
-            return spec.stream().content().filter(s -> s != null && !s.isEmpty())
+            AgentTrace.ReasoningCapture reasoning = AgentTrace.captureReasoning();
+            return spec.stream().chatResponse()
+                    .doOnNext(reasoning::accept)
+                    .map(response -> response.getResult() == null || response.getResult().getOutput() == null
+                            || response.getResult().getOutput().getText() == null
+                            ? "" : response.getResult().getOutput().getText())
+                    .filter(s -> s != null && !s.isEmpty())
+                    .doOnComplete(() -> reasoning.finish("complete"))
+                    .doOnError(error -> reasoning.finish("error"))
+                    .doOnCancel(() -> reasoning.finish("cancelled"))
                     .onErrorMap(AiProviderException::new);
         } catch (Exception e) {
             return Flux.error(new AiProviderException(e));

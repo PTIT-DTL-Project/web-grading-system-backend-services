@@ -11,6 +11,7 @@ target/
 
 # Docker
 *.log
+ai-assistant-service/logs/
 
 # Environment
 .env

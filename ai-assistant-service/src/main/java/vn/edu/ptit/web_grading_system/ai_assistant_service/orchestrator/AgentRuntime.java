@@ -325,9 +325,12 @@ public class AgentRuntime {
                             AgentTrace.modelRequest(context, modelStep, attempt, modelPrompt,
                                     prepared.messages(), callbacks, toolChoice);
                             StringBuilder attemptResponse = new StringBuilder();
-                            Flux<String> modelStream = toolChoice == null
-                                    ? llm.streamAgentTurn(modelPrompt, prepared.messages(), callbacks)
-                                    : llm.streamAgentTurn(modelPrompt, prepared.messages(), callbacks, toolChoice);
+                            Flux<String> modelStream;
+                            try (AgentTrace.Scope modelTraceScope = AgentTrace.bind(context)) {
+                                modelStream = toolChoice == null
+                                        ? llm.streamAgentTurn(modelPrompt, prepared.messages(), callbacks)
+                                        : llm.streamAgentTurn(modelPrompt, prepared.messages(), callbacks, toolChoice);
+                            }
                             return modelStream.doOnNext(chunk -> {
                                         attemptResponse.append(chunk);
                                         response.append(chunk);
@@ -552,7 +555,11 @@ public class AgentRuntime {
         int finalAttempt = modelCalls.incrementAndGet();
         AgentTrace.modelRequest(context, properties.getLimits().getMaxModelSteps() + 1,
                 finalAttempt, modelPrompt, finalContext.messages(), List.of(), null);
-        llm.streamAgentTurn(modelPrompt, finalContext.messages(), List.of())
+        Flux<String> finalStream;
+        try (AgentTrace.Scope modelTraceScope = AgentTrace.bind(context)) {
+            finalStream = llm.streamAgentTurn(modelPrompt, finalContext.messages(), List.of());
+        }
+        finalStream
                 .doOnNext(finalResponse::append)
                 .doOnError(error -> AgentTrace.record(context.runId(), context.gatewaySecret(),
                         "model.error", Map.of("attempt", finalAttempt, "error", String.valueOf(error),

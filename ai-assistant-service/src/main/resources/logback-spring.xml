@@ -2,20 +2,13 @@
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
     <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
 
-    <property name="AI_TRACE_FILE" value="${AI_TRACE_FILE:-logs/ai-agent-trace.log}"/>
-
-    <appender name="AI_TRACE_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${AI_TRACE_FILE}</file>
+    <appender name="AI_TRACE_FILE" class="ch.qos.logback.core.FileAppender">
+        <file>logs/ai-agent-trace.json</file>
+        <append>true</append>
         <encoder>
-            <pattern>%msg%n</pattern>
+            <pattern>%msg%n%n</pattern>
             <charset>UTF-8</charset>
         </encoder>
-        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>${AI_TRACE_FILE}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
-            <maxFileSize>20MB</maxFileSize>
-            <maxHistory>14</maxHistory>
-            <totalSizeCap>1GB</totalSizeCap>
-        </rollingPolicy>
     </appender>
 
     <logger name="AI_AGENT_TRACE" level="INFO" additivity="false">
