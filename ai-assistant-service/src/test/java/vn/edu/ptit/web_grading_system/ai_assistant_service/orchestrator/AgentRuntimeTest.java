@@ -31,22 +31,53 @@ import static org.mockito.Mockito.*;
 
 class AgentRuntimeTest {
     @Test
-    void resolvedStepDoesNotClaimLookupFailedIfModelStillAsksForId() {
+    void ordinaryWordContainingIdDoesNotTriggerReadPlanner() {
         var mapper = new JacksonConfig().objectMapper();
         ToolRegistry registry = new ToolRegistry(List.of(
-                readWithResult("listVisibleAssignments", ToolResult.ok(java.util.Map.of("items", List.of(
-                        java.util.Map.of("id", UUID.randomUUID(), "title", "Quản lý Thư viện"))))),
-                readWithResult("listTestPlans", ToolResult.ok(List.of(
-                        java.util.Map.of("id", UUID.randomUUID(), "name", "Kiểm tra API thêm sách")))),
-                readWithResult("listTestSteps", ToolResult.ok(List.of())),
+                readWithResult("listVisibleAssignments", ToolResult.ok(java.util.Map.of("items", List.of())))), mapper);
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("question")), "", 10, 10, 30));
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("listVisibleAssignments"));
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList()))
+                .thenReturn(Flux.just("Cấu hình valid và cần kiểm tra thêm."));
+        AgentProperties props = new AgentProperties();
+        props.getLimits().setMaxModelSteps(2);
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight,
+                mock(ToolResultStore.class), mock(ConversationRepository.class), mock(MessageRepository.class),
+                mapper, props);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+
+        runtime.execute(context, "system", "kiểm tra cấu hình", llm, delta -> {}, (tool, result) -> {});
+
+        verify(llm, never()).generateStrictCompletion(anyString(), anyString());
+    }
+
+    @Test
+    void initialCallbacksFollowModelSelectionWithoutFixedReadSequence() {
+        var mapper = new JacksonConfig().objectMapper();
+        ToolRegistry registry = new ToolRegistry(List.of(
+                lecturerTool("listVisibleAssignments", EffectType.READ, Set.of("assignmentId"), Set.of()),
+                lecturerTool("listTestPlans", EffectType.READ, Set.of("planId"), Set.of("assignmentId")),
                 lecturerTool("createTestStep", EffectType.DOMAIN_WRITE, Set.of(), Set.of())), mapper);
         ContextPreflight preflight = mock(ContextPreflight.class);
         when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
                 .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("tạo step")), "", 10, 10, 30));
         LlmClient llm = mock(LlmClient.class);
-        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestStep"));
-        when(llm.streamAgentTurn(anyString(), anyList(), anyList()))
-                .thenReturn(Flux.just("Bạn cung cấp ID của câu kiểm tra được không?"));
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenAnswer(call -> {
+            assertTrue(((String) call.getArgument(0)).startsWith("Current user request:"));
+            return List.of("createTestStep");
+        });
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
+            Set<String> names = ((List<ToolCallback>) call.getArgument(2)).stream()
+                    .map(cb -> cb.getToolDefinition().name()).collect(java.util.stream.Collectors.toSet());
+            assertTrue(names.contains("createTestStep"));
+            assertFalse(names.contains("listVisibleAssignments"));
+            assertFalse(names.contains("listTestPlans"));
+            return Flux.just("Bạn cho mình biết path API nhé.");
+        });
         AgentProperties props = new AgentProperties();
         props.getLimits().setMaxModelSteps(1);
         AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight,
@@ -55,25 +86,64 @@ class AgentRuntimeTest {
         AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
                 UUID.randomUUID(), UUID.randomUUID(), "");
 
-        String reply = runtime.execute(context, "system",
-                "tạo step của câu Kiểm tra API thêm sách của bài Quản lý Thư viện",
-                llm, delta -> {}, (tool, result) -> {});
-
-        assertTrue(reply.contains("đã xác định"));
-        assertFalse(reply.contains("chưa tra cứu"));
+        runtime.execute(context, "system", "tạo step cho câu kiểm tra", llm,
+                delta -> {}, (tool, result) -> {});
     }
 
     @Test
-    void namedStepTargetIsResolvedThroughScopedReadsBeforeModelTurn() {
+    void nextReadToolIsChosenFromPreviousToolResult() {
         var mapper = new JacksonConfig().objectMapper();
         UUID assignmentId = UUID.randomUUID();
-        UUID planId = UUID.randomUUID();
         ToolRegistry registry = new ToolRegistry(List.of(
                 readWithResult("listVisibleAssignments", ToolResult.ok(java.util.Map.of("items", List.of(
                         java.util.Map.of("id", assignmentId, "title", "Quản lý Thư viện"))))),
                 readWithResult("listTestPlans", ToolResult.ok(List.of(
-                        java.util.Map.of("id", planId, "name", "Kiểm tra API thêm sách")))),
-                readWithResult("listTestSteps", ToolResult.ok(List.of())),
+                        java.util.Map.of("id", UUID.randomUUID(), "name", "Kiểm tra API thêm sách")))),
+                lecturerTool("createTestStep", EffectType.DOMAIN_WRITE, Set.of(), Set.of())), mapper);
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenAnswer(call -> new ContextPreflight.PreparedContext(
+                        List.copyOf(call.getArgument(5, List.class)), "", 10, 10, 30));
+        ToolResultStore store = mock(ToolResultStore.class);
+        when(store.offer(anyString(), any(), anyInt())).thenAnswer(call ->
+                new ToolResultStore.ToolResultDelivery(call.getArgument(0), true, null, null, "full", 0));
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestStep"));
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenReturn(
+                Flux.just("Cần ID của bài tập."), Flux.just("Cần ID của câu kiểm tra."),
+                Flux.just("Bạn cho mình biết path API cần kiểm tra nhé."));
+        AtomicInteger decisions = new AtomicInteger();
+        when(llm.generateStrictCompletion(anyString(), anyString())).thenAnswer(call -> {
+            if (decisions.getAndIncrement() == 0) {
+                return "{\"tool\":\"listVisibleAssignments\",\"arguments\":{\"search\":\"Quản lý Thư viện\"}}";
+            }
+            assertTrue(((String) call.getArgument(1)).contains(assignmentId.toString()));
+            return "{\"tool\":\"listTestPlans\",\"arguments\":{\"assignmentId\":\""
+                    + assignmentId + "\"}}";
+        });
+        AgentProperties props = new AgentProperties();
+        props.getLimits().setMaxModelSteps(3);
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight, store,
+                mock(ConversationRepository.class), mock(MessageRepository.class), mapper, props);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+        List<String> called = new java.util.ArrayList<>();
+
+        String reply = runtime.execute(context, "system", "tạo step cho câu kiểm tra trong bài thư viện", llm,
+                delta -> {}, (tool, result) -> called.add(tool.getName()));
+
+        assertEquals(List.of("listVisibleAssignments", "listTestPlans"), called);
+        assertEquals("Bạn cho mình biết path API cần kiểm tra nhé.", reply);
+    }
+
+    @Test
+    void modelChoosesAndExecutesReadToolAfterDraftAsksForId() {
+        var mapper = new JacksonConfig().objectMapper();
+        UUID assignmentId = UUID.randomUUID();
+        ToolRegistry registry = new ToolRegistry(List.of(
+                readWithResult("listVisibleAssignments", ToolResult.ok(java.util.Map.of("items", List.of(
+                        java.util.Map.of("id", assignmentId, "title", "Quản lý Thư viện"))))),
+                readWithResult("listTestPlans", ToolResult.ok(List.of())),
                 lecturerTool("createTestStep", EffectType.DOMAIN_WRITE, Set.of(), Set.of())), mapper);
         ContextPreflight preflight = mock(ContextPreflight.class);
         when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
@@ -81,26 +151,30 @@ class AgentRuntimeTest {
                         List.copyOf(call.getArgument(5, List.class)), "", 10, 10, 30));
         LlmClient llm = mock(LlmClient.class);
         when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestStep"));
-        when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
-            List<org.springframework.ai.chat.messages.Message> history = call.getArgument(1);
-            assertTrue(history.stream().anyMatch(message -> message.getText().contains(planId.toString())));
-            assertTrue(history.stream().anyMatch(message -> message.getText().contains("stepOrder=1")));
-            return Flux.just("Bạn cho mình biết path API cần kiểm tra nhé.");
-        });
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList()))
+                .thenReturn(Flux.just("Bạn cung cấp ID của câu kiểm tra được không?"),
+                        Flux.just("Bạn cho mình biết path API cần kiểm tra nhé."));
+        when(llm.generateStrictCompletion(anyString(), anyString())).thenReturn(
+                "{\"tool\":\"listVisibleAssignments\",\"arguments\":{\"search\":\"Quản lý Thư viện\"}}");
+        AgentProperties props = new AgentProperties();
+        props.getLimits().setMaxModelSteps(2);
+        ToolResultStore store = mock(ToolResultStore.class);
+        when(store.offer(anyString(), any(), anyInt())).thenAnswer(call ->
+                new ToolResultStore.ToolResultDelivery(call.getArgument(0), true, null, null, "full", 0));
         AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight,
-                mock(ToolResultStore.class), mock(ConversationRepository.class), mock(MessageRepository.class),
-                mapper, new AgentProperties());
+                store, mock(ConversationRepository.class), mock(MessageRepository.class),
+                mapper, props);
         AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
                 UUID.randomUUID(), UUID.randomUUID(), "");
-        List<String> reads = new java.util.ArrayList<>();
+        List<String> called = new java.util.ArrayList<>();
 
         String reply = runtime.execute(context, "system",
-                "tạo giúp tôi step kiểm tra của câu Kiểm tra API thêm sách của bài Quản lý Thư viện",
-                llm, delta -> {}, (tool, result) -> reads.add(tool.getName()));
+                "tạo step của câu Kiểm tra API thêm sách của bài Quản lý Thư viện",
+                llm, delta -> {}, (tool, result) -> called.add(tool.getName()));
 
-        assertEquals(List.of("listVisibleAssignments", "listTestPlans", "listTestSteps"), reads);
+        assertEquals(List.of("listVisibleAssignments"), called);
         assertEquals("Bạn cho mình biết path API cần kiểm tra nhé.", reply);
-        verify(llm, never()).streamAgentTurn(anyString(), anyList(), anyList(), anyString());
+        verify(llm).generateStrictCompletion(anyString(), contains("Quản lý Thư viện"));
     }
 
     private AgentTool readWithResult(String name, ToolResult result) {
@@ -144,48 +218,6 @@ class AgentRuntimeTest {
     }
 
     @Test
-    void stepCreationReadsAssignmentPlanAndExistingStepsBeforeAnswering() {
-        var mapper = new JacksonConfig().objectMapper();
-        ToolRegistry registry = new ToolRegistry(List.of(
-                lecturerTool("listVisibleAssignments", EffectType.READ, Set.of("assignmentId"), Set.of()),
-                lecturerTool("listTestPlans", EffectType.READ, Set.of("planId"), Set.of("assignmentId")),
-                lecturerTool("listTestSteps", EffectType.READ, Set.of("stepId"), Set.of("planId")),
-                lecturerTool("createTestStep", EffectType.DOMAIN_WRITE, Set.of(), Set.of())), mapper);
-        ContextPreflight preflight = mock(ContextPreflight.class);
-        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
-                .thenAnswer(call -> new ContextPreflight.PreparedContext(
-                        List.copyOf(call.getArgument(5, List.class)), "", 10, 10, 30));
-        ToolResultStore store = mock(ToolResultStore.class);
-        when(store.offer(anyString(), any(), anyInt())).thenAnswer(call ->
-                new ToolResultStore.ToolResultDelivery(call.getArgument(0), true, null, null, "full", 0));
-        LlmClient llm = mock(LlmClient.class);
-        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestStep"));
-        List<String> reads = new java.util.ArrayList<>();
-        when(llm.streamAgentTurn(anyString(), anyList(), anyList(), eq("required"))).thenAnswer(call -> {
-            List<ToolCallback> callbacks = call.getArgument(2);
-            assertEquals(1, callbacks.size());
-            String name = callbacks.getFirst().getToolDefinition().name();
-            reads.add(name);
-            return Flux.just(callbacks.getFirst().call("{}"));
-        });
-        when(llm.streamAgentTurn(anyString(), anyList(), anyList()))
-                .thenReturn(Flux.just("Bạn cho mình biết path API của bước chấm nhé."));
-        AgentProperties props = new AgentProperties();
-        props.getLimits().setMaxModelSteps(5);
-        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight, store,
-                mock(ConversationRepository.class), mock(MessageRepository.class), mapper, props);
-        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
-                UUID.randomUUID(), UUID.randomUUID(), "");
-
-        String reply = runtime.execute(context, "system",
-                "tạo giúp tôi step kiểm tra cho Kiểm tra API thêm sách trong bài Quản lý Thư viện",
-                llm, delta -> {}, (tool, result) -> {});
-
-        assertEquals(List.of("listVisibleAssignments", "listTestPlans", "listTestSteps"), reads);
-        assertEquals("Bạn cho mình biết path API của bước chấm nhé.", reply);
-    }
-
-    @Test
     void completedPlanMentionDoesNotOverrideCurrentStepRequest() {
         var mapper = new JacksonConfig().objectMapper();
         ToolRegistry registry = new ToolRegistry(List.of(
@@ -196,7 +228,8 @@ class AgentRuntimeTest {
                 .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage(
                         "Đã tạo câu kiểm tra rồi, giờ tạo bước chấm cho câu đó")), "", 10, 10, 30));
         LlmClient llm = mock(LlmClient.class);
-        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestPlan"));
+        when(llm.chooseRelevantTools(anyString(), anyList()))
+                .thenReturn(List.of("createTestPlan", "createTestStep"));
         when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
             Set<String> names = ((List<ToolCallback>) call.getArgument(2)).stream()
                     .map(cb -> cb.getToolDefinition().name()).collect(java.util.stream.Collectors.toSet());
@@ -236,7 +269,8 @@ class AgentRuntimeTest {
                 .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("ok cứ tạo theo mẫu bạn gợi ý")),
                         "Chờ tạo bước chấm", 10, 10, 30));
         LlmClient llm = mock(LlmClient.class);
-        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestStep"));
+        when(llm.chooseRelevantTools(anyString(), anyList()))
+                .thenReturn(List.of("createTestStep", "createTestPlan"));
         when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
             String prompt = call.getArgument(0);
             Set<String> names = ((List<ToolCallback>) call.getArgument(2)).stream()
@@ -270,7 +304,8 @@ class AgentRuntimeTest {
                 .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("Tạo bài tập Quản lý Thư viện")),
                         "Chờ tạo câu kiểm tra", 10, 10, 30));
         LlmClient llm = mock(LlmClient.class);
-        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestPlan"));
+        when(llm.chooseRelevantTools(anyString(), anyList()))
+                .thenReturn(List.of("createAssignment", "createTestPlan"));
         when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
             Set<String> names = ((List<ToolCallback>) call.getArgument(2)).stream()
                     .map(cb -> cb.getToolDefinition().name()).collect(java.util.stream.Collectors.toSet());
@@ -305,7 +340,8 @@ class AgentRuntimeTest {
                 .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("Tạo câu kiểm tra API thêm sách")),
                         "Chờ tạo bước chấm", 10, 10, 30));
         LlmClient llm = mock(LlmClient.class);
-        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestStep"));
+        when(llm.chooseRelevantTools(anyString(), anyList()))
+                .thenReturn(List.of("createTestStep", "createTestPlan", "listVisibleAssignments"));
         when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
             Set<String> names = ((List<ToolCallback>) call.getArgument(2)).stream()
                     .map(cb -> cb.getToolDefinition().name()).collect(java.util.stream.Collectors.toSet());
@@ -339,7 +375,8 @@ class AgentRuntimeTest {
                 .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("Tạo câu kiểm tra và các bước chấm")),
                         "", 10, 10, 30));
         LlmClient llm = mock(LlmClient.class);
-        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestPlan"));
+        when(llm.chooseRelevantTools(anyString(), anyList()))
+                .thenReturn(List.of("createTestPlan", "createTestQuestion"));
         when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
             Set<String> names = ((List<ToolCallback>) call.getArgument(2)).stream()
                     .map(cb -> cb.getToolDefinition().name()).collect(java.util.stream.Collectors.toSet());
@@ -395,7 +432,7 @@ class AgentRuntimeTest {
 
     @Test
     @ExtendWith(OutputCaptureExtension.class)
-    void stepIntentCanContinueWhenToolSelectorProviderFails(CapturedOutput logOutput) {
+    void toolSelectorProviderFailureIsReportedInsteadOfGuessingTools(CapturedOutput logOutput) {
         var mapper = new JacksonConfig().objectMapper();
         ToolRegistry registry = new ToolRegistry(List.of(
                 lecturerTool("createTestStep", EffectType.DOMAIN_WRITE, Set.of(), Set.of())), mapper);
@@ -418,10 +455,9 @@ class AgentRuntimeTest {
         AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
                 UUID.randomUUID(), UUID.randomUUID(), "");
 
-        assertEquals("Cần thông tin bước chấm.", runtime.execute(context, "system", "tạo bước chấm", llm,
+        assertThrows(AiProviderException.class, () -> runtime.execute(context, "system", "tạo bước chấm", llm,
                 delta -> {}, (tool, result) -> {}));
         assertTrue(logOutput.getOut().contains("phase=toolSelection errorType=AiProviderException"));
-        assertTrue(logOutput.getOut().contains("selectedTools=[createTestStep]"));
         assertFalse(logOutput.getOut().contains("selector unavailable"));
     }
 
@@ -440,7 +476,8 @@ class AgentRuntimeTest {
                         "Đang chờ name và sequenceOrder để tạo câu kiểm tra", 10, 10, 30));
         LlmClient llm = mock(LlmClient.class);
         when(llm.chooseRelevantTools(anyString(), anyList()))
-                .thenReturn(List.of("createTestPlan", "createTestQuestion"));
+                .thenReturn(List.of("createTestPlan", "createTestQuestion", "createTestStep",
+                        "listVisibleAssignments", "listTestPlans"));
         when(llm.streamAgentTurn(anyString(), anyList(), anyList(), eq("required"))).thenAnswer(call -> {
             List<ToolCallback> callbacks = call.getArgument(2);
             assertEquals(1, callbacks.size());
@@ -492,7 +529,8 @@ class AgentRuntimeTest {
                 .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("ok cứ tạo theo mẫu bạn gợi ý")),
                         "Chờ tạo câu kiểm tra", 10, 10, 30));
         LlmClient llm = mock(LlmClient.class);
-        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestPlan"));
+        when(llm.chooseRelevantTools(anyString(), anyList()))
+                .thenReturn(List.of("createTestPlan", "createTestStep"));
         when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
             String prompt = call.getArgument(0);
             List<ToolCallback> callbacks = call.getArgument(2);
