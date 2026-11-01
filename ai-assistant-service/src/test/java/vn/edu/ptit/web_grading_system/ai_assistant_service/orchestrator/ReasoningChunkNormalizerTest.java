@@ -12,8 +12,11 @@ class ReasoningChunkNormalizerTest {
         assertEquals("me think", incremental.accept("me think"));
 
         ReasoningChunkNormalizer cumulative = new ReasoningChunkNormalizer();
-        assertEquals("Let ", cumulative.accept("Let "));
-        assertEquals("me think", cumulative.accept("Let me think"));
-        assertEquals("", cumulative.accept("Let me think"));
+        assertEquals("Let ", cumulative.accept("Let ", true));
+        assertEquals("me think", cumulative.accept("Let me think", true));
+        assertEquals("", cumulative.accept("Let me think", true));
+        ReasoningChunkNormalizer prefixCollision = new ReasoningChunkNormalizer();
+        assertEquals("a", prefixCollision.accept("a"));
+        assertEquals("and", prefixCollision.accept("and"));
     }
 }
