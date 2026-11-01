@@ -34,7 +34,7 @@ public class SearchConversationTool {
                 return org.springframework.ai.tool.definition.ToolDefinition.builder()
                         .name("search_conversation")
                         .description("Tìm lại các quyết định và tin nhắn cũ trong chính cuộc hội thoại hiện tại.")
-                        .inputSchema("{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"},\"cursor\":{\"type\":\"string\"}},\"required\":[\"query\"]}")
+                        .inputSchema("{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"},\"cursor\":{\"type\":[\"string\",\"null\"]}},\"required\":[\"query\"]}")
                         .build();
             }
             @Override public String call(String input) { return call(input, null); }
@@ -62,8 +62,9 @@ public class SearchConversationTool {
                     }
                     Map<String, Object> result = new LinkedHashMap<>();
                     result.put("matches", matches);
-                    result.put("nextCursor", found.getContent().size() > PAGE_SIZE && !matches.isEmpty()
-                            ? Integer.toString((Integer) matches.getLast().get("sequenceNo")) : null);
+                    if (found.getContent().size() > PAGE_SIZE && !matches.isEmpty()) {
+                        result.put("nextCursor", Integer.toString((Integer) matches.getLast().get("sequenceNo")));
+                    }
                     return mapper.writeValueAsString(result);
                 } catch (NumberFormatException e) {
                     return "{\"error\":\"INVALID_CURSOR\"}";

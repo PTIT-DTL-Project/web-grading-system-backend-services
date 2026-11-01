@@ -24,6 +24,7 @@ class ListVisibleAssignmentsToolTest {
         var schema = mapper.readTree(tool.getToolDefinition().inputSchema());
         assertFalse(schema.path("properties").path("classId").has("format"));
         assertFalse(schema.path("required").toString().contains("classId"));
+        assertTrue(schema.path("properties").path("page").path("description").asText().contains("0"));
         assertTrue(tool.execute(mapper.readTree("{\"classId\":\"\",\"search\":\"Bài tập 4\"}"),
                 context).isSuccess());
         verify(client).listLecturerAssignments(eq(context.userId().toString()), eq("ROLE_LECTURER"),

@@ -88,6 +88,26 @@ class ToolResultStoreTest {
     }
 
     @Test
+    void pageCallbackUsesCurrentBudgetAtCallTime() {
+        ToolResultStore store = mock(ToolResultStore.class);
+        UUID storedId = UUID.randomUUID();
+        when(store.page(eq(storedId), eq("t:0"), eq(context), anyInt()))
+                .thenReturn(new ToolResultStore.ToolResultPage(
+                        new ToolResultStore.ToolResultDelivery("page", true, storedId, null, "text_chunk", 0)));
+        var budget = new java.util.concurrent.atomic.AtomicInteger(120);
+        var callback = new GetToolResultPageTool(store, new com.fasterxml.jackson.databind.ObjectMapper(),
+                budget::get).callback(context);
+        String input = "{\"storedId\":\"" + storedId + "\",\"cursor\":\"t:0\"}";
+
+        callback.call(input);
+        budget.set(240);
+        callback.call(input);
+
+        verify(store).page(storedId, "t:0", context, 120);
+        verify(store).page(storedId, "t:0", context, 240);
+    }
+
+    @Test
     void longUnicodeScalarAndSingleJsonElementCanBeReconstructedExactly() {
         StoredToolResultRepository repository = mock(StoredToolResultRepository.class);
         when(repository.save(any())).thenAnswer(call -> call.getArgument(0));

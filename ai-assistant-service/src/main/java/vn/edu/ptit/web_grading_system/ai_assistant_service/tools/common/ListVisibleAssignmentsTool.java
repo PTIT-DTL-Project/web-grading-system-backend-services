@@ -47,7 +47,7 @@ public class ListVisibleAssignmentsTool implements AgentTool {
                         + "search là tên hoặc một phần tên, để trống nếu cần liệt kê.")
                 .inputSchema("{\"type\":\"object\",\"properties\":{\"classId\":{\"type\":\"string\",\"description\":\"Optional class UUID; omit or use an empty string when unknown\"},"
                         + "\"search\":{\"type\":\"string\"},"
-                        + "\"page\":{\"type\":\"integer\",\"minimum\":0},"
+                        + "\"page\":{\"type\":\"integer\",\"minimum\":0,\"description\":\"Zero-based page index; first page is 0. Omit to start at page 0.\"},"
                         + "\"size\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":50}},"
                         + "\"additionalProperties\":false}")
                 .build();

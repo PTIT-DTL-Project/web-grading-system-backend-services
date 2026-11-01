@@ -7,13 +7,18 @@ import org.springframework.ai.tool.ToolCallback;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.service.ToolResultStore;
 
 import java.util.UUID;
+import java.util.function.IntSupplier;
 
 public class GetToolResultPageTool {
     private final ToolResultStore store;
     private final ObjectMapper mapper;
-    private final int pageTokenBudget;
+    private final IntSupplier pageTokenBudget;
 
     public GetToolResultPageTool(ToolResultStore store, ObjectMapper mapper, int pageTokenBudget) {
+        this(store, mapper, () -> pageTokenBudget);
+    }
+
+    public GetToolResultPageTool(ToolResultStore store, ObjectMapper mapper, IntSupplier pageTokenBudget) {
         this.store = store;
         this.mapper = mapper;
         this.pageTokenBudget = pageTokenBudget;
@@ -34,7 +39,8 @@ public class GetToolResultPageTool {
                     JsonNode args = mapper.readTree(input);
                     UUID id = UUID.fromString(args.path("storedId").asText());
                     String cursor = args.path("cursor").asText();
-                    return mapper.writeValueAsString(store.page(id, cursor, context, pageTokenBudget).delivery());
+                    return mapper.writeValueAsString(store.page(id, cursor, context,
+                            pageTokenBudget.getAsInt()).delivery());
                 } catch (SecurityException e) {
                     return "{\"error\":\"FORBIDDEN\"}";
                 } catch (Exception e) {

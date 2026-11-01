@@ -296,11 +296,19 @@ public class AgentOrchestrator {
                     "run.error", Map.of("error", String.valueOf(e),
                             "errorType", e.getClass().getSimpleName()));
             boolean providerFailure = hasProviderFailure(e);
-            String userMessage = providerFailure
+            boolean emptyModelResponse = e instanceof AgentRuntime.EmptyModelResponseException;
+            boolean repeatedRead = hasRepeatedReadFailure(e);
+            String userMessage = repeatedRead
+                    ? "Trợ lý đã lặp lại cùng một truy vấn đọc mà không có kết quả mới. Chưa có thao tác ghi nào được xác nhận."
+                    : emptyModelResponse
+                    ? "Mô hình AI không trả về nội dung sau khi thử lại. Chưa có kết quả nào được xác nhận."
+                    : providerFailure
                     ? "Trợ lý AI tạm thời chưa thể xử lý yêu cầu. Vui lòng thử lại sau."
                     : "Đã xảy ra lỗi khi xử lý yêu cầu. Vui lòng thử lại sau.";
             run.setStatus(RunStatus.FAILED);
-            run.setErrorCode(providerFailure ? "AI_PROVIDER_UNAVAILABLE" : "RUN_ERROR");
+            run.setErrorCode(repeatedRead ? "REPEATED_READ_CALL"
+                    : emptyModelResponse ? "AI_EMPTY_RESPONSE"
+                    : providerFailure ? "AI_PROVIDER_UNAVAILABLE" : "RUN_ERROR");
             run.setErrorMessage(userMessage);
             run.setFinishedAt(Instant.now());
             runRepository.save(run);
@@ -333,6 +341,13 @@ public class AgentOrchestrator {
     private boolean hasProviderFailure(Throwable error) {
         for (Throwable cause = error; cause != null; cause = cause.getCause()) {
             if (cause instanceof AiProviderException) return true;
+        }
+        return false;
+    }
+
+    private boolean hasRepeatedReadFailure(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ReadToolCallGuard.RepeatedReadCallException) return true;
         }
         return false;
     }

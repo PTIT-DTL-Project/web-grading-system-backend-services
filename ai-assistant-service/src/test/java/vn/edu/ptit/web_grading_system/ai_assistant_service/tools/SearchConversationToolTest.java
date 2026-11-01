@@ -22,6 +22,28 @@ class SearchConversationToolTest {
     private final ObjectMapper mapper = new JacksonConfig().objectMapper();
 
     @Test
+    void cursorSchemaAcceptsNullAndNullStartsFromNewestMessage() throws Exception {
+        UUID userId = UUID.randomUUID(), conversationId = UUID.randomUUID();
+        ConversationRepository conversations = mock(ConversationRepository.class);
+        MessageRepository messages = mock(MessageRepository.class);
+        when(conversations.findByIdAndOwnerId(conversationId, userId))
+                .thenReturn(Optional.of(Conversation.builder().id(conversationId).ownerId(userId).build()));
+        when(messages.searchScoped(eq(conversationId), eq("ROLE_STUDENT"), eq("decision"),
+                eq(Integer.MAX_VALUE), any())).thenReturn(new PageImpl<>(List.of()));
+        AgentContext context = new AgentContext(userId, "", Set.of("ROLE_STUDENT"),
+                conversationId, UUID.randomUUID(), "");
+        var callback = new SearchConversationTool(conversations, messages, mapper).callback(context);
+        var schema = mapper.readTree(callback.getToolDefinition().inputSchema());
+
+        assertTrue(schema.path("properties").path("cursor").path("type").isArray());
+        assertTrue(schema.path("properties").path("cursor").path("type").toString().contains("null"));
+        assertEquals(0, mapper.readTree(callback.call("{\"query\":\"decision\",\"cursor\":null}"))
+                .path("matches").size());
+        verify(messages).searchScoped(eq(conversationId), eq("ROLE_STUDENT"), eq("decision"),
+                eq(Integer.MAX_VALUE), any());
+    }
+
+    @Test
     void findsOldDecisionOnlyInOwnedConversationAndCurrentRoleScope() throws Exception {
         UUID userId = UUID.randomUUID(), conversationId = UUID.randomUUID();
         ConversationRepository conversations = mock(ConversationRepository.class);

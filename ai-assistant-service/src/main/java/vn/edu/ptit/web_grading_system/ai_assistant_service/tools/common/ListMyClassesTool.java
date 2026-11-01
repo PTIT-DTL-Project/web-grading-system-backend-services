@@ -45,7 +45,7 @@ public class ListMyClassesTool implements AgentTool {
                 .description(getDescription() + " Dùng khi người dùng nói tên lớp nhưng chưa biết ID; "
                         + "search là tên hoặc một phần tên lớp, để trống nếu cần liệt kê.")
                 .inputSchema("{\"type\":\"object\",\"properties\":{\"search\":{\"type\":\"string\"},"
-                        + "\"page\":{\"type\":\"integer\",\"minimum\":0},"
+                        + "\"page\":{\"type\":\"integer\",\"minimum\":0,\"description\":\"Zero-based page index; first page is 0. Omit to start at page 0.\"},"
                         + "\"size\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":50}},"
                         + "\"additionalProperties\":false}")
                 .build();

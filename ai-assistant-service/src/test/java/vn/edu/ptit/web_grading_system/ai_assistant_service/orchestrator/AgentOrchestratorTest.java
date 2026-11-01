@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -286,5 +287,56 @@ public class AgentOrchestratorTest {
 
         assertEquals(RunStatus.FAILED, run.getStatus());
         assertEquals("RUN_ERROR", run.getErrorCode());
+    }
+
+    @Test
+    void emptyFinalModelResponseIsReportedAsSpecificFailedRun() {
+        UUID runId = UUID.randomUUID(), convId = UUID.randomUUID();
+        Run run = Run.builder().id(runId).conversationId(convId).callerRoles("ROLE_LECTURER")
+                .status(RunStatus.QUEUED).build();
+        Conversation conv = Conversation.builder().id(convId).ownerId(UUID.randomUUID()).build();
+        AgentRuntime runtime = mock(AgentRuntime.class);
+        orchestrator = new AgentOrchestrator(runRepository, conversationRepository, messageRepository,
+                taskRepository, runEventRepository, guardChecker, contextBuilder, sseBroadcaster,
+                llmClient, mock(ToolRegistry.class), null, null, runtime);
+        when(runRepository.findById(runId)).thenReturn(Optional.of(run));
+        when(runRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        when(conversationRepository.findById(convId)).thenReturn(Optional.of(conv));
+        when(guardChecker.canContinue(any(), eq(0))).thenReturn(true);
+        when(contextBuilder.buildSystemPrompt(any(), any())).thenReturn("system");
+        when(runtime.execute(any(), eq("system"), anyString(), eq(llmClient), any(), any(), any()))
+                .thenThrow(new AgentRuntime.EmptyModelResponseException());
+
+        orchestrator.executeRun(runId);
+
+        assertEquals(RunStatus.FAILED, run.getStatus());
+        assertEquals("AI_EMPTY_RESPONSE", run.getErrorCode());
+        assertEquals("Mô hình AI không trả về nội dung sau khi thử lại. Chưa có kết quả nào được xác nhận.",
+                run.getErrorMessage());
+    }
+
+    @Test
+    void repeatedReadCallFailsWithSpecificMessage() {
+        UUID runId = UUID.randomUUID(), convId = UUID.randomUUID();
+        Run run = Run.builder().id(runId).conversationId(convId).callerRoles("ROLE_LECTURER")
+                .status(RunStatus.QUEUED).build();
+        Conversation conv = Conversation.builder().id(convId).ownerId(UUID.randomUUID()).build();
+        AgentRuntime runtime = mock(AgentRuntime.class);
+        orchestrator = new AgentOrchestrator(runRepository, conversationRepository, messageRepository,
+                taskRepository, runEventRepository, guardChecker, contextBuilder, sseBroadcaster,
+                llmClient, mock(ToolRegistry.class), null, null, runtime);
+        when(runRepository.findById(runId)).thenReturn(Optional.of(run));
+        when(runRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        when(conversationRepository.findById(convId)).thenReturn(Optional.of(conv));
+        when(guardChecker.canContinue(any(), eq(0))).thenReturn(true);
+        when(contextBuilder.buildSystemPrompt(any(), any())).thenReturn("system");
+        when(runtime.execute(any(), eq("system"), anyString(), eq(llmClient), any(), any(), any()))
+                .thenThrow(new ReadToolCallGuard.RepeatedReadCallException("listVisibleAssignments"));
+
+        orchestrator.executeRun(runId);
+
+        assertEquals(RunStatus.FAILED, run.getStatus());
+        assertEquals("REPEATED_READ_CALL", run.getErrorCode());
+        assertTrue(run.getErrorMessage().contains("lặp lại cùng một truy vấn"));
     }
 }
