@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -78,6 +79,12 @@ public class AgentRuntime {
                           LlmClient llm, Consumer<String> onFinalDelta,
                           BiConsumer<AgentTool, ToolResult> onResult, BooleanSupplier isCancelled) {
         checkCancelled(isCancelled);
+        try (AgentTrace.Scope traceScope = AgentTrace.bind(context)) {
+        AgentTrace.record(context.runId(), context.gatewaySecret(), "agent.start", Map.of(
+                "conversationId", context.conversationId().toString(),
+                "userId", context.userId().toString(),
+                "roles", context.roles(),
+                "userPrompt", latestUserText == null ? "" : latestUserText));
         String unpersistedProposal = "";
         boolean pendingActionInChat = false;
         if (approvalService != null) {
@@ -85,12 +92,21 @@ public class AgentRuntime {
             if (pending.isPresent()) {
                 pendingActionInChat = true;
                 var action = pending.get();
+                AgentTrace.record(context.runId(), context.gatewaySecret(), "approval.pending", Map.of(
+                        "actionId", action.id().toString(), "tool", action.toolName(),
+                        "summary", action.summary()));
                 LlmClient.ApprovalDecision decision = isShortAffirmation(latestUserText)
                         ? LlmClient.ApprovalDecision.CONFIRM
                         : llm.classifyPendingActionReply(latestUserText, action.summary());
+                AgentTrace.record(context.runId(), context.gatewaySecret(), "approval.decision", Map.of(
+                        "actionId", action.id().toString(), "decision", decision.name()));
                 if (decision == LlmClient.ApprovalDecision.CONFIRM) {
                     checkCancelled(isCancelled);
                     Object outcome = approvalService.confirmFromChat(action.id(), context);
+                    AgentTrace.record(context.runId(), context.gatewaySecret(), "approval.execution", Map.of(
+                            "actionId", action.id().toString(), "tool", action.toolName(),
+                            "arguments", String.valueOf(action.arguments()),
+                            "outcome", String.valueOf(outcome)));
                     String completion = confirmationReply(action, outcome);
                     if (outcome instanceof java.util.Map<?, ?> map
                             && "COMPLETED".equals(map.get("status"))
@@ -172,6 +188,8 @@ public class AgentRuntime {
                     + "Nếu thiếu dữ liệu, chỉ hỏi phần còn thiếu của đề xuất này.";
         }
         Set<String> selected = java.util.Collections.synchronizedSet(new LinkedHashSet<>());
+        AgentTrace.record(context.runId(), context.gatewaySecret(), "tool.selection.request", Map.of(
+                "request", toolRequest, "roles", context.roles()));
         try {
             selected.addAll(selector.selectFromModel(toolRequest, context.roles(), llm));
         } catch (AiProviderException error) {
@@ -181,6 +199,8 @@ public class AgentRuntime {
         }
         if (creationTarget != CreationTarget.NONE) constrainCreationWrites(selected, creationTarget);
         log.info("AI runId={} phase=toolSelection selectedTools={}", context.runId(), selected);
+        AgentTrace.record(context.runId(), context.gatewaySecret(), "tool.selection.result", Map.of(
+                "selectedTools", List.copyOf(selected)));
         List<org.springframework.ai.chat.messages.Message> inFlight =
                 java.util.Collections.synchronizedList(new ArrayList<>());
         String prompt = systemPrompt + "\nKhi thiếu tool hoặc cần dùng tool trong danh mục chưa có ở danh sách trực tiếp, BẮT BUỘC gọi search_tools rồi tiếp tục công việc. Tuyệt đối không từ chối thực hiện khi chưa gọi search_tools tra cứu kho công cụ. "
@@ -237,7 +257,8 @@ public class AgentRuntime {
                 @Override public String call(String input) {
                     checkCancelled(isCancelled);
                     searched.set(true);
-                    return loggedToolCall(context, modelStep, toolCalls, discovery, () -> discovery.call(input));
+                    return loggedToolCall(context, modelStep, toolCalls, discovery, input,
+                            () -> discovery.call(input));
                 }
                 @Override public String call(String input, org.springframework.ai.chat.model.ToolContext toolContext) {
                     return call(input);
@@ -301,11 +322,24 @@ public class AgentRuntime {
                 Flux.defer(() -> {
                             int attempt = modelCalls.incrementAndGet();
                             log.info("AI runId={} modelStep={} modelCall={} started", context.runId(), modelStep, attempt);
-                            return toolChoice == null
+                            AgentTrace.modelRequest(context, modelStep, attempt, modelPrompt,
+                                    prepared.messages(), callbacks, toolChoice);
+                            StringBuilder attemptResponse = new StringBuilder();
+                            Flux<String> modelStream = toolChoice == null
                                     ? llm.streamAgentTurn(modelPrompt, prepared.messages(), callbacks)
                                     : llm.streamAgentTurn(modelPrompt, prepared.messages(), callbacks, toolChoice);
+                            return modelStream.doOnNext(chunk -> {
+                                        attemptResponse.append(chunk);
+                                        response.append(chunk);
+                                    })
+                                    .doOnComplete(() -> AgentTrace.record(context.runId(), context.gatewaySecret(),
+                                            "model.response", Map.of("modelStep", modelStep,
+                                                    "attempt", attempt, "content", attemptResponse.toString())))
+                                    .doOnError(error -> AgentTrace.record(context.runId(), context.gatewaySecret(),
+                                            "model.error", Map.of("modelStep", modelStep,
+                                                    "attempt", attempt, "partialContent", attemptResponse.toString(),
+                                                    "error", String.valueOf(error))));
                         })
-                        .doOnNext(response::append)
                         .retryWhen(Retry.backoff(Math.max(0, properties.getRetry().getModelMaxRetries()),
                                         Duration.ofMillis(200))
                                 .maxBackoff(Duration.ofSeconds(2))
@@ -515,10 +549,17 @@ public class AgentRuntime {
         String modelPrompt = creationTarget != CreationTarget.NONE || finalContext.summary().isBlank() ? finalPrompt
                 : finalPrompt + "\nPrevious context summary:\n" + finalContext.summary();
         StringBuilder finalResponse = new StringBuilder();
-        modelCalls.incrementAndGet();
+        int finalAttempt = modelCalls.incrementAndGet();
+        AgentTrace.modelRequest(context, properties.getLimits().getMaxModelSteps() + 1,
+                finalAttempt, modelPrompt, finalContext.messages(), List.of(), null);
         llm.streamAgentTurn(modelPrompt, finalContext.messages(), List.of())
                 .doOnNext(finalResponse::append)
+                .doOnError(error -> AgentTrace.record(context.runId(), context.gatewaySecret(),
+                        "model.error", Map.of("attempt", finalAttempt, "error", String.valueOf(error),
+                                "partialContent", finalResponse.toString())))
                 .takeUntilOther(cancellationSignal(isCancelled)).blockLast();
+        AgentTrace.record(context.runId(), context.gatewaySecret(), "model.response", Map.of(
+                "attempt", finalAttempt, "content", finalResponse.toString()));
         String completion = finalResponse.toString().trim();
         checkCancelled(isCancelled);
         if (stepIntent.active() && asksForPlanIdentifier(completion)) {
@@ -535,6 +576,7 @@ public class AgentRuntime {
         } finally {
             log.info("AI runId={} modelSteps={} modelCalls={} toolCalls={} totalMs={}",
                     context.runId(), modelSteps.get(), modelCalls.get(), toolCalls.get(), elapsedMs(runStarted));
+        }
         }
     }
 
@@ -800,21 +842,31 @@ public class AgentRuntime {
     }
 
     private String loggedToolCall(AgentContext context, int modelStep, AtomicInteger toolCalls,
-                                  ToolCallback tool, java.util.function.Supplier<String> call) {
+                                  ToolCallback tool, String input, java.util.function.Supplier<String> call) {
         int toolCall = toolCalls.incrementAndGet();
         long started = System.nanoTime();
         String name = tool.getToolDefinition().name();
         log.info("AI runId={} modelStep={} toolCall={} tool={} started",
                 context.runId(), modelStep, toolCall, name);
+        AgentTrace.record(context.runId(), context.gatewaySecret(), "tool.request", Map.of(
+                "modelStep", modelStep, "toolCall", toolCall, "tool", name,
+                "input", input == null ? "" : input));
         try {
             String result = call.get();
             log.info("AI runId={} modelStep={} toolCall={} tool={} toolMs={} status=returned",
                     context.runId(), modelStep, toolCall, name, elapsedMs(started));
+            AgentTrace.record(context.runId(), context.gatewaySecret(), "tool.result", Map.of(
+                    "modelStep", modelStep, "toolCall", toolCall, "tool", name,
+                    "durationMs", elapsedMs(started), "output", result == null ? "" : result));
             return result;
         } catch (RuntimeException error) {
             log.warn("AI runId={} modelStep={} toolCall={} tool={} toolMs={} status=failed errorType={}",
                     context.runId(), modelStep, toolCall, name, elapsedMs(started),
                     error.getClass().getSimpleName());
+            AgentTrace.record(context.runId(), context.gatewaySecret(), "tool.error", Map.of(
+                    "modelStep", modelStep, "toolCall", toolCall, "tool", name,
+                    "durationMs", elapsedMs(started), "input", input == null ? "" : input,
+                    "error", String.valueOf(error)));
             throw error;
         }
     }
@@ -968,7 +1020,7 @@ public class AgentRuntime {
             @Override public String call(String input, org.springframework.ai.chat.model.ToolContext toolContext) {
                 checkCancelled(isCancelled);
                 usedTool.set(true);
-                String full = loggedToolCall(context, modelStep, toolCalls, delegate,
+                String full = loggedToolCall(context, modelStep, toolCalls, delegate, input,
                         () -> delegate.call(input, toolContext));
                 var delivery = resultStore.offer(full, context,
                         Math.max(100, properties.getContext().getToolMaxTokens() / 2));
@@ -1000,7 +1052,7 @@ public class AgentRuntime {
             @Override public String call(String input, org.springframework.ai.chat.model.ToolContext toolContext) {
                 checkCancelled(isCancelled);
                 usedTool.set(true);
-                String result = loggedToolCall(context, modelStep, toolCalls, delegate,
+                String result = loggedToolCall(context, modelStep, toolCalls, delegate, input,
                         () -> delegate.call(input, toolContext));
                 inFlight.add(new UserMessage("Kết quả tool " + delegate.getToolDefinition().name() + ": " + result));
                 return result;

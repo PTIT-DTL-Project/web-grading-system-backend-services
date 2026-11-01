@@ -124,6 +124,9 @@ public class AgentOrchestrator {
         UUID conversationId = currentRun.getConversationId();
         long runStarted = System.nanoTime();
         log.info("AI runId={} conversationId={} started", runId, conversationId);
+        AgentTrace.record(runId, gatewayProperties == null ? "" : gatewayProperties.secret(),
+                "run.started", Map.of("conversationId", conversationId.toString(),
+                        "callerRoles", run.getCallerRoles() == null ? "" : run.getCallerRoles()));
 
         recordEvent(runId, 1, "run.started", Map.of("runId", runId.toString()));
         sseBroadcaster.sendEvent(runId, "run.started", Map.of("runId", runId));
@@ -216,6 +219,8 @@ public class AgentOrchestrator {
                 if (isCancelled(runId)) throw new RunCancelledException();
 
                 String completion = responseBuffer.toString().trim();
+                AgentTrace.record(runId, agentContext.gatewaySecret(), "assistant.final", Map.of(
+                        "content", completion, "step", stepCount));
                 ToolResult writeFailure = failedWrite.get();
                 if (writeFailure != null) {
                     completion = "Không thể hoàn tất thao tác: " + writeFailure.getMessage();
@@ -257,24 +262,39 @@ public class AgentOrchestrator {
 
                 recordEvent(runId, eventSeq++, "run.completed", Map.of("runId", runId.toString(), "status", "SUCCEEDED"));
                 sseBroadcaster.sendEvent(runId, "run.completed", Map.of("runId", runId.toString(), "status", "SUCCEEDED"));
+                AgentTrace.record(runId, gatewayProperties == null ? "" : gatewayProperties.secret(),
+                        "run.completed", Map.of("status", "SUCCEEDED"));
             } else if (finishedRun.getStatus() == RunStatus.FAILED) {
                 finishedRun.setFinishedAt(Instant.now());
                 runRepository.save(finishedRun);
                 recordEvent(runId, eventSeq++, "run.failed", Map.of("runId", runId.toString(), "error", finishedRun.getErrorMessage()));
                 sseBroadcaster.sendEvent(runId, "run.failed", Map.of("runId", runId.toString(), "error", finishedRun.getErrorMessage()));
+                AgentTrace.record(runId, gatewayProperties == null ? "" : gatewayProperties.secret(),
+                        "run.failed", Map.of("status", "FAILED", "error",
+                                String.valueOf(finishedRun.getErrorMessage())));
+            } else {
+                AgentTrace.record(runId, gatewayProperties == null ? "" : gatewayProperties.secret(),
+                        "run.cancelled", Map.of("status", "CANCELLED"));
             }
             sseBroadcaster.complete(runId);
 
         } catch (RunCancelledException cancelled) {
             log.info("AI runId={} cancelled", runId);
+            AgentTrace.record(runId, gatewayProperties == null ? "" : gatewayProperties.secret(),
+                    "run.cancelled", Map.of("status", "CANCELLED"));
             sseBroadcaster.sendEvent(runId, "run.cancelled", Map.of("runId", runId.toString()));
             sseBroadcaster.complete(runId);
         } catch (Exception e) {
             if (isCancelled(runId)) {
+                AgentTrace.record(runId, gatewayProperties == null ? "" : gatewayProperties.secret(),
+                        "run.cancelled", Map.of("status", "CANCELLED"));
                 sseBroadcaster.complete(runId);
                 return;
             }
             log.error("Execution failed for run {}", runId, e);
+            AgentTrace.record(runId, gatewayProperties == null ? "" : gatewayProperties.secret(),
+                    "run.error", Map.of("error", String.valueOf(e),
+                            "errorType", e.getClass().getSimpleName()));
             boolean providerFailure = hasProviderFailure(e);
             String userMessage = providerFailure
                     ? "Trợ lý AI tạm thời chưa thể xử lý yêu cầu. Vui lòng thử lại sau."
@@ -295,6 +315,8 @@ public class AgentOrchestrator {
             sseBroadcaster.sendEvent(runId, "assistant.replace", userMessage);
             recordEvent(runId, 999, "run.failed", Map.of("runId", runId.toString(), "error", userMessage));
             sseBroadcaster.sendEvent(runId, "run.failed", Map.of("runId", runId.toString(), "error", userMessage));
+            AgentTrace.record(runId, gatewayProperties == null ? "" : gatewayProperties.secret(),
+                    "run.failed", Map.of("status", "FAILED", "error", userMessage));
             sseBroadcaster.complete(runId);
         } finally {
             log.info("AI runId={} totalMs={}", runId,
