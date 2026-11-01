@@ -19,6 +19,7 @@ public class AgentProperties {
         private int maxToolCalls = 12;
         private int maxModelAttempts = 16;
         private int maxValidationRepairs = 2;
+        private int maxLookupRounds = 2;
         private int activeTimeoutSeconds = 120;
     }
 
@@ -34,7 +35,6 @@ public class AgentProperties {
         private int outputReserve = 4000;
         private int safetyMargin = 2000;
         private int historyWindowSize = 10;
-        private int initialToolLimit = 4;
         private int toolSearchLimit = 5;
         private int historyMaxTokens = 12000;
         private int toolMaxTokens = 6000;

@@ -1,0 +1,183 @@
+{
+  "prompt": "Tạo bài kiểm tra cấu trúc DB sinh viên: kiểm tra bảng students tồn tại, cột email là primary key với kiểu dữ liệu, index, migration thêm cột phone, rồi query verify dữ liệu",
+  "domain": "Cấu trúc DB + Migration + Query",
+  "expected": {
+    "batchCount": 1,
+    "totalSteps": 6,
+    "stepTypes": [
+      "DB_SCHEMA_CHECK",
+      "DB_MIGRATION",
+      "DB_QUERY"
+    ],
+    "dbCheckKinds": [
+      "TABLE_EXISTS",
+      "COLUMN_EXISTS",
+      "PRIMARY_KEY",
+      "INDEX_EXISTS"
+    ],
+    "httpStatuses": [],
+    "requiredFalseSteps": [],
+    "maxStepsPerBatch": 6
+  },
+  "batches": [
+    {
+      "tool": "createTestQuestion",
+      "payload": {
+        "plan": {
+          "name": "Kiểm tra cấu trúc DB — Sinh viên",
+          "description": "Kiểm tra bảng students, cột email PK, index, migration thêm cột phone, verify dữ liệu",
+          "sequenceOrder": 1,
+          "weight": 10
+        },
+        "steps": [
+          {
+            "stepOrder": 0,
+            "name": "Kiểm tra bảng students tồn tại",
+            "stepType": "DB_SCHEMA_CHECK",
+            "config": {
+              "connection": {
+                "db_type": "postgres",
+                "db_service": "db",
+                "db_port": 5432,
+                "database": "grading",
+                "username": "postgres",
+                "password": "postgres"
+              },
+              "checks": [
+                {
+                  "kind": "TABLE_EXISTS",
+                  "table_name": "students"
+                }
+              ]
+            },
+            "weight": 1,
+            "required": true,
+            "timeoutMs": 30000
+          },
+          {
+            "stepOrder": 1,
+            "name": "Kiểm tra cột email là primary key",
+            "stepType": "DB_SCHEMA_CHECK",
+            "config": {
+              "connection": {
+                "db_type": "postgres",
+                "db_service": "db",
+                "db_port": 5432,
+                "database": "grading",
+                "username": "postgres",
+                "password": "postgres"
+              },
+              "checks": [
+                {
+                  "kind": "PRIMARY_KEY",
+                  "column": "email",
+                  "table_name": "students"
+                }
+              ]
+            },
+            "weight": 1,
+            "required": true,
+            "timeoutMs": 30000
+          },
+          {
+            "stepOrder": 2,
+            "name": "Kiểm tra cột email kiểu varchar",
+            "stepType": "DB_SCHEMA_CHECK",
+            "config": {
+              "connection": {
+                "db_type": "postgres",
+                "db_service": "db",
+                "db_port": 5432,
+                "database": "grading",
+                "username": "postgres",
+                "password": "postgres"
+              },
+              "checks": [
+                {
+                  "kind": "COLUMN_EXISTS",
+                  "table_name": "students",
+                  "column_name": "email",
+                  "data_type": "varchar"
+                }
+              ]
+            },
+            "weight": 1,
+            "required": true,
+            "timeoutMs": 30000
+          },
+          {
+            "stepOrder": 3,
+            "name": "Kiểm tra index idx_students_email",
+            "stepType": "DB_SCHEMA_CHECK",
+            "config": {
+              "connection": {
+                "db_type": "postgres",
+                "db_service": "db",
+                "db_port": 5432,
+                "database": "grading",
+                "username": "postgres",
+                "password": "postgres"
+              },
+              "checks": [
+                {
+                  "kind": "INDEX_EXISTS",
+                  "index_name": "idx_students_email",
+                  "table_name": "students"
+                }
+              ]
+            },
+            "weight": 1,
+            "required": true,
+            "timeoutMs": 30000
+          },
+          {
+            "stepOrder": 4,
+            "name": "Migration thêm cột phone",
+            "stepType": "DB_MIGRATION",
+            "config": {
+              "connection": {
+                "db_type": "postgres",
+                "db_service": "db",
+                "db_port": 5432,
+                "database": "grading",
+                "username": "postgres",
+                "password": "postgres"
+              },
+              "statements": [
+                "ALTER TABLE students ADD COLUMN IF NOT EXISTS phone VARCHAR(20)"
+              ]
+            },
+            "weight": 1,
+            "required": true,
+            "timeoutMs": 30000
+          },
+          {
+            "stepOrder": 5,
+            "name": "Query verify cột phone đã có",
+            "stepType": "DB_QUERY",
+            "config": {
+              "connection": {
+                "db_type": "postgres",
+                "db_service": "db",
+                "db_port": 5432,
+                "database": "grading",
+                "username": "postgres",
+                "password": "postgres"
+              },
+              "query": "SELECT column_name FROM information_schema.columns WHERE table_name = 'students' AND column_name = 'phone'",
+              "expected": {
+                "row_count": 1,
+                "columns": [
+                  "column_name"
+                ]
+              },
+              "timeoutMs": 30000
+            },
+            "weight": 1,
+            "required": true
+          }
+        ]
+      }
+    }
+  ]
+}

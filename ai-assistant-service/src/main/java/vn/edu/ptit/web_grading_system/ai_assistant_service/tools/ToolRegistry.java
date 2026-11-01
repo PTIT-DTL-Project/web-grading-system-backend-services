@@ -49,6 +49,23 @@ public class ToolRegistry {
         return new ArrayList<>(toolsByName.values());
     }
 
+    public List<AgentTool> findReferenceLookupTools(String query, Set<String> roles, int limit) {
+        if (limit <= 0 || ToolSelector.terms(query).isEmpty()) return List.of();
+        Set<String> terms = new HashSet<>(ToolSelector.terms(query));
+        terms.removeAll(Set.of("id", "uuid", "ma", "ten", "ban", "nao"));
+        if (terms.isEmpty()) return List.of();
+        return getToolsForRoles(roles).stream()
+                .filter(tool -> tool.getDefinition().effectType() == EffectType.READ
+                        && !tool.referenceLookupKeywords().isBlank())
+                .map(tool -> new AbstractMap.SimpleEntry<>(tool,
+                        ToolSelector.terms(tool.getName() + " " + tool.getDescription() + " "
+                                + tool.referenceLookupKeywords()).stream().filter(terms::contains).count()))
+                .filter(entry -> entry.getValue() > 0)
+                .sorted(Comparator.<Map.Entry<AgentTool, Long>>comparingLong(Map.Entry::getValue).reversed()
+                        .thenComparing(entry -> entry.getKey().getName()))
+                .limit(limit).map(Map.Entry::getKey).toList();
+    }
+
     public List<ToolDefinition> searchAuthorized(String query, Set<String> roles, int limit) {
         if (limit <= 0 || ToolSelector.terms(query).isEmpty()) return List.of();
         Set<String> terms = ToolSelector.terms(query);

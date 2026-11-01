@@ -1,0 +1,253 @@
+{
+  "prompt": "Tạo bài quản lý sách dùng data[] tạo 4 sách cùng lúc, extract bookId_${index}, rồi kiểm tra danh sách: array_length, contains_item, greater_than, less_than, matches_regex, any_of",
+  "domain": "Data-driven loop + assertion matrix",
+  "expected": {
+    "batchCount": 1,
+    "totalSteps": 6,
+    "stepTypes": [
+      "HTTP_REQUEST"
+    ],
+    "methods": [
+      "POST",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET"
+    ],
+    "assertionKinds": [
+      "status",
+      "json_path",
+      "array_length",
+      "contains_item",
+      "greater_than",
+      "less_than",
+      "matches_regex",
+      "any_of"
+    ],
+    "httpStatuses": [
+      201,
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "requiredFalseSteps": [],
+    "maxStepsPerBatch": 6
+  },
+  "batches": [
+    {
+      "tool": "createTestQuestion",
+      "payload": {
+        "plan": {
+          "name": "Vòng lặp dữ liệu — Quản lý sách",
+          "description": "Tạo 4 sách qua data[], extract bookId_${index}, rồi kiểm tra danh sách",
+          "sequenceOrder": 1,
+          "weight": 10
+        },
+        "steps": [
+          {
+            "stepOrder": 0,
+            "name": "Tạo 4 sách qua data[]",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "POST",
+              "path": "/api/v1/books",
+              "data": [
+                {
+                  "title": "Sách A",
+                  "year": 1941,
+                  "price": 100
+                },
+                {
+                  "title": "Sách B",
+                  "year": 1950,
+                  "price": 150
+                },
+                {
+                  "title": "Sách C",
+                  "year": 1960,
+                  "price": 200
+                },
+                {
+                  "title": "Dế Mèn Phiêu Lưu Ký",
+                  "year": 1941,
+                  "price": 120
+                }
+              ],
+              "body": {
+                "title": "${title}",
+                "author": "Tô Hoài",
+                "year": "${year}",
+                "price": "${price}"
+              },
+              "expected_status": 201,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 201
+                },
+                {
+                  "kind": "json_path",
+                  "path": "$.id",
+                  "exists": true
+                }
+              ],
+              "extract": [
+                {
+                  "name": "bookId_${index}",
+                  "from": "response_body",
+                  "expression": "$.id"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 1,
+            "name": "Lấy danh sách sách",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/books",
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "json_path",
+                  "path": "$",
+                  "exists": true
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 2,
+            "name": "Kiểm tra độ dài mảng = 4",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/books",
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "array_length",
+                  "path": "$",
+                  "equals": 4
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 3,
+            "name": "Kiểm tra mảng chứa sách Dế Mèn",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/books",
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "contains_item",
+                  "path": "$[*].title",
+                  "equals": "Dế Mèn Phiêu Lưu Ký"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 4,
+            "name": "Kiểm tra giá lớn hơn và nhỏ hơn",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/books",
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "greater_than",
+                  "path": "$[0].price",
+                  "value": "100"
+                },
+                {
+                  "kind": "less_than",
+                  "path": "$[0].price",
+                  "value": "500"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 5,
+            "name": "Kiểm tra định dạng mã sách (regex + any_of)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/books",
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "matches_regex",
+                  "path": "$[0].title",
+                  "pattern": "^[A-Za-zÀ-ỹ ]+$"
+                },
+                {
+                  "kind": "any_of",
+                  "assertions": [
+                    {
+                      "kind": "matches_regex",
+                      "path": "$[0].author",
+                      "pattern": "^Tô Hoài$"
+                    },
+                    {
+                      "kind": "matches_regex",
+                      "path": "$[0].author",
+                      "pattern": "^Nguyen .*$"
+                    }
+                  ]
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          }
+        ]
+      }
+    }
+  ]
+}

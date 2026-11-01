@@ -58,6 +58,7 @@ public class RecommendAssignmentsTool implements AgentTool {
                     context.userId().toString(),
                     context.email(),
                     null,
+                    null,
                     0,
                     20,
                     context.gatewaySecret()

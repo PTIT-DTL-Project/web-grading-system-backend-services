@@ -52,4 +52,26 @@ public class ResultController {
         }
         return ResponseEntity.ok(results);
     }
+
+    /**
+     * Latest results of one student on one assignment, each with its step rows.
+     * Used by the student's assignment detail page. Empty when the student hasn't
+     * submitted anything yet.
+     */
+    @GetMapping("/student/{studentId}/assignment/{assignmentId}")
+    @ApiMessage("Student assignment results fetched")
+    public ResponseEntity<List<ResultResponse>> getStudentAssignmentResults(
+            @PathVariable UUID studentId,
+            @PathVariable UUID assignmentId,
+            @RequestHeader(value = "X-User-Id", required = false) String xUserId) {
+        if (xUserId == null || xUserId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Caller identity required");
+        }
+        UUID callerId = UUID.fromString(xUserId);
+        if (!callerId.equals(studentId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not owner of results");
+        }
+        List<ResultResponse> results = resultService.getStudentAssignmentResults(studentId, assignmentId);
+        return ResponseEntity.ok(results);
+    }
 }

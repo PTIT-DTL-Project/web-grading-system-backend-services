@@ -237,4 +237,28 @@ public class AgentOrchestratorTest {
         verify(memory).addForRun(eq(convId.toString()), eq(runId), anyList());
         assertEquals(RunStatus.SUCCEEDED, run.getStatus());
     }
+
+    @Test
+    void agentStepLimitIsReportedAsRunErrorRatherThanProviderOutage() {
+        UUID runId = UUID.randomUUID(), convId = UUID.randomUUID();
+        Run run = Run.builder().id(runId).conversationId(convId).callerRoles("ROLE_STUDENT")
+                .status(RunStatus.QUEUED).build();
+        Conversation conv = Conversation.builder().id(convId).ownerId(UUID.randomUUID()).build();
+        AgentRuntime runtime = mock(AgentRuntime.class);
+        orchestrator = new AgentOrchestrator(runRepository, conversationRepository, messageRepository,
+                taskRepository, runEventRepository, guardChecker, contextBuilder, sseBroadcaster,
+                llmClient, mock(ToolRegistry.class), null, null, runtime);
+        when(runRepository.findById(runId)).thenReturn(Optional.of(run));
+        when(runRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        when(conversationRepository.findById(convId)).thenReturn(Optional.of(conv));
+        when(guardChecker.canContinue(any(), eq(0))).thenReturn(true);
+        when(contextBuilder.buildSystemPrompt(any(), any())).thenReturn("system");
+        when(runtime.execute(any(), eq("system"), anyString(), eq(llmClient), any(), any()))
+                .thenThrow(new IllegalStateException("Agent reached model step limit"));
+
+        orchestrator.executeRun(runId);
+
+        assertEquals(RunStatus.FAILED, run.getStatus());
+        assertEquals("RUN_ERROR", run.getErrorCode());
+    }
 }

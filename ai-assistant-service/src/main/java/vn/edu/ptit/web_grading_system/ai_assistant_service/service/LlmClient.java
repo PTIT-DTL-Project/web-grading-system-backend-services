@@ -9,12 +9,17 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.AgentTool;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @Slf4j
 @Component
@@ -28,6 +33,7 @@ public class LlmClient {
     private final String baseUrl;
     private final ChatModel chatModel;
     private final ChatClient chatClient;
+    private final Gson gson = new Gson();
 
     public LlmClient(AiModelProperties props, ChatModel chatModel) {
         this.provider = props.provider();
@@ -64,6 +70,89 @@ public class LlmClient {
             throw e;
         } catch (Exception e) {
             throw new AiProviderException(e);
+        }
+    }
+
+    /** Word an already completed write for the user; this call has no tools. */
+    public String generateConfirmedActionReply(String originalRequest, String toolName,
+                                               String argumentsJson, vn.edu.ptit.web_grading_system.ai_assistant_service.tools.ToolResult result) {
+        if (isOfflineMode()) return null;
+        try {
+            ChatResponse response = chatModel.call(new Prompt(List.of(
+                    new SystemMessage("Một thao tác ghi đã được người dùng xác nhận và hệ thống thực hiện thành công. "
+                            + "Hãy trả lời tự nhiên, ngắn gọn bằng tiếng Việt theo yêu cầu ban đầu và kết quả thực thi. "
+                            + "Chỉ khẳng định điều có trong kết quả; không bịa tên, ID hoặc bước tiếp theo. "
+                            + "Không nhắc tên tool, tham số kỹ thuật hay việc cần duyệt nữa. "
+                            + "Đây chỉ là lượt diễn đạt kết quả, không thực hiện thêm thao tác. Chỉ trả về câu trả lời cho người dùng."),
+                    new UserMessage("Yêu cầu ban đầu: " + (originalRequest == null ? "" : originalRequest)
+                            + "\nTrạng thái: COMPLETED"
+                            + "\nTool đã thực hiện: " + toolName
+                            + "\nTham số: " + argumentsJson
+                            + "\nKết quả thực thi: " + gson.toJson(result)))));
+            return response == null || response.getResult() == null || response.getResult().getOutput() == null
+                    ? null : response.getResult().getOutput().getText();
+        } catch (Exception e) {
+            throw new AiProviderException(e);
+        }
+    }
+
+    /** Selects relevant authorized tools without a fixed candidate count. The caller validates role scope. */
+    public List<String> chooseRelevantTools(String request, List<AgentTool> authorizedTools) {
+        if (isOfflineMode() || authorizedTools == null || authorizedTools.isEmpty()) return List.of();
+        StringBuilder catalog = new StringBuilder();
+        Set<String> allowed = new HashSet<>();
+        for (AgentTool tool : authorizedTools) {
+            allowed.add(tool.getName());
+            String description = tool.getDescription() == null ? "" : tool.getDescription().replaceAll("\\s+", " ");
+            if (description.length() > 120) description = description.substring(0, 120);
+            catalog.append(tool.getName()).append(" | ").append(description)
+                    .append(" | ").append(compactParameters(tool.getToolDefinition().inputSchema())).append('\n');
+        }
+        String userRequest = request == null ? "" : request;
+        if (userRequest.length() > 3000) userRequest = userRequest.substring(userRequest.length() - 3000);
+        try {
+            ChatResponse response = chatModel.call(new Prompt(List.of(
+                    new SystemMessage("Interpret the recent request as a concise English task while preserving its intent. "
+                            + "Select every tool needed to complete the current user request, including read tools "
+                            + "needed to resolve names before write tools. Use recent conversation only as context. "
+                            + "Tool descriptions may be Vietnamese. Return only a JSON array of exact tool names; "
+                            + "return [] when no tool is needed. Do not invent names or execute tools."),
+                    new UserMessage("Recent request:\n" + userRequest + "\nAvailable tools (name | short description | parameters):\n" + catalog))));
+            String raw = response == null || response.getResult() == null || response.getResult().getOutput() == null
+                    ? "[]" : response.getResult().getOutput().getText();
+            JsonElement parsed = JsonParser.parseString(cleanJsonString(raw));
+            if (!parsed.isJsonArray()) return List.of();
+            List<String> chosen = new ArrayList<>();
+            for (JsonElement item : parsed.getAsJsonArray()) {
+                if (item.isJsonPrimitive() && item.getAsJsonPrimitive().isString()) {
+                    String name = item.getAsString();
+                    if (allowed.contains(name) && !chosen.contains(name)) chosen.add(name);
+                }
+            }
+            return List.copyOf(chosen);
+        } catch (Exception e) {
+            throw new AiProviderException(e);
+        }
+    }
+
+    private String compactParameters(String schema) {
+        try {
+            JsonObject root = JsonParser.parseString(schema).getAsJsonObject();
+            JsonObject properties = root.has("properties") && root.get("properties").isJsonObject()
+                    ? root.getAsJsonObject("properties") : new JsonObject();
+            Set<String> required = new HashSet<>();
+            if (root.has("required") && root.get("required").isJsonArray()) {
+                root.getAsJsonArray("required").forEach(item -> required.add(item.getAsString()));
+            }
+            List<String> fields = new ArrayList<>();
+            properties.entrySet().forEach(entry -> {
+                JsonObject value = entry.getValue().isJsonObject() ? entry.getValue().getAsJsonObject() : new JsonObject();
+                String type = value.has("type") ? value.get("type").getAsString() : "value";
+                fields.add(entry.getKey() + ":" + type + (required.contains(entry.getKey()) ? " required" : " optional"));
+            });
+            return fields.isEmpty() ? "none" : String.join(", ", fields);
+        } catch (Exception ignored) {
+            return "see tool schema";
         }
     }
 
@@ -139,7 +228,9 @@ public class LlmClient {
                     .call()
                     .entity(entityClass);
         } catch (Exception e) {
-            log.error("Failed to generate structured entity via Spring AI: {}", e.getMessage(), e);
+            // LLM returned empty / unparseable content — degraded path, not a system error.
+            // Return null so the caller can fall back (generateStrictCompletion) or degrade.
+            log.warn("LLM returned empty or unparseable content for structured entity: {}", e.getMessage());
             return null;
         }
     }
@@ -250,6 +341,13 @@ public class LlmClient {
     public Flux<String> streamAgentTurn(String systemPrompt,
             List<org.springframework.ai.chat.messages.Message> messages,
             List<ToolCallback> toolCallbacks) {
+        return streamAgentTurn(systemPrompt, messages, toolCallbacks, null);
+    }
+
+    /** A non-null toolChoice is used only for bounded lookup before asking the user for an ID. */
+    public Flux<String> streamAgentTurn(String systemPrompt,
+            List<org.springframework.ai.chat.messages.Message> messages,
+            List<ToolCallback> toolCallbacks, String toolChoice) {
         if (isOfflineMode()) {
             String last = messages == null || messages.isEmpty() ? "" : messages.getLast().getText();
             return Flux.just(generateFallbackResponse(last));
@@ -258,6 +356,11 @@ public class LlmClient {
             var spec = chatClient.prompt().system(systemPrompt);
             if (messages != null && !messages.isEmpty()) spec.messages(messages);
             if (toolCallbacks != null && !toolCallbacks.isEmpty()) spec.toolCallbacks(toolCallbacks);
+            if (toolChoice != null) {
+                Object choice = "required".equals(toolChoice) ? "required"
+                        : java.util.Map.of("type", "function", "function", java.util.Map.of("name", toolChoice));
+                spec.options(OpenAiChatOptions.builder().toolChoice(choice));
+            }
             return spec.stream().content().filter(s -> s != null && !s.isEmpty())
                     .onErrorMap(AiProviderException::new);
         } catch (Exception e) {

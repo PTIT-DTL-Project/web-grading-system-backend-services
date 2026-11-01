@@ -69,15 +69,20 @@ public class ContextBuilderTest {
         ContextBuilder builder = new ContextBuilder(registry);
         String catalog = builder.formatToolCatalog(java.util.Set.of("ROLE_LECTURER"));
 
-        assertTrue(catalog.contains("createTestQuestion"));
-        assertTrue(catalog.contains("listVisibleAssignments"));
+        assertTrue(catalog.contains("Tạo câu kiểm tra kèm bước chấm"));
+        assertTrue(catalog.contains("Liệt kê bài tập trong lớp"));
+        assertTrue(!catalog.contains("createTestQuestion"));
+        assertTrue(!catalog.contains("listVisibleAssignments"));
         assertTrue(catalog.contains("Kiểm thử & Bước chấm"));
         assertTrue(catalog.contains("Quản lý Bài tập"));
 
         String prompt = builder.buildSystemPrompt("ROLE_LECTURER", null);
-        assertTrue(prompt.contains("DANH MỤC CÔNG CỤ KHẢ DỤNG CHO VAI TRÒ"));
-        assertTrue(prompt.contains("createTestQuestion"));
+        assertTrue(prompt.contains("NĂNG LỰC KHẢ DỤNG CHO VAI TRÒ"));
+        assertTrue(prompt.contains("Tạo câu kiểm tra kèm bước chấm"));
+        assertTrue(!prompt.contains("createTestQuestion"));
         assertTrue(prompt.contains("search_tools"));
+        assertTrue(prompt.contains("tự diễn đạt"));
+        assertTrue(prompt.contains("không liệt kê tên công cụ"));
     }
 
     @Test

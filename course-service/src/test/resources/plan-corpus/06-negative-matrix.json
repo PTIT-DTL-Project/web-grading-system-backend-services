@@ -1,0 +1,102 @@
+{
+  "prompt": "Tạo bài quản lý đơn hàng kiểm lỗi validate: thiếu title (400), không token (401), không quyền (403), id không tồn tại (404), trùng mã đơn (409), tất cả bước âm tính",
+  "domain": "Ma trận lỗi HTTP (negative)",
+  "expected": {
+    "batchCount": 1,
+    "totalSteps": 5,
+    "stepTypes": ["HTTP_REQUEST"],
+    "methods": ["POST", "GET", "GET", "GET", "POST"],
+    "assertionKinds": ["status"],
+    "httpStatuses": [400, 401, 403, 404, 409],
+    "requiredFalseSteps": [0, 1, 2, 3, 4],
+    "maxStepsPerBatch": 6
+  },
+  "batches": [
+    {
+      "tool": "createTestQuestion",
+      "payload": {
+        "plan": {
+          "name": "Validation matrix — Quản lý đơn hàng",
+          "description": "Kiểm lỗi validate: 400, 401, 403, 404, 409, tất cả bước âm tính",
+          "sequenceOrder": 1,
+          "weight": 10
+        },
+        "steps": [
+          {
+            "stepOrder": 0,
+            "name": "Tạo đơn thiếu title (mong đợi 400)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "POST",
+              "path": "/api/v1/orders",
+              "body": {"customer": "Nguyen Van A"},
+              "expected_status": 400,
+              "assertions": [{"kind": "status", "equals": 400}]
+            },
+            "weight": 1,
+            "required": false,
+            "timeoutMs": 5000
+          },
+          {
+            "stepOrder": 1,
+            "name": "Lấy đơn không token (mong đợi 401)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/orders/${$UUID}",
+              "expected_status": 401,
+              "assertions": [{"kind": "status", "equals": 401}]
+            },
+            "weight": 1,
+            "required": false,
+            "timeoutMs": 5000
+          },
+          {
+            "stepOrder": 2,
+            "name": "Lấy đơn không quyền (mong đợi 403)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/orders/${$UUID}",
+              "headers": {"Authorization": "Bearer wrong-token"},
+              "expected_status": 403,
+              "assertions": [{"kind": "status", "equals": 403}]
+            },
+            "weight": 1,
+            "required": false,
+            "timeoutMs": 5000
+          },
+          {
+            "stepOrder": 3,
+            "name": "Lấy đơn id không tồn tại (mong đợi 404)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/orders/${$UUID}",
+              "expected_status": 404,
+              "assertions": [{"kind": "status", "equals": 404}]
+            },
+            "weight": 1,
+            "required": false,
+            "timeoutMs": 5000
+          },
+          {
+            "stepOrder": 4,
+            "name": "Tạo đơn trùng mã (mong đợi 409)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "POST",
+              "path": "/api/v1/orders",
+              "body": {"title": "Trùng", "customer": "Nguyen Van A", "orderCode": "DUP-001"},
+              "expected_status": 409,
+              "assertions": [{"kind": "status", "equals": 409}]
+            },
+            "weight": 1,
+            "required": false,
+            "timeoutMs": 5000
+          }
+        ]
+      }
+    }
+  ]
+}

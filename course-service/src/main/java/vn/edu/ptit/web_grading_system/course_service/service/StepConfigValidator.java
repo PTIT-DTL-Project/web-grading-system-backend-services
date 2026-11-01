@@ -244,9 +244,16 @@ public final class StepConfigValidator {
                 case "COLUMN_EXISTS" -> {
                     requireText(chk, "table_name", "DB_SCHEMA_CHECK.COLUMN_EXISTS");
                     requireText(chk, "column_name", "DB_SCHEMA_CHECK.COLUMN_EXISTS");
+                    requireText(chk, "data_type", "DB_SCHEMA_CHECK.COLUMN_EXISTS");
                 }
-                case "INDEX_EXISTS" -> requireText(chk, "index_name", "DB_SCHEMA_CHECK.INDEX_EXISTS");
-                case "PRIMARY_KEY" -> requireText(chk, "column", "DB_SCHEMA_CHECK.PRIMARY_KEY");
+                case "INDEX_EXISTS" -> {
+                    requireText(chk, "index_name", "DB_SCHEMA_CHECK.INDEX_EXISTS");
+                    requireText(chk, "table_name", "DB_SCHEMA_CHECK.INDEX_EXISTS");
+                }
+                case "PRIMARY_KEY" -> {
+                    requireText(chk, "column", "DB_SCHEMA_CHECK.PRIMARY_KEY");
+                    requireText(chk, "table_name", "DB_SCHEMA_CHECK.PRIMARY_KEY");
+                }
                 default -> { }
             }
         }
@@ -494,5 +501,200 @@ public final class StepConfigValidator {
         node.put("type", "object");
         node.put("description", "Headers injected into subsequent steps (plan-scoped)");
         return node;
+    }
+
+    /* ========================================================================
+     * Phase 8 — Schema generation for every runnable step type
+     * ======================================================================== */
+
+    /**
+     * Returns a JSON Schema (draft-07) describing the step config structure accepted
+     * by {@link #validateAndSerialize} for the given {@link StepType}.
+     * <p>
+     * Returned node is a fresh tree each call — safe to mutate by callers.
+     */
+    public static JsonNode generateSchema(StepType type)
+    {
+        return switch (type) {
+            case HTTP_REQUEST -> generateHttpSchema();
+            case DB_QUERY -> generateDbQuerySchema();
+            case DB_SCHEMA_CHECK -> generateSchemaCheckSchema();
+            case DB_MIGRATION -> generateMigrationSchema();
+            case EXTRACT, DELAY -> throw new IllegalArgumentException(
+                    type + " steps are not runnable; standalone steps are not supported");
+        };
+    }
+
+    private static ObjectNode connectionSchema()
+    {
+        ObjectNode node = MAPPER.createObjectNode();
+        node.put("type", "object");
+        node.put("description", "Database connection configuration");
+
+        ObjectNode props = MAPPER.createObjectNode();
+
+        ObjectNode dbType = MAPPER.createObjectNode();
+        dbType.put("type", "string");
+        dbType.put("description", "Database engine: postgres, mysql or mariadb");
+        ArrayNode dbTypeEnum = MAPPER.createArrayNode();
+        DB_TYPES.forEach(dbTypeEnum::add);
+        dbType.set("enum", dbTypeEnum);
+        props.set("db_type", dbType);
+
+        ObjectNode dbService = MAPPER.createObjectNode();
+        dbService.put("type", "string");
+        dbService.put("description", "DB service name in compose, default 'db'");
+        props.set("db_service", dbService);
+
+        ObjectNode dbPort = MAPPER.createObjectNode();
+        dbPort.put("type", "integer");
+        dbPort.put("minimum", 1);
+        dbPort.put("maximum", 65535);
+        dbPort.put("description", "Database port");
+        props.set("db_port", dbPort);
+
+        ObjectNode database = MAPPER.createObjectNode();
+        database.put("type", "string");
+        database.put("pattern", "^[A-Za-z0-9_$]+$");
+        database.put("description", "Bare database identifier");
+        props.set("database", database);
+
+        ObjectNode username = MAPPER.createObjectNode();
+        username.put("type", "string");
+        username.put("description", "DB username");
+        props.set("username", username);
+
+        ObjectNode password = MAPPER.createObjectNode();
+        password.put("type", "string");
+        password.put("description", "DB password");
+        props.set("password", password);
+
+        node.set("properties", props);
+        return node;
+    }
+
+    private static ObjectNode generateDbQuerySchema()
+    {
+        ObjectNode schema = MAPPER.createObjectNode();
+        schema.put("$schema", "http://json-schema.org/draft-07/schema#");
+        schema.put("title", "DB_QUERY step config");
+        schema.put("type", "object");
+
+        ArrayNode required = MAPPER.createArrayNode();
+        required.add("query");
+        schema.set("required", required);
+
+        ObjectNode props = MAPPER.createObjectNode();
+
+        ObjectNode queryProp = MAPPER.createObjectNode();
+        queryProp.put("type", "string");
+        queryProp.put("description", "SQL query to execute");
+        props.set("query", queryProp);
+
+        props.set("connection", connectionSchema());
+
+        ObjectNode expectedProp = MAPPER.createObjectNode();
+        expectedProp.put("type", "object");
+        expectedProp.put("description", "Expected result, e.g. {\"row_count\": 0}");
+        props.set("expected", expectedProp);
+
+        schema.set("properties", props);
+        return schema;
+    }
+
+    private static ObjectNode generateSchemaCheckSchema()
+    {
+        ObjectNode schema = MAPPER.createObjectNode();
+        schema.put("$schema", "http://json-schema.org/draft-07/schema#");
+        schema.put("title", "DB_SCHEMA_CHECK step config");
+        schema.put("type", "object");
+
+        ArrayNode required = MAPPER.createArrayNode();
+        required.add("checks");
+        schema.set("required", required);
+
+        ObjectNode props = MAPPER.createObjectNode();
+
+        ObjectNode checksProp = MAPPER.createObjectNode();
+        checksProp.put("type", "array");
+        checksProp.put("description", "Non-empty array of schema checks");
+
+        ObjectNode chkItems = MAPPER.createObjectNode();
+        chkItems.put("type", "object");
+
+        ArrayNode chkRequired = MAPPER.createArrayNode();
+        chkRequired.add("kind");
+        chkItems.set("required", chkRequired);
+
+        ObjectNode chkProps = MAPPER.createObjectNode();
+
+        ObjectNode kindProp = MAPPER.createObjectNode();
+        kindProp.put("type", "string");
+        kindProp.put("description", "Schema check kind");
+        ArrayNode kindEnum = MAPPER.createArrayNode();
+        SCHEMA_CHECK_KINDS.forEach(kindEnum::add);
+        kindProp.set("enum", kindEnum);
+        chkProps.set("kind", kindProp);
+
+        ObjectNode tableNameProp = MAPPER.createObjectNode();
+        tableNameProp.put("type", "string");
+        tableNameProp.put("description", "Table name (TABLE_EXISTS / COLUMN_EXISTS / INDEX_EXISTS / PRIMARY_KEY)");
+        chkProps.set("table_name", tableNameProp);
+
+        ObjectNode columnNameProp = MAPPER.createObjectNode();
+        columnNameProp.put("type", "string");
+        columnNameProp.put("description", "Column name (COLUMN_EXISTS / PRIMARY_KEY)");
+        chkProps.set("column_name", columnNameProp);
+
+        ObjectNode dataTypeProp = MAPPER.createObjectNode();
+        dataTypeProp.put("type", "string");
+        dataTypeProp.put("description", "Expected column type (COLUMN_EXISTS)");
+        chkProps.set("data_type", dataTypeProp);
+
+        ObjectNode indexNameProp = MAPPER.createObjectNode();
+        indexNameProp.put("type", "string");
+        indexNameProp.put("description", "Index name (INDEX_EXISTS)");
+        chkProps.set("index_name", indexNameProp);
+
+        ObjectNode columnProp = MAPPER.createObjectNode();
+        columnProp.put("type", "string");
+        columnProp.put("description", "Column (PRIMARY_KEY)");
+        chkProps.set("column", columnProp);
+
+        chkItems.set("properties", chkProps);
+        checksProp.set("items", chkItems);
+        props.set("checks", checksProp);
+
+        props.set("connection", connectionSchema());
+
+        schema.set("properties", props);
+        return schema;
+    }
+
+    private static ObjectNode generateMigrationSchema()
+    {
+        ObjectNode schema = MAPPER.createObjectNode();
+        schema.put("$schema", "http://json-schema.org/draft-07/schema#");
+        schema.put("title", "DB_MIGRATION step config");
+        schema.put("type", "object");
+
+        ArrayNode required = MAPPER.createArrayNode();
+        required.add("statements");
+        schema.set("required", required);
+
+        ObjectNode props = MAPPER.createObjectNode();
+
+        ObjectNode statementsProp = MAPPER.createObjectNode();
+        statementsProp.put("type", "array");
+        statementsProp.put("description", "Non-empty array of SQL statements");
+        ObjectNode stmtItems = MAPPER.createObjectNode();
+        stmtItems.put("type", "string");
+        statementsProp.set("items", stmtItems);
+        props.set("statements", statementsProp);
+
+        props.set("connection", connectionSchema());
+
+        schema.set("properties", props);
+        return schema;
     }
 }
