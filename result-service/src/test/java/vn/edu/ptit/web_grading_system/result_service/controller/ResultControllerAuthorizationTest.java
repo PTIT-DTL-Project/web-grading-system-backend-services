@@ -55,6 +55,7 @@ class ResultControllerAuthorizationTest {
     private static final UUID CALLER = UUID.fromString("2d93941a-4221-458b-a03d-43bd6315d02e");
     private static final UUID OTHER_STUDENT = UUID.fromString("3e0b0d0b-0000-4000-8000-000000000006");
     private static final UUID SUBMISSION_ID = UUID.fromString("6f3d6d6e-0000-4000-8000-000000000009");
+    private static final UUID ASSIGNMENT_ID = UUID.fromString("6f3d6d6e-0000-4000-8000-000000000007");
 
     @Autowired
     private WebApplicationContext webApplicationContext;
@@ -131,6 +132,29 @@ class ResultControllerAuthorizationTest {
 
         mockMvc.perform(asCaller(get("/api/v1/results/{submissionId}", SUBMISSION_ID), "LECTURER"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void myAssignmentResults_authenticatedCallerReadsOwnGroup() throws Exception {
+        // Identity comes from the gateway-stamped X-User-Id header; no student id
+        // in the path, so there is no id a caller could tamper with.
+        when(resultService.getByAssignment(eq(ASSIGNMENT_ID), eq(CALLER), eq(true)))
+                .thenReturn(List.of(vn.edu.ptit.web_grading_system.result_service.dto.response
+                        .AssignmentResultGroupResponse.builder()
+                        .studentUserId(CALLER)
+                        .exerciseScore(new BigDecimal("5.11"))
+                        .results(List.of())
+                        .build()));
+
+        mockMvc.perform(asCaller(get("/api/v1/results/student/assignment/{assignmentId}", ASSIGNMENT_ID), "STUDENT"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void myAssignmentResults_withoutTrustSecretIsRejected() throws Exception {
+        mockMvc.perform(get("/api/v1/results/student/assignment/{assignmentId}", ASSIGNMENT_ID)
+                        .header("X-User-Id", CALLER))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

@@ -5488,6 +5488,35 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "get my assignment results (student assignment detail)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{fake_student_id}}",
+                "type": "default",
+                "description": "Required. Identity comes from this gateway-stamped header — there is no student id in the path, so a caller can never request someone else's results. 403 when absent."
+              }
+            ],
+            "url": {
+              "raw": "{{result-service}}/api/v1/results/student/assignment/{{assignmentId}}",
+              "host": [
+                "{{result-service}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "results",
+                "student",
+                "assignment",
+                "{{assignmentId}}"
+              ]
+            }
+          },
+          "response": []
         }
       ]
     },
