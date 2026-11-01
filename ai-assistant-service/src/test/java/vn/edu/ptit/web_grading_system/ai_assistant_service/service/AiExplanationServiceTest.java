@@ -162,7 +162,7 @@ public class AiExplanationServiceTest {
         when(llmClient.generateEntity(any(), any(), any()))
                 .thenReturn(new AiExplanationResultDto("ok",
                         List.of(StepAnalysis.builder()
-                                .stepId(UUID.randomUUID())
+                                .stepId(UUID.randomUUID().toString())
                                 .stepName("s")
                                 .actionableHints(null)
                                 .learningKeywords(null)
@@ -233,7 +233,7 @@ public class AiExplanationServiceTest {
         when(llmClient.generateEntity(any(), any(), any())).thenReturn(null);
         when(llmClient.generateStrictCompletion(any(), any())).thenReturn(
                 "{\"overallSummary\":\"retry-ok\",\"stepAnalyses\":[{\"stepId\":\""
-                        + UUID.randomUUID()
+                        + UUID.randomUUID().toString()
                         + "\",\"stepName\":\"s\",\"passed\":true}]}");
         when(explanationRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -509,7 +509,7 @@ public class AiExplanationServiceTest {
         when(llmClient.generateEntity(any(), any(), any()))
                 .thenReturn(new AiExplanationResultDto("ok",
                         List.of(StepAnalysis.builder()
-                                .stepId(UUID.randomUUID())
+                                .stepId(UUID.randomUUID().toString())
                                 .stepName("s")
                                 .stepType("HTTP_REQUEST")
                                 .passed(true)
