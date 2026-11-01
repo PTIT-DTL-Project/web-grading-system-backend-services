@@ -1,24 +1,31 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.orchestrator;
 
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
 public class SseBroadcaster {
 
     private final Map<UUID, List<SseEmitter>> emitters = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
+            r -> { Thread t = new Thread(r, "sse-heartbeat"); t.setDaemon(true); return t; });
 
     public SseEmitter subscribe(UUID runId) {
-        SseEmitter emitter = new SseEmitter(180_000L); // 3 minutes timeout
+        SseEmitter emitter = new SseEmitter(300_000L); // 5 minutes timeout
         emitters.computeIfAbsent(runId, k -> new CopyOnWriteArrayList<>()).add(emitter);
 
         emitter.onCompletion(() -> removeEmitter(runId, emitter));
@@ -31,6 +38,25 @@ public class SseBroadcaster {
             removeEmitter(runId, emitter);
         }
         return emitter;
+    }
+
+    @PostConstruct
+    public void startHeartbeat() {
+        scheduler.scheduleAtFixedRate(this::pingAll, 15, 15, TimeUnit.SECONDS);
+    }
+
+    private void pingAll() {
+        emitters.forEach((runId, list) -> {
+            List<SseEmitter> dead = new ArrayList<>();
+            for (SseEmitter emitter : list) {
+                try {
+                    emitter.send(SseEmitter.event().name("heartbeat").data("ping"));
+                } catch (Exception e) {
+                    dead.add(emitter);
+                }
+            }
+            dead.forEach(emitter -> removeEmitter(runId, emitter));
+        });
     }
 
     public void emit(UUID runId, String eventType, Object payload) {

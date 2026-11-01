@@ -40,10 +40,10 @@ class ToolSelectorTest {
         ), mapper);
         ToolSelector selector = new ToolSelector(registry);
         LlmClient llm = mock(LlmClient.class);
-        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of(
-                "getMyClass", "listMyClasses", "getClassRoster", "listMySubmissions", "getMyClass", "invented"));
-        assertEquals(List.of("getMyClass", "listMyClasses", "getClassRoster", "listMySubmissions"),
-                selector.selectFromModel("Xem lớp học của tôi", Set.of("ROLE_STUDENT"), llm));
+        // Query khớp đủ 4 tool theo chấm điểm deterministic; LLM không được gọi.
+        assertEquals(List.of("getMyClass", "listMyClasses", "listMySubmissions", "getClassRoster"),
+                selector.selectFromModel("xem lớp học và bài nộp của tôi", Set.of("ROLE_STUDENT"), llm));
+        verifyNoInteractions(llm);
     }
 
     @Test

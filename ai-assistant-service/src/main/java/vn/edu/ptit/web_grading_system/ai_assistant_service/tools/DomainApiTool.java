@@ -2,6 +2,8 @@ package vn.edu.ptit.web_grading_system.ai_assistant_service.tools;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -146,21 +148,83 @@ public class DomainApiTool implements AgentTool {
                         ? !args.path("payload").isArray() : !args.path("payload").isObject()))) {
             return ToolResult.error("INVALID_ARGUMENTS", "payload không đúng cấu trúc JSON", false);
         }
-        if (name.equals("createTestQuestion")) {
-            JsonNode steps = args.path("payload").path("steps");
-            if (steps.isArray()) {
-                for (int i = 0; i < steps.size(); i++) {
-                    ToolResult invalid = validateStepConfig(steps.get(i), "payload.steps[" + i + "]");
-                    if (invalid != null) return invalid;
-                }
-            }
-        } else if (name.equals("createTestStep")) {
-            return validateStepConfig(args.path("payload"), "payload");
+        if (name.equals("createTestQuestion") || name.equals("createTestStep") || name.equals("updateTestStep")) {
+            return validateStepPayloads(args);
         }
         return null;
     }
 
-    private ToolResult validateStepConfig(JsonNode step, String location) {
+    /**
+     * Calls course-service {@code POST /api/v1/internal/test-plans/validate} so a malformed
+     * step config is rejected *before* {@link WriteApprovalService#propose} persists a pending
+     * action. The agent receives a structured error path in the same chat turn and can repair.
+     */
+    private ToolResult validateStepPayloads(JsonNode args) {
+        JsonNode payload = args.path("payload");
+        if (payload == null || !payload.isObject()) {
+            return ToolResult.error("INVALID_ARGUMENTS", "payload không phải JSON object", false);
+        }
+        try {
+            ObjectNode validateBody;
+            if (name.equals("createTestStep")) {
+                ArrayNode steps = mapper.createArrayNode();
+                steps.add(payload);
+                validateBody = mapper.createObjectNode().set("steps", steps);
+            } else {
+                validateBody = (ObjectNode) payload;
+            }
+            String raw = client.method(HttpMethod.POST)
+                    .uri("/api/v1/internal/test-plans/validate")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(mapper.writeValueAsString(validateBody))
+                    .retrieve().body(String.class);
+            JsonNode result = raw == null || raw.isBlank()
+                    ? mapper.createObjectNode().put("valid", true)
+                    : mapper.readTree(raw);
+            boolean valid = result.path("valid").asBoolean(false);
+            if (valid) return null;
+            JsonNode errors = result.path("errors");
+            List<String> messages = new ArrayList<>();
+            if (errors.isArray()) {
+                for (JsonNode err : errors) {
+                    String path = err.path("path").asText("");
+                    String message = err.path("message").asText("");
+                    if (!path.isBlank()) messages.add(path + ": " + message);
+                    else messages.add(message);
+                }
+            }
+            String detail = messages.isEmpty()
+                    ? "course-service từ chối config (không có chi tiết lỗi)"
+                    : String.join("; ", messages.subList(0, Math.min(messages.size(), 5)));
+            return ToolResult.error("INVALID_ARGUMENTS", "Config không hợp lệ: " + detail, false);
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            return ToolResult.error("VALIDATION_REJECTED",
+                    "course-service từ chối yêu cầu validate (" + e.getStatusCode() + ")", false);
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            // Fallback local khi course-service không reachable: kiểm tra cơ bản method/path/query.
+            return fallbackValidateStepConfig(payload);
+        } catch (Exception e) {
+            return ToolResult.error("VALIDATION_ERROR", "Không thể validate config: " + e.getMessage(), false);
+        }
+    }
+
+    /** Fallback kiểm tra cơ bản khi course-service không phản hồi validate endpoint. */
+    private ToolResult fallbackValidateStepConfig(JsonNode payload) {
+        if (name.equals("createTestQuestion")) {
+            JsonNode steps = payload.path("steps");
+            if (steps.isArray()) {
+                for (int i = 0; i < steps.size(); i++) {
+                    ToolResult invalid = checkStepConfig(steps.get(i), "payload.steps[" + i + "]");
+                    if (invalid != null) return invalid;
+                }
+            }
+        } else {
+            return checkStepConfig(payload, "payload");
+        }
+        return null;
+    }
+
+    private ToolResult checkStepConfig(JsonNode step, String location) {
         String stepType = step.path("stepType").asText();
         JsonNode config = step.path("config");
         String missing = switch (stepType) {
@@ -171,6 +235,118 @@ public class DomainApiTool implements AgentTool {
         };
         return missing == null ? null : ToolResult.error("INVALID_ARGUMENTS",
                 location + ".config thiếu '" + missing + "' cho " + stepType, false);
+    }
+
+    /**
+     * Human-readable preview of a write payload, used by AgentRuntime.formatPendingQuestion
+     * to render a numbered step table instead of raw JSON.
+     */
+    @Override
+    public String summarize(JsonNode arguments) {
+        if (arguments == null || !arguments.isObject()) return null;
+        JsonNode payload = arguments.path("payload");
+        if (payload == null || !payload.isObject()) return null;
+
+        StringBuilder sb = new StringBuilder();
+        if (name.equals("createTestQuestion")) {
+            JsonNode plan = payload.path("plan");
+            String planName = plan.path("name").asText("câu kiểm tra");
+            Integer seq = plan.path("sequenceOrder").asInt();
+            Integer weight = plan.path("weight").asInt(1);
+            JsonNode steps = payload.path("steps");
+            sb.append("Mình đã chuẩn bị tạo câu kiểm tra **").append(planName).append("**");
+            if (seq != null) sb.append(" (sequenceOrder=").append(seq).append(")");
+            sb.append(", weight=").append(weight).append(", ").append(steps.size()).append(" bước.\n\n");
+            sb.append("| # | Bước | Loại | Kiểm tra chính |\n");
+            sb.append("|---|------|------|----------------|\n");
+            if (steps.isArray()) {
+                int i = 0;
+                for (JsonNode step : steps) {
+                    i++;
+                    String stepName = step.path("name").asText("bước " + i);
+                    String stepType = step.path("stepType").asText("");
+                    JsonNode config = step.path("config");
+                    String typeDesc;
+                    String checkDesc;
+                    if ("HTTP_REQUEST".equals(stepType)) {
+                        String method = config.path("method").asText("");
+                        String path = config.path("path").asText("");
+                        typeDesc = method.isBlank() ? "HTTP" : method + " " + path;
+                        checkDesc = checkSummary(config);
+                    } else {
+                        typeDesc = stepType.isBlank() ? "DB" : stepType;
+                        checkDesc = dbCheckSummary(stepType, config);
+                    }
+                    sb.append("| ").append(i).append(" | ").append(escape(stepName))
+                            .append(" | ").append(typeDesc).append(" | ").append(checkDesc).append(" |\n");
+                }
+            }
+            sb.append("\nSau khi tạo, gõ **tiếp** để làm câu kế tiếp.");
+        } else if (name.equals("createTestStep")) {
+            String stepName = payload.path("name").asText("bước");
+            String stepType = payload.path("stepType").asText("");
+            JsonNode config = payload.path("config");
+            String typeDesc, checkDesc;
+            if ("HTTP_REQUEST".equals(stepType)) {
+                typeDesc = config.path("method").asText("HTTP") + " " + config.path("path").asText("");
+                checkDesc = checkSummary(config);
+            } else {
+                typeDesc = stepType.isBlank() ? "DB" : stepType;
+                checkDesc = dbCheckSummary(stepType, config);
+            }
+            sb.append("Mình đã chuẩn bị tạo bước **").append(escape(stepName)).append("** (")
+                    .append(typeDesc).append("): ").append(checkDesc).append(".\n");
+            sb.append("\nSau khi tạo, gõ **tiếp** để làm câu kế tiếp.");
+        } else {
+            return null;
+        }
+        return sb.toString();
+    }
+
+    private String checkSummary(JsonNode config) {
+        List<String> items = new ArrayList<>();
+        JsonNode es = config.path("expected_status");
+        if (!es.isMissingNode() && !es.isNull()) items.add(es.asText());
+        JsonNode assertions = config.path("assertions");
+        if (assertions.isArray()) {
+            for (JsonNode a : assertions) {
+                String kind = a.path("kind").asText("");
+                if (!kind.isBlank()) items.add(kind);
+            }
+        }
+        JsonNode extract = config.path("extract");
+        if (extract.isArray()) {
+            for (JsonNode ex : extract) {
+                String n = ex.path("name").asText("");
+                if (!n.isBlank()) items.add("extract " + n);
+            }
+        }
+        return items.isEmpty() ? "không có kiểm tra" : String.join(", ", items);
+    }
+
+    private String dbCheckSummary(String stepType, JsonNode config) {
+        if ("DB_SCHEMA_CHECK".equals(stepType)) {
+            JsonNode checks = config.path("checks");
+            List<String> items = new ArrayList<>();
+            if (checks.isArray()) {
+                for (JsonNode c : checks) items.add(c.path("kind").asText("check"));
+            }
+            return items.isEmpty() ? "checks trống" : String.join(", ", items);
+        }
+        if ("DB_QUERY".equals(stepType)) {
+            String q = config.path("query").asText("");
+            return q.length() > 60 ? q.substring(0, 60) + "…" : q;
+        }
+        if ("DB_MIGRATION".equals(stepType)) {
+            JsonNode stmts = config.path("statements");
+            return stmts.isArray() ? stmts.size() + " câu SQL" : "câu SQL";
+        }
+        return "config";
+    }
+
+    private String escape(String s) {
+        if (s == null) return "";
+        return s.replace("|", "\\|");
     }
 
     private Map<String, Object> payloadSchema() {

@@ -23,6 +23,9 @@ public interface AgentTool extends ToolCallback {
 
     ToolResult execute(JsonNode arguments, AgentContext context);
 
+    /** Human-readable preview of a write payload; null -> fall back to raw JSON in chat. */
+    default String summarize(JsonNode arguments) { return null; }
+
     /** Safe, caller-scoped read that can resolve a named entity without knowing its UUID. */
     default String referenceLookupKeywords() { return ""; }
 

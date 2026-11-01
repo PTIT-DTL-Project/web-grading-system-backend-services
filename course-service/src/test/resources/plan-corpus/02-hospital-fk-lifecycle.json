@@ -1,0 +1,379 @@
+{
+  "prompt": "Tạo bài Lịch hẹn khám — Tích hợp bác sĩ & bệnh nhân: tạo bác sĩ, bệnh nhân, lập lịch hẹn liên kết FK, kiểm tra toàn bộ vòng đời CRUD và toàn vẹn DB",
+  "domain": "Lịch hẹn khám — Bác sĩ & Bệnh nhân",
+  "expected": {
+    "batchCount": 5,
+    "totalSteps": 10,
+    "stepTypes": [
+      "HTTP_REQUEST",
+      "DB_QUERY",
+      "DB_SCHEMA_CHECK"
+    ],
+    "methods": [
+      "POST",
+      "GET",
+      "PATCH",
+      "DELETE",
+      "GET"
+    ],
+    "assertionKinds": [
+      "status",
+      "json_path",
+      "field_equals"
+    ],
+    "dbCheckKinds": [
+      "TABLE_EXISTS",
+      "PRIMARY_KEY"
+    ],
+    "httpStatuses": [
+      201,
+      201,
+      201,
+      200,
+      200,
+      200,
+      200,
+      204,
+      404
+    ],
+    "requiredFalseSteps": [
+      8
+    ],
+    "maxStepsPerBatch": 6
+  },
+  "batches": [
+    {
+      "tool": "createTestQuestion",
+      "payload": {
+        "plan": {
+          "name": "Lịch hẹn khám — Tích hợp bác sĩ & bệnh nhân",
+          "description": "Tạo bác sĩ, bệnh nhân, lập lịch hẹn liên kết FK; kiểm tra toàn bộ vòng đời CRUD và toàn vẹn DB",
+          "sequenceOrder": 1,
+          "weight": 15
+        },
+        "steps": [
+          {
+            "stepOrder": 0,
+            "name": "Tạo bác sĩ",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "POST",
+              "path": "/api/v1/doctors",
+              "body": {
+                "name": "Bac si Test",
+                "phone": "0901234567",
+                "specialization": "Tim mach"
+              },
+              "expected_status": 201,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 201
+                },
+                {
+                  "kind": "json_path",
+                  "path": "$.id",
+                  "exists": true
+                }
+              ],
+              "extract": [
+                {
+                  "name": "doctorId",
+                  "from": "response_body",
+                  "expression": "$.id"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 1,
+            "name": "Tạo bệnh nhân",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "POST",
+              "path": "/api/v1/patients",
+              "body": {
+                "dob": "1990-05-15",
+                "phone": "0987654321",
+                "fullName": "Ben nhan Test"
+              },
+              "expected_status": 201,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 201
+                },
+                {
+                  "kind": "json_path",
+                  "path": "$.id",
+                  "exists": true
+                }
+              ],
+              "extract": [
+                {
+                  "name": "patientId",
+                  "from": "response_body",
+                  "expression": "$.id"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 2,
+            "name": "Tạo lịch hẹn khám (liên kết bác sĩ + bệnh nhân)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "POST",
+              "path": "/api/v1/appointments",
+              "body": {
+                "status": "Dang cho",
+                "doctorId": "${doctorId}",
+                "patientId": "${patientId}",
+                "appointmentDate": "2026-11-05"
+              },
+              "expected_status": 201,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 201
+                },
+                {
+                  "kind": "json_path",
+                  "path": "$.id",
+                  "exists": true
+                },
+                {
+                  "kind": "json_path",
+                  "path": "$.doctorId",
+                  "exists": true
+                },
+                {
+                  "kind": "json_path",
+                  "path": "$.patientId",
+                  "exists": true
+                }
+              ],
+              "extract": [
+                {
+                  "name": "appointmentId",
+                  "from": "response_body",
+                  "expression": "$.id"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 3,
+            "name": "Lấy lịch hẹn (kiểm tra liên kết FK)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/appointments/${appointmentId}",
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "json_path",
+                  "path": "$.id",
+                  "exists": true
+                },
+                {
+                  "kind": "field_equals",
+                  "path": "$.doctorId",
+                  "equals": "${doctorId}"
+                },
+                {
+                  "kind": "field_equals",
+                  "path": "$.patientId",
+                  "equals": "${patientId}"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 4,
+            "name": "Kiểm tra liên kết FK qua JOIN",
+            "stepType": "DB_QUERY",
+            "config": {
+              "connection": {
+                "db_type": "postgres",
+                "db_service": "db",
+                "db_port": 5432,
+                "database": "hospital_db",
+                "username": "postgres",
+                "password": "postgres"
+              },
+              "query": "SELECT a.id FROM appointments a INNER JOIN doctors d ON a.doctor_id = d.id INNER JOIN patients p ON a.patient_id = p.id WHERE a.id = '${appointmentId}'",
+              "expected": {
+                "row_count": 1
+              },
+              "timeoutMs": 30000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 5,
+            "name": "Cập nhật trạng thái khám",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "PATCH",
+              "path": "/api/v1/appointments/${appointmentId}",
+              "body": {
+                "status": "Da kham"
+              },
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "contains",
+                  "text": "Da kham"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "tool": "createTestStep",
+      "payload": {
+        "stepOrder": 6,
+        "name": "Xóa lịch hẹn",
+        "stepType": "HTTP_REQUEST",
+        "config": {
+          "method": "DELETE",
+          "path": "/api/v1/appointments/${appointmentId}",
+          "expected_status": 204,
+          "assertions": [
+            {
+              "kind": "status",
+              "equals": 204
+            }
+          ]
+        },
+        "weight": 1,
+        "required": true,
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "tool": "createTestStep",
+      "payload": {
+        "stepOrder": 7,
+        "name": "Kiểm tra lịch hẹn đã xóa (404)",
+        "stepType": "HTTP_REQUEST",
+        "config": {
+          "method": "GET",
+          "path": "/api/v1/appointments/${appointmentId}",
+          "expected_status": 404,
+          "assertions": [
+            {
+              "kind": "status",
+              "equals": 404
+            }
+          ]
+        },
+        "weight": 1,
+        "required": false,
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "tool": "createTestStep",
+      "payload": {
+        "stepOrder": 8,
+        "name": "Kiểm tra schema 3 bảng + PK",
+        "stepType": "DB_SCHEMA_CHECK",
+        "config": {
+          "connection": {
+            "db_type": "postgres",
+            "db_service": "db",
+            "db_port": 5432,
+            "database": "hospital_db",
+            "username": "postgres",
+            "password": "postgres"
+          },
+          "checks": [
+            {
+              "kind": "TABLE_EXISTS",
+              "table_name": "doctors"
+            },
+            {
+              "kind": "TABLE_EXISTS",
+              "table_name": "patients"
+            },
+            {
+              "kind": "TABLE_EXISTS",
+              "table_name": "appointments"
+            },
+            {
+              "kind": "PRIMARY_KEY",
+              "column": "id",
+              "table_name": "doctors"
+            },
+            {
+              "kind": "PRIMARY_KEY",
+              "column": "id",
+              "table_name": "patients"
+            },
+            {
+              "kind": "PRIMARY_KEY",
+              "column": "id",
+              "table_name": "appointments"
+            }
+          ]
+        },
+        "weight": 1,
+        "required": true,
+        "timeoutMs": 30000
+      }
+    },
+    {
+      "tool": "createTestStep",
+      "payload": {
+        "stepOrder": 9,
+        "name": "Kiểm tra dữ liệu đã xóa (row_count=0)",
+        "stepType": "DB_QUERY",
+        "config": {
+          "connection": {
+            "db_type": "postgres",
+            "db_service": "db",
+            "db_port": 5432,
+            "database": "hospital_db",
+            "username": "postgres",
+            "password": "postgres"
+          },
+          "query": "SELECT id FROM appointments WHERE id = '${appointmentId}'",
+          "expected": {
+            "row_count": 0
+          },
+          "timeoutMs": 30000
+        },
+        "weight": 1,
+        "required": true
+      }
+    }
+  ]
+}

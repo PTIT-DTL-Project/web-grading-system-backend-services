@@ -1,0 +1,242 @@
+{
+  "prompt": "Tạo bài quản lý sách REST API: tạo sách, lấy theo id, cập nhật, lấy danh sách có filter, xóa, kiểm tra đã xóa (404)",
+  "domain": "Quản lý sách REST API",
+  "expected": {
+    "batchCount": 1,
+    "totalSteps": 7,
+    "stepTypes": [
+      "HTTP_REQUEST"
+    ],
+    "methods": [
+      "POST",
+      "GET",
+      "PATCH",
+      "DELETE",
+      "GET"
+    ],
+    "assertionKinds": [
+      "status",
+      "json_path",
+      "field_equals",
+      "contains"
+    ],
+    "httpStatuses": [
+      201,
+      200,
+      200,
+      200,
+      204,
+      404
+    ],
+    "requiredFalseSteps": [
+      6
+    ],
+    "maxStepsPerBatch": 6
+  },
+  "batches": [
+    {
+      "tool": "createTestQuestion",
+      "payload": {
+        "plan": {
+          "name": "CRUD Sách — Full",
+          "description": "Kiểm tra toàn bộ vòng đời sách",
+          "sequenceOrder": 1,
+          "weight": 10
+        },
+        "steps": [
+          {
+            "stepOrder": 0,
+            "name": "Tạo sách mới",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "POST",
+              "path": "/api/v1/books",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": {
+                "title": "Dế Mèn Phiêu Lưu Ký",
+                "author": "Tô Hoài",
+                "year": 1941
+              },
+              "expected_status": 201,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 201
+                },
+                {
+                  "kind": "json_path",
+                  "path": "$.id",
+                  "exists": true
+                }
+              ],
+              "extract": [
+                {
+                  "name": "bookId",
+                  "from": "response_body",
+                  "expression": "$.id"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 1,
+            "name": "Lấy sách theo id",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/books/${bookId}",
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "field_equals",
+                  "path": "$.id",
+                  "equals": "${bookId}"
+                },
+                {
+                  "kind": "json_path",
+                  "path": "$.title",
+                  "exists": true
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 2,
+            "name": "Cập nhật toàn bộ sách",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "PUT",
+              "path": "/api/v1/books/${bookId}",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": {
+                "title": "Dế Mèn Phiêu Lưu Ký - Bản mới",
+                "author": "Tô Hoài",
+                "year": 1941
+              },
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "contains",
+                  "text": "Bản mới"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 3,
+            "name": "Cập nhật tác giả",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "PATCH",
+              "path": "/api/v1/books/${bookId}",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": {
+                "author": "Tô Hoài (sửa)"
+              },
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "contains",
+                  "text": "Tô Hoài (sửa)"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 4,
+            "name": "Lấy danh sách sách (filter)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/books",
+              "query_params": {
+                "title": "Dế Mèn"
+              },
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "contains",
+                  "text": "Dế Mèn"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 5,
+            "name": "Xoá sách",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "DELETE",
+              "path": "/api/v1/books/${bookId}",
+              "expected_status": 204,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 204
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 6,
+            "name": "Kiểm tra đã xoá (404)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/books/${bookId}",
+              "expected_status": 404,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 404
+                }
+              ]
+            },
+            "required": false,
+            "weight": 1
+          }
+        ]
+      }
+    }
+  ]
+}

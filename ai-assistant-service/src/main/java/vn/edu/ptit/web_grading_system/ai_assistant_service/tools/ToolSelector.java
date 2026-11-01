@@ -1,8 +1,11 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.tools;
 
 import java.text.Normalizer;
+import java.util.AbstractMap;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
@@ -21,6 +24,19 @@ public class ToolSelector {
     public List<String> selectFromModel(String request, Set<String> roles, LlmClient llm) {
         List<AgentTool> authorized = registry.getToolsForRoles(roles);
         if (authorized.isEmpty()) return List.of();
+        Set<String> query = ToolSelector.terms(request);
+        List<AgentTool> scored = authorized.stream()
+                .map(tool -> new AbstractMap.SimpleEntry<>(tool, score(query, tool)))
+                .filter(entry -> entry.getValue() > 0)
+                .sorted(Comparator.<Map.Entry<AgentTool, Integer>>comparingInt(Map.Entry::getValue)
+                        .reversed()
+                        .thenComparing(entry -> entry.getKey().getName()))
+                .limit(8)
+                .map(Map.Entry::getKey)
+                .toList();
+        if (!scored.isEmpty()) {
+            return scored.stream().map(AgentTool::getName).distinct().toList();
+        }
         List<String> proposed = llm.chooseRelevantTools(request, authorized);
         if (proposed == null) return List.of();
         Set<String> allowed = authorized.stream().map(AgentTool::getName).collect(Collectors.toSet());

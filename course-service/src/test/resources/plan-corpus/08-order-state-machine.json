@@ -1,0 +1,240 @@
+{
+  "prompt": "Tạo bài quản lý đơn hàng máy trạng thái: tạo đơn, thanh toán, giao hàng, huỷ sai trạng thái (409), verify DB status, lấy đơn, xóa đơn",
+  "domain": "Máy trạng thái đơn hàng",
+  "expected": {
+    "batchCount": 3,
+    "totalSteps": 7,
+    "stepTypes": [
+      "HTTP_REQUEST",
+      "DB_QUERY"
+    ],
+    "methods": [
+      "POST",
+      "PATCH",
+      "PATCH",
+      "PATCH",
+      "GET",
+      "DELETE"
+    ],
+    "assertionKinds": [
+      "status",
+      "json_path",
+      "field_equals"
+    ],
+    "httpStatuses": [
+      201,
+      200,
+      200,
+      409,
+      200,
+      200,
+      204
+    ],
+    "requiredFalseSteps": [
+      3
+    ],
+    "maxStepsPerBatch": 6
+  },
+  "batches": [
+    {
+      "tool": "createTestQuestion",
+      "payload": {
+        "plan": {
+          "name": "Máy trạng thái đơn hàng",
+          "description": "Tạo đơn, thanh toán, giao hàng, huỷ sai trạng thái (409), verify DB status",
+          "sequenceOrder": 1,
+          "weight": 10
+        },
+        "steps": [
+          {
+            "stepOrder": 0,
+            "name": "Tạo đơn hàng",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "POST",
+              "path": "/api/v1/orders",
+              "body": {
+                "customer": "Nguyen Van A",
+                "total": 200000
+              },
+              "expected_status": 201,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 201
+                },
+                {
+                  "kind": "json_path",
+                  "path": "$.id",
+                  "exists": true
+                },
+                {
+                  "kind": "json_path",
+                  "path": "$.status",
+                  "exists": true
+                }
+              ],
+              "extract": [
+                {
+                  "name": "orderId",
+                  "from": "response_body",
+                  "expression": "$.id"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 1,
+            "name": "Thanh toán đơn hàng",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "PATCH",
+              "path": "/api/v1/orders/${orderId}",
+              "body": {
+                "status": "Da thanh toan"
+              },
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "field_equals",
+                  "path": "$.status",
+                  "equals": "Da thanh toan"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 2,
+            "name": "Giao hàng",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "PATCH",
+              "path": "/api/v1/orders/${orderId}",
+              "body": {
+                "status": "Da giao"
+              },
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "field_equals",
+                  "path": "$.status",
+                  "equals": "Da giao"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 3,
+            "name": "Huỷ đơn đã giao (mong đợi 409)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "PATCH",
+              "path": "/api/v1/orders/${orderId}",
+              "body": {
+                "status": "Da huy"
+              },
+              "expected_status": 409,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 409
+                }
+              ]
+            },
+            "weight": 1,
+            "required": false,
+            "timeoutMs": 5000
+          },
+          {
+            "stepOrder": 4,
+            "name": "Verify trạng thái đơn trong DB",
+            "stepType": "DB_QUERY",
+            "config": {
+              "connection": {
+                "db_type": "postgres",
+                "db_service": "db",
+                "db_port": 5432,
+                "database": "grading",
+                "username": "postgres",
+                "password": "postgres"
+              },
+              "query": "SELECT status FROM orders WHERE id = '${orderId}'",
+              "expected": {
+                "row_count": 1
+              },
+              "timeoutMs": 30000
+            },
+            "weight": 1,
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "tool": "createTestStep",
+      "payload": {
+        "stepOrder": 5,
+        "name": "Lấy đơn hàng",
+        "stepType": "HTTP_REQUEST",
+        "config": {
+          "method": "GET",
+          "path": "/api/v1/orders/${orderId}",
+          "expected_status": 200,
+          "assertions": [
+            {
+              "kind": "status",
+              "equals": 200
+            },
+            {
+              "kind": "json_path",
+              "path": "$.id",
+              "exists": true
+            }
+          ],
+          "timeoutMs": 5000
+        },
+        "weight": 1,
+        "required": true
+      }
+    },
+    {
+      "tool": "createTestStep",
+      "payload": {
+        "stepOrder": 6,
+        "name": "Xóa đơn hàng",
+        "stepType": "HTTP_REQUEST",
+        "config": {
+          "method": "DELETE",
+          "path": "/api/v1/orders/${orderId}",
+          "expected_status": 204,
+          "assertions": [
+            {
+              "kind": "status",
+              "equals": 204
+            }
+          ]
+        },
+        "weight": 1,
+        "required": true,
+        "timeoutMs": 5000
+      }
+    }
+  ]
+}

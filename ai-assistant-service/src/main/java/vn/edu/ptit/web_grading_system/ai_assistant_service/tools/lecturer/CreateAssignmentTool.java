@@ -36,7 +36,7 @@ public class CreateAssignmentTool implements AgentTool {
 
     @Override
     public String getDescription() {
-        return "Tạo bài tập sau khi giảng viên xác nhận. Cần title, classId (UUID). gradingStrategy mặc định là STUDENT_DOCKER_COMPOSE nếu không ghi rõ.";
+        return "Tạo bài tập sau khi giảng viên xác nhận. Cần title, classId (UUID), và topic (chủ đề bài kiểm tra). gradingStrategy mặc định là STUDENT_DOCKER_COMPOSE nếu không ghi rõ.";
     }
 
     @Override
@@ -48,6 +48,7 @@ public class CreateAssignmentTool implements AgentTool {
                         {"type":"object","properties":{
                           "title":{"type":"string","description":"Tên bài tập"},
                           "classId":{"type":"string","format":"uuid","description":"ID lớp do giảng viên phụ trách"},
+                          "topic":{"type":"string","description":"Chủ đề bài kiểm tra (ví dụ quản lý sinh viên)"},
                           "gradingStrategy":{"type":"string","enum":["STUDENT_DOCKER_COMPOSE","LECTURER_DOCKER_COMPOSE"]},
                           "description":{"type":"string"},
                           "dockerComposeTemplate":{"type":"string","description":"Bắt buộc với LECTURER_DOCKER_COMPOSE"},
@@ -56,7 +57,7 @@ public class CreateAssignmentTool implements AgentTool {
                           "executionTimeoutMs":{"type":"integer"},
                           "maxMemoryMb":{"type":"integer"},
                           "maxCpu":{"type":"number"}
-                        },"required":["title","classId"],"additionalProperties":false}
+                        },"required":["title","classId","topic"],"additionalProperties":false}
                         """)
                 .build();
     }
@@ -91,6 +92,10 @@ public class CreateAssignmentTool implements AgentTool {
             return ToolResult.error("INVALID_ARGUMENTS", "Mã lớp 'classId' là bắt buộc", false);
         }
 
+        if (!arguments.hasNonNull("topic") || arguments.get("topic").asText().isBlank()) {
+            return ToolResult.error("INVALID_ARGUMENTS", "Chủ đề bài kiểm tra 'topic' là bắt buộc", false);
+        }
+
         String title = arguments.get("title").asText().trim();
         UUID classId;
         try {
@@ -118,7 +123,8 @@ public class CreateAssignmentTool implements AgentTool {
                     optionalInt(arguments, "startupTimeoutMs"),
                     optionalInt(arguments, "executionTimeoutMs"),
                     optionalInt(arguments, "maxMemoryMb"),
-                    optionalDouble(arguments, "maxCpu")
+                    optionalDouble(arguments, "maxCpu"),
+                    arguments.get("topic").asText().trim()
             );
         } catch (IllegalArgumentException e) {
             return ToolResult.error("INVALID_ARGUMENTS", e.getMessage(), false);

@@ -181,6 +181,8 @@ public class AgentOrchestrator {
                                     if (tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE) {
                                         failedWrite.set(result.isSuccess() ? null : result);
                                     }
+                                    sseBroadcaster.sendEvent(runId, "tool.finished",
+                                            Map.of("tool", tool.getName(), "success", result.isSuccess()));
                                 });
                     } catch (Exception ex) {
                         log.warn("AI runId={} agent execution error: {}", runId, ex.getMessage());

@@ -228,7 +228,9 @@ public class LlmClient {
                     .call()
                     .entity(entityClass);
         } catch (Exception e) {
-            log.error("Failed to generate structured entity via Spring AI: {}", e.getMessage(), e);
+            // LLM returned empty / unparseable content — degraded path, not a system error.
+            // Return null so the caller can fall back (generateStrictCompletion) or degrade.
+            log.warn("LLM returned empty or unparseable content for structured entity: {}", e.getMessage());
             return null;
         }
     }

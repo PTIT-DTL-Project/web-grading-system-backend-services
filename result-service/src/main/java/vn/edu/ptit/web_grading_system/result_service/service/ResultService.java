@@ -399,6 +399,25 @@ public class ResultService {
                 .toList();
     }
 
+    /**
+     * Latest result rows of one student on one assignment, each with its step rows.
+     * Used by the student's assignment detail page to show per-plan and per-step
+     * scores. Empty when the student hasn't submitted anything yet.
+     */
+    @Transactional(readOnly = true)
+    public List<ResultResponse> getStudentAssignmentResults(UUID studentId, UUID assignmentId) {
+        List<Result> rows = resultRepository.findByStudentIdAndAssignmentIdAndLatestTrue(
+                studentId, assignmentId);
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, List<StepResult>> stepsByResult = stepsByResultIds(rows);
+        return rows.stream()
+                .map(result -> toResponse(result,
+                        stepsByResult.getOrDefault(result.getId(), List.of())))
+                .toList();
+    }
+
     /** {@code steps == null} means "not requested", not "no steps" — see {@code includeSteps}. */
     private static ResultResponse toResponse(Result result, List<StepResult> steps) {
         return ResultResponse.builder()

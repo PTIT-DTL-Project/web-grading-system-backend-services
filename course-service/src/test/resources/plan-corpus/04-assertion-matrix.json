@@ -1,0 +1,349 @@
+{
+  "prompt": "Tạo bài quản lý sách kiểm ma trận toàn bộ 13 assertion kind: status, contains, json_path, body_equals, body_structure, field_equals, array_length, contains_item, json_path_equals, greater_than, less_than, matches_regex, any_of",
+  "domain": "Ma trận assertion kind",
+  "expected": {
+    "batchCount": 4,
+    "totalSteps": 9,
+    "stepTypes": [
+      "HTTP_REQUEST"
+    ],
+    "methods": [
+      "POST",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "GET"
+    ],
+    "assertionKinds": [
+      "status",
+      "contains",
+      "json_path",
+      "body_equals",
+      "body_structure",
+      "field_equals",
+      "array_length",
+      "contains_item",
+      "json_path_equals",
+      "greater_than",
+      "less_than",
+      "matches_regex",
+      "any_of"
+    ],
+    "httpStatuses": [
+      201,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "requiredFalseSteps": [],
+    "maxStepsPerBatch": 6
+  },
+  "batches": [
+    {
+      "tool": "createTestQuestion",
+      "payload": {
+        "plan": {
+          "name": "Ma trận assertion kind — Quản lý sách",
+          "description": "Phủ đủ 13 assertion kind trên 9 bước",
+          "sequenceOrder": 1,
+          "weight": 10
+        },
+        "steps": [
+          {
+            "stepOrder": 0,
+            "name": "Tạo sách (extract bookId)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "POST",
+              "path": "/api/v1/books",
+              "body": {
+                "title": "Dế Mèn",
+                "author": "Tô Hoài",
+                "year": 1941,
+                "price": 100
+              },
+              "expected_status": 201,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 201
+                },
+                {
+                  "kind": "json_path",
+                  "path": "$.id",
+                  "exists": true
+                },
+                {
+                  "kind": "body_equals",
+                  "json": {
+                    "title": "Dế Mèn",
+                    "author": "Tô Hoài",
+                    "year": 1941,
+                    "price": 100
+                  }
+                }
+              ],
+              "extract": [
+                {
+                  "name": "bookId",
+                  "from": "response_body",
+                  "expression": "$.id"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 1,
+            "name": "Lấy sách (body_structure exact keys)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/books/${bookId}",
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "body_structure",
+                  "json": {
+                    "id": "",
+                    "title": "",
+                    "author": "",
+                    "year": "",
+                    "price": ""
+                  }
+                },
+                {
+                  "kind": "field_equals",
+                  "path": "$.id",
+                  "equals": "${bookId}"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 2,
+            "name": "Lấy danh sách sách",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/books",
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "contains",
+                  "text": "Dế Mèn"
+                },
+                {
+                  "kind": "json_path",
+                  "path": "$",
+                  "exists": true
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 3,
+            "name": "Cập nhật giá sách",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "PATCH",
+              "path": "/api/v1/books/${bookId}",
+              "body": {
+                "price": 150
+              },
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "field_equals",
+                  "path": "$.price",
+                  "equals": "150"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 4,
+            "name": "Lấy sách (json_path_equals + less_than)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/books/${bookId}",
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "json_path_equals",
+                  "path": "$.price",
+                  "equals": "150"
+                },
+                {
+                  "kind": "less_than",
+                  "path": "$.price",
+                  "value": "200"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          },
+          {
+            "stepOrder": 5,
+            "name": "Lấy sách (greater_than + matches_regex)",
+            "stepType": "HTTP_REQUEST",
+            "config": {
+              "method": "GET",
+              "path": "/api/v1/books/${bookId}",
+              "expected_status": 200,
+              "assertions": [
+                {
+                  "kind": "status",
+                  "equals": 200
+                },
+                {
+                  "kind": "greater_than",
+                  "path": "$.price",
+                  "value": "100"
+                },
+                {
+                  "kind": "matches_regex",
+                  "path": "$.title",
+                  "pattern": "^[A-Za-zÀ-ỹ ]+$"
+                }
+              ],
+              "timeoutMs": 5000
+            },
+            "weight": 1,
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "tool": "createTestStep",
+      "payload": {
+        "stepOrder": 6,
+        "name": "Lấy danh sách (array_length + contains_item)",
+        "stepType": "HTTP_REQUEST",
+        "config": {
+          "method": "GET",
+          "path": "/api/v1/books",
+          "expected_status": 200,
+          "assertions": [
+            {
+              "kind": "status",
+              "equals": 200
+            },
+            {
+              "kind": "array_length",
+              "path": "$",
+              "equals": 1
+            },
+            {
+              "kind": "contains_item",
+              "path": "$[*].title",
+              "equals": "Dế Mèn"
+            }
+          ],
+          "timeoutMs": 5000
+        },
+        "weight": 1,
+        "required": true
+      }
+    },
+    {
+      "tool": "createTestStep",
+      "payload": {
+        "stepOrder": 7,
+        "name": "Lấy sách (any_of định dạng ngày)",
+        "stepType": "HTTP_REQUEST",
+        "config": {
+          "method": "GET",
+          "path": "/api/v1/books/${bookId}",
+          "expected_status": 200,
+          "assertions": [
+            {
+              "kind": "status",
+              "equals": 200
+            },
+            {
+              "kind": "any_of",
+              "assertions": [
+                {
+                  "kind": "matches_regex",
+                  "path": "$.published_date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "kind": "matches_regex",
+                  "path": "$.published_date",
+                  "pattern": "^\\d{2}/\\d{2}/\\d{4}$"
+                }
+              ]
+            }
+          ],
+          "timeoutMs": 5000
+        },
+        "weight": 1,
+        "required": true
+      }
+    },
+    {
+      "tool": "createTestStep",
+      "payload": {
+        "stepOrder": 8,
+        "name": "Xoá sách",
+        "stepType": "HTTP_REQUEST",
+        "config": {
+          "method": "DELETE",
+          "path": "/api/v1/books/${bookId}",
+          "expected_status": 204,
+          "assertions": [
+            {
+              "kind": "status",
+              "equals": 204
+            }
+          ]
+        },
+        "required": true,
+        "timeoutMs": 5000,
+        "weight": 1
+      }
+    }
+  ]
+}

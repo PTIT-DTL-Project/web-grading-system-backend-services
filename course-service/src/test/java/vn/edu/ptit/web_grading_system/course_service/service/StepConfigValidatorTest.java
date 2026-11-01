@@ -137,10 +137,34 @@ class StepConfigValidatorTest {
             {"checks":[
               {"kind":"TABLE_EXISTS","table_name":"books"},
               {"kind":"COLUMN_EXISTS","table_name":"books","column_name":"title","data_type":"VARCHAR"},
-              {"kind":"INDEX_EXISTS","index_name":"idx_books_title"},
-              {"kind":"PRIMARY_KEY","column":"id"}
+              {"kind":"INDEX_EXISTS","index_name":"idx_books_title","table_name":"books"},
+              {"kind":"PRIMARY_KEY","column":"id","table_name":"books"}
             ]}""");
         assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.DB_SCHEMA_CHECK, n));
+    }
+
+    @Test
+    void schemaCheck_indexExistsWithoutTableName_fails() {
+        ObjectNode n = node("{\"checks\":[{\"kind\":\"INDEX_EXISTS\",\"index_name\":\"idx_books_title\"}]}");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.DB_SCHEMA_CHECK, n));
+        assertTrue(e.getMessage().contains("'table_name'"));
+    }
+
+    @Test
+    void schemaCheck_primaryKeyWithoutTableName_fails() {
+        ObjectNode n = node("{\"checks\":[{\"kind\":\"PRIMARY_KEY\",\"column\":\"id\"}]}");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.DB_SCHEMA_CHECK, n));
+        assertTrue(e.getMessage().contains("'table_name'"));
+    }
+
+    @Test
+    void schemaCheck_columnExistsWithoutDataType_fails() {
+        ObjectNode n = node("{\"checks\":[{\"kind\":\"COLUMN_EXISTS\",\"table_name\":\"books\",\"column_name\":\"title\"}]}");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.DB_SCHEMA_CHECK, n));
+        assertTrue(e.getMessage().contains("'data_type'"));
     }
 
     @Test
