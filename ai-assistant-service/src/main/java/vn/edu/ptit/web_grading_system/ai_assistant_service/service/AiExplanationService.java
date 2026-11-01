@@ -57,7 +57,7 @@ public class AiExplanationService {
     private final ResultServiceClient resultServiceClient;
     private final CourseServiceClient courseServiceClient;
     private final PromptBuilder promptBuilder;
-    private final LlmClient llmClient;
+    private final ExplanationLlmClient explanationLlmClient;
     private final GatewayTrustProperties gatewayProperties;
     private final AiModelProperties aiModelProperties;
     private final Gson gson = new Gson();
@@ -273,7 +273,7 @@ public class AiExplanationService {
         // 4. Build prompt & call LLM
         String systemPrompt = promptBuilder.buildSystemPrompt();
         String userPrompt = promptBuilder.buildUserPrompt(assignment, result);
-        AiExplanationResultDto structuredOutput = llmClient.generateEntity(systemPrompt, userPrompt, AiExplanationResultDto.class);
+        AiExplanationResultDto structuredOutput = explanationLlmClient.generateEntity(systemPrompt, userPrompt, AiExplanationResultDto.class);
         boolean isFallback = structuredOutput == null;
         if (isFallback) {
             // generateEntity failed (offline mode or provider/parse error). Retry once via
@@ -286,20 +286,29 @@ public class AiExplanationService {
             // that also parses through BeanOutputConverter. That caused isFallback to be
             // cleared for a fake payload, which was then persisted and never evicted.
             try {
-                String rawLlmResponse = llmClient.generateStrictCompletion(systemPrompt, userPrompt);
+                String rawLlmResponse = explanationLlmClient.generateStrictCompletion(systemPrompt, userPrompt);
+                log.warn("LLM retry via strict completion raw/cleaned length: {}", rawLlmResponse == null ? null : rawLlmResponse.length());
                 if (rawLlmResponse != null && !rawLlmResponse.isBlank()) {
-                    // Review: 2026-10-31, Pullfrog PR #48 follow-up — generateStrictCompletion
-                    // returns raw provider text (no cleanJsonString fence stripping), so a
-                    // genuine retry wrapped in ```json fences would fail to parse. Strip the
-                    // fences before convert to preserve the retry's value.
                     String cleaned = stripMarkdownFences(rawLlmResponse);
-                    structuredOutput = outputConverter.convert(cleaned);
-                    // Retry returned and parsed a genuine model response — allow caching.
+                    cleaned = cleaned.replaceAll("(?s)<think>.*?</think>", "").trim();
+                    int s = cleaned.indexOf('{');
+                    int eIdx = cleaned.lastIndexOf('}');
+                    if (s >= 0 && eIdx > s) {
+                        cleaned = cleaned.substring(s, eIdx + 1);
+                    }
+                    log.warn("LLM retry extracted JSON len={}, startsWithBrace={}", cleaned.length(), cleaned.startsWith("{"));
+                    try {
+                        structuredOutput = outputConverter.convert(cleaned);
+                    } catch (Exception ex) {
+                        log.warn("BeanOutputConverter failed on extracted JSON: {}", ex.getMessage());
+                        structuredOutput = null;
+                    }
                     isFallback = structuredOutput == null;
+                    if (structuredOutput != null) {
+                        log.warn("LLM retry parsed successfully");
+                    }
                 }
-                // rawLlmResponse == null means offline mode: isFallback stays true.
             } catch (AiProviderException e) {
-                // Provider failed on the retry too; keep isFallback=true and return degraded.
                 log.warn("LLM retry via strict completion also failed: {}", e.getMessage());
             } catch (Exception e) {
                 log.warn("BeanOutputConverter could not parse LLM retry response: {}", e.getMessage());

@@ -75,6 +75,17 @@ ai:
     api-key: ${AI_API_KEY:}
     model-name: ${AI_MODEL_NAME:gpt-4o-mini}
     base-url: ${AI_BASE_URL:https://api.openai.com/v1}
+  agent:
+    provider: ${AI_AGENT_PROVIDER:${AI_PROVIDER:openai}}
+    api-key: ${AI_AGENT_API_KEY:${AI_API_KEY:}}
+    model-name: ${AI_AGENT_MODEL_NAME:${AI_MODEL_NAME:gpt-4o-mini}}
+    base-url: ${AI_AGENT_BASE_URL:${AI_BASE_URL:https://api.openai.com/v1}}
+  explanation:
+    provider: ${AI_EXPLAIN_PROVIDER:${AI_PROVIDER:openai}}
+    api-key: ${AI_EXPLAIN_API_KEY:${AI_API_KEY:}}
+    model-name: ${AI_EXPLAIN_MODEL_NAME:${AI_MODEL_NAME:gpt-4o-mini}}
+    base-url: ${AI_EXPLAIN_BASE_URL:${AI_BASE_URL:https://api.openai.com/v1}}
+    max-completion-tokens: ${AI_EXPLAIN_MAX_COMPLETION_TOKENS:8092}
 
 agent:
   limits:
