@@ -192,8 +192,16 @@ public class AgentOrchestrator {
                                     onDelta, onResult, () -> isCancelled(runId));
                         } else {
                             agentRuntime.execute(agentContext, systemPrompt, latestUserText, llmClient,
-                                    onDelta, onResult, event -> publish(runId, event.type(), event.modelTurn(),
-                                            event.itemId(), event.data()), () -> isCancelled(runId));
+                                    onDelta, onResult, event -> {
+                                        if ("assistant.replace".equals(event.type())) {
+                                            // The final text may be corrected after provider chunks were sent.
+                                            // Persist the same replacement that the timeline shows to the user.
+                                            responseBuffer.setLength(0);
+                                            responseBuffer.append(String.valueOf(event.data().get("text")));
+                                        }
+                                        publish(runId, event.type(), event.modelTurn(),
+                                                event.itemId(), event.data());
+                                    }, () -> isCancelled(runId));
                         }
                     } catch (Exception ex) {
                         if (ex instanceof RunCancelledException || isCancelled(runId)) throw new RunCancelledException();

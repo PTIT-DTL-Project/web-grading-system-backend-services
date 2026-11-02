@@ -61,6 +61,26 @@ class InFlightContextWindowTest {
     }
 
     @Test
+    void keepsLatestPlanResultWhenArchiveReferenceWouldCrowdItOut() {
+        AgentProperties properties = constrainedProperties();
+        properties.getContext().setMaxInputTokens(1600);
+        ToolResultStore store = mock(ToolResultStore.class);
+        when(store.reference(anyString(), any())).thenReturn(UUID.randomUUID());
+        List<org.springframework.ai.chat.messages.Message> messages = new ArrayList<>(List.of(
+                new UserMessage("Kết quả tool listVisibleAssignments: " + "a".repeat(3000)),
+                new UserMessage("Kết quả tool listTestPlans: [{\"id\":\"plan-123\",\"steps\":[1,2]}]"
+                        + "\nTham số tra cứu: {\"assignmentId\":\"assignment-1\"}")));
+        InFlightContextWindow window = new InFlightContextWindow(properties, estimator, store);
+        String prompt = "system".repeat(350);
+
+        window.fit(messages, prompt, List.of(), "create step", context());
+
+        assertEquals(1, messages.size());
+        assertTrue(messages.getFirst().getText().contains("plan-123"));
+        assertFalse(messages.getFirst().getText().contains("storedId"));
+    }
+
+    @Test
     void repeatedCompactionKeepsOriginalResultsInOneRetrievableArchive() {
         AgentProperties properties = constrainedProperties();
         ToolResultStore store = mock(ToolResultStore.class);
@@ -100,6 +120,24 @@ class InFlightContextWindowTest {
         verify(store).reference(archived.capture(), eq(context));
         assertTrue(archived.getValue().startsWith("Kết quả tool listTestPlans: "));
         assertTrue(archived.getValue().contains("plan-123"));
+    }
+
+    @Test
+    void overflowRecoveryKeepsFreshPlanResultInsteadOfArchivingItAgain() {
+        ToolResultStore store = mock(ToolResultStore.class);
+        when(store.reference(anyString(), any())).thenReturn(UUID.randomUUID());
+        InFlightContextWindow window = new InFlightContextWindow(constrainedProperties(), estimator, store);
+        List<org.springframework.ai.chat.messages.Message> messages = new ArrayList<>(List.of(
+                new UserMessage("Kết quả tool listVisibleAssignments: " + "a".repeat(2400)),
+                new UserMessage("Kết quả tool listTestPlans: [{\"id\":\"plan-123\",\"steps\":[1,2]}]"
+                        + "\nTham số tra cứu: {\"assignmentId\":\"assignment-1\"}")));
+
+        assertTrue(window.archiveAll(messages, context()));
+
+        assertEquals(1, messages.size());
+        assertTrue(messages.getFirst().getText().contains("plan-123"));
+        assertTrue(messages.getFirst().getText().contains("assignment-1"));
+        verify(store, never()).reference(anyString(), any());
     }
 
     @Test

@@ -61,6 +61,18 @@ class InFlightContextWindow {
             }
             return;
         }
+        // Keep a fresh domain lookup usable when even an archive pointer would crowd it out.
+        // The user request remains in the preflight history; re-archiving this result would
+        // force the model to spend another turn reading the same lookup from cursor t:0.
+        if (latest.getText().startsWith("Kết quả tool listTestPlans:")
+                && latest.getText().contains("\nTham số tra cứu: ")
+                && estimateMessages(List.of(latest)) <= allowed
+                && estimateMessages(List.of(latest))
+                    + estimator.estimateTokens(referenceText("00000000-0000-0000-0000-000000000000")) + 8 > allowed) {
+            messages.clear();
+            messages.add(latest);
+            return;
+        }
         if (messages.size() > 1) {
             if (estimator.estimateTokens(referenceText(
                     "00000000-0000-0000-0000-000000000000")) + 8
@@ -85,6 +97,17 @@ class InFlightContextWindow {
 
     boolean archiveAll(List<org.springframework.ai.chat.messages.Message> messages, AgentContext context) {
         if (messages.isEmpty() || messages.size() == 1 && isReference(messages.getFirst())) return false;
+        if (messages.size() > 1
+                && messages.getLast().getText().startsWith("Kết quả tool listTestPlans:")
+                && messages.getLast().getText().contains("\nTham số tra cứu: ")) {
+            // The plan and its parent assignment are enough for the next step write.
+            // Keep this latest lookup on the first overflow retry rather than turning
+            // it into another archive reference that the model must page through.
+            var latest = messages.getLast();
+            messages.clear();
+            messages.add(latest);
+            return true;
+        }
         if (messages.getLast().getText().startsWith(PAGE_RESULT_PREFIX)) {
             if (messages.size() == 1) return false;
             messages.removeFirst();

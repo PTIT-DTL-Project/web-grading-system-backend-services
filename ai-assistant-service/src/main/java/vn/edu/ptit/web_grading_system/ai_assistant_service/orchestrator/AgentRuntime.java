@@ -71,6 +71,10 @@ public class AgentRuntime {
             "(?:parameters for tool |invalid arguments for tool )([A-Za-z][A-Za-z0-9_]*)");
     private static final Pattern REJECTED_FIELD = Pattern.compile(
             "`(/[A-Za-z0-9_/-]+)`: expected ([a-z]+), but got ([a-z]+)");
+    private static final String UNSAVED_PROPOSAL_PREFIX =
+            "Đề xuất dưới đây chưa được lưu thành thao tác chờ xác nhận:\n\n";
+    private static final Pattern APPROVAL_CUE = Pattern.compile("(?iu)xác nhận|đồng ý|xac nhan|dong y");
+    private static final int FINAL_STREAM_HOLDBACK_CHARS = 96;
     private enum LookupPhase { NORMAL, SEARCH, READ }
     private enum CreationTarget { NONE, ASSIGNMENT, PLAN, PLAN_WITH_STEPS, STEP }
     private record StepIntent(boolean active, String suggestedStep) {}
@@ -218,7 +222,9 @@ public class AgentRuntime {
                     + "Resolve the assignment and plan by name before preparing createTestStep.";
             systemPrompt += "\nYÊU CẦU HIỆN TẠI: tạo BƯỚC CHẤM trong câu kiểm tra đã có. "
                     + "Tra cứu bài tập và câu kiểm tra theo tên, kiểm tra các bước hiện có để chọn stepOrder. "
+                    + "Khi người dùng nói bước tiếp theo, chỉ chuẩn bị một bước kế tiếp theo stepOrder. "
                     + "Chỉ dùng createTestStep cho thao tác ghi; không tạo lại câu kiểm tra, không hỏi name/sequenceOrder của câu kiểm tra. "
+                    + "Nếu đã đủ dữ liệu, gọi createTestStep để lưu thao tác chờ duyệt trước khi hỏi xác nhận. "
                     + "Nếu thiếu thông tin thực sự cần thiết cho bước chấm, hỏi đúng phần đó. "
                     + "Không suy đoán endpoint hoặc body chưa được người dùng nêu hay chấp nhận.";
             if (!stepIntent.suggestedStep().isBlank()) {
@@ -600,7 +606,7 @@ public class AgentRuntime {
                             + "Không tự viết lời xin xác nhận. Nếu thiếu tham số, hãy hỏi đúng thông tin còn thiếu."));
                     continue;
                 }
-                completion = unpreparedApprovalReply(selected);
+                completion = unpreparedApprovalReply(completion, selected);
             }
             if (asksForLookupInformation(completion, context.roles())
                     && lookupRounds < Math.max(0, properties.getLimits().getMaxLookupRounds())
@@ -627,12 +633,15 @@ public class AgentRuntime {
         String modelPrompt = creationTarget != CreationTarget.NONE || finalContext.summary().isBlank() ? finalPrompt
                 : finalPrompt + "\nPrevious context summary:\n" + finalContext.summary();
         StringBuilder finalResponse = new StringBuilder();
+        StringBuilder pendingStream = new StringBuilder();
+        StringBuilder streamedResponse = new StringBuilder();
+        boolean streamFinalAnswer = timelineHooks.containsKey(context.runId());
+        int finalTurn = properties.getLimits().getMaxModelSteps() + 1;
         for (int finalTry = 0; finalTry < 2 && finalResponse.toString().isBlank(); finalTry++) {
             String textPrompt = finalTry == 0 ? modelPrompt : modelPrompt
                     + "\nThe previous response contained no text. Reply with a short plain-text status. "
                     + "Do not claim a write succeeded unless a tool result confirms it.";
             int finalAttempt = modelCalls.incrementAndGet();
-            int finalTurn = properties.getLimits().getMaxModelSteps() + 1;
             String finalReasoningId = "reasoning-final-" + finalAttempt;
             AtomicBoolean finalHasReasoning = new AtomicBoolean();
             timeline(context, "reasoning.started", finalTurn, finalReasoningId,
@@ -653,7 +662,22 @@ public class AgentRuntime {
             finalStream
                     .doOnComplete(() -> timeline(context, "reasoning.completed", finalTurn,
                             finalReasoningId, Map.of("available", finalHasReasoning.get())))
-                    .doOnNext(attemptResponse::append)
+                    .doOnNext(chunk -> {
+                        attemptResponse.append(chunk);
+                        if (streamFinalAnswer) {
+                            pendingStream.append(chunk);
+                            // Hold the tail until postprocessing so an unstored approval
+                            // request cannot flash in the UI before assistant.replace.
+                            if (!APPROVAL_CUE.matcher(pendingStream).find()) {
+                                int safeEnd = Math.max(0, pendingStream.length() - FINAL_STREAM_HOLDBACK_CHARS);
+                                if (safeEnd > streamedResponse.length()) {
+                                    String safeDelta = pendingStream.substring(streamedResponse.length(), safeEnd);
+                                    streamedResponse.append(safeDelta);
+                                    onFinalDelta.accept(safeDelta);
+                                }
+                            }
+                        }
+                    })
                     .doOnError(error -> AgentTrace.record(context.runId(), context.gatewaySecret(),
                             "model.error", Map.of("attempt", finalAttempt, "error", String.valueOf(error),
                                     "partialContent", attemptResponse.toString())))
@@ -675,9 +699,20 @@ public class AgentRuntime {
             completion = clarificationWithoutIdentifiers(completion);
         }
         if (approvalService != null && !pendingActionInChat && looksLikeApprovalRequest(completion)) {
-            completion = unpreparedApprovalReply(selected);
+            completion = unpreparedApprovalReply(completion, selected);
         }
-        if (!completion.isEmpty()) onFinalDelta.accept(completion);
+        if (streamFinalAnswer) {
+            if (completion.equals(pendingStream.toString())) {
+                String tail = completion.substring(streamedResponse.length());
+                if (!tail.isEmpty()) onFinalDelta.accept(tail);
+            } else if (!streamedResponse.isEmpty()) {
+                timeline(context, "assistant.replace", finalTurn, null, Map.of("text", completion));
+            } else if (!completion.isEmpty()) {
+                onFinalDelta.accept(completion);
+            }
+        } else if (!completion.isEmpty()) {
+            onFinalDelta.accept(completion);
+        }
         return completion;
         } finally {
             log.info("AI runId={} modelSteps={} modelCalls={} toolCalls={} totalMs={}",
@@ -899,7 +934,8 @@ public class AgentRuntime {
             return page.getContent().stream()
                     .filter(message -> "assistant".equals(message.getRole()))
                     .map(vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message::getContent)
-                    .filter(this::looksLikeApprovalRequest)
+                    .filter(content -> looksLikeApprovalRequest(content)
+                            || content.startsWith(UNSAVED_PROPOSAL_PREFIX))
                     .findFirst().map(content -> content.length() > 3000 ? content.substring(0, 3000) : content)
                     .orElse("");
         } catch (RuntimeException error) {
@@ -956,7 +992,15 @@ public class AgentRuntime {
                 || lower.contains("xác nhận") || lower.contains("xac nhan");
     }
 
-    private String unpreparedApprovalReply(Set<String> selected) {
+    private String unpreparedApprovalReply(String completion, Set<String> selected) {
+        if (completion != null && !completion.isBlank()) {
+            // A final model turn may contain a useful, concrete proposal even when it
+            // cannot call the write tool. Keep the draft without implying that a
+            // confirmation response would execute an action that was never stored.
+            String draft = completion.replaceAll("(?iu)(?:Bạn xác nhận|Bạn có đồng ý|Nếu bạn đồng ý)[^\\r\\n]*", "")
+                    .stripTrailing();
+            if (!draft.isBlank()) return UNSAVED_PROPOSAL_PREFIX + draft;
+        }
         if (selected.contains("createTestStep")) {
             return "Mình chưa chuẩn bị được bước chấm để bạn xác nhận. "
                     + "Bạn cho biết bước này cần kiểm tra điều gì (ví dụ HTTP endpoint và kết quả mong đợi, "
@@ -1182,7 +1226,11 @@ public class AgentRuntime {
                 } catch (Exception e) {
                     throw new IllegalStateException("Cannot serialize tool result reference", e);
                 }
-                inFlight.add(new UserMessage("Kết quả tool " + delegate.getToolDefinition().name() + ": " + sent));
+                String lookupArguments = Set.of("listTestPlans", "listTestSteps", "getTestPlan").contains(name)
+                        ? "\nTham số tra cứu: " + input : "";
+                // A compacted plan result must retain its parent assignment ID so the
+                // next write can use it without re-reading the assignments archive.
+                inFlight.add(new UserMessage("Kết quả tool " + name + ": " + sent + lookupArguments));
                 return sent;
             }
         };

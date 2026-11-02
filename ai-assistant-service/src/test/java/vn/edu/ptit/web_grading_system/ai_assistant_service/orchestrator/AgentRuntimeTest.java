@@ -22,6 +22,7 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.service.WriteApproval
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.*;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -153,6 +154,7 @@ class AgentRuntimeTest {
                 .thenReturn(List.of("listVisibleAssignments", "listTestPlans", "createTestStep"));
         when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
             assertTrue(((String) call.getArgument(0)).contains("YÊU CẦU HIỆN TẠI: tạo BƯỚC CHẤM"));
+            assertTrue(((String) call.getArgument(0)).contains("chỉ chuẩn bị một bước kế tiếp"));
             return Flux.just("Cần path API để tạo bước chấm.");
         });
         AgentProperties props = new AgentProperties();
@@ -313,6 +315,10 @@ class AgentRuntimeTest {
 
         assertEquals(List.of("listVisibleAssignments", "listTestPlans"), called);
         assertEquals("Bạn cho mình biết path API cần kiểm tra nhé.", reply);
+        verify(preflight, atLeastOnce()).prepare(any(), any(), anySet(), anyString(), anyList(),
+                argThat(inFlight -> inFlight.stream().anyMatch(message ->
+                        message.getText().startsWith("Kết quả tool listTestPlans:")
+                                && message.getText().contains(assignmentId.toString()))));
     }
 
     @Test
@@ -746,7 +752,7 @@ class AgentRuntimeTest {
     }
 
     @Test
-    void asksForStepDetailsWhenNoWriteProposalWasStored() {
+    void reportsUnstoredStepDraftWithoutFalseConfirmation() {
         var mapper = new JacksonConfig().objectMapper();
         AgentTool writer = mock(AgentTool.class);
         when(writer.getName()).thenReturn("createTestStep");
@@ -780,9 +786,75 @@ class AgentRuntimeTest {
                 "tạo giúp tôi step kiểm tra của bài tập 3 câu Kiểm tra mẫu", llm,
                 delta -> {}, (tool, result) -> {});
 
-        assertTrue(reply.contains("kiểm tra điều gì"));
-        assertFalse(reply.contains("Vui lòng thử lại"));
+        assertTrue(reply.contains("chưa được lưu"));
+        assertTrue(reply.contains("Mình sẽ tạo step kiểm tra"));
+        assertFalse(reply.contains("Bạn xác nhận nhé"));
         verify(approvals, never()).propose(any(), any(), any());
+    }
+
+    @Test
+    void preservesConcreteStepProposalWhenRunEndsWithoutPendingAction() {
+        var mapper = new JacksonConfig().objectMapper();
+        AgentTool writer = lecturerTool("createTestStep", EffectType.DOMAIN_WRITE, Set.of(), Set.of());
+        WriteApprovalService approvals = mock(WriteApprovalService.class);
+        when(approvals.pendingForChat(any())).thenReturn(java.util.Optional.empty());
+        ToolRegistry registry = new ToolRegistry(List.of(writer), mapper, approvals);
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("thêm bước tiếp")),
+                        "", 10, 10, 30));
+        String proposal = "Đề xuất bước 3: GET /books, kỳ vọng 200. " + "Chi tiết kiểm tra. ".repeat(40)
+                + "Bạn xác nhận để tôi tạo bước này nhé?";
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestStep"));
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenReturn(Flux.just(proposal));
+        AgentProperties props = new AgentProperties();
+        props.getLimits().setMaxModelSteps(1);
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight,
+                mock(ToolResultStore.class), mock(ConversationRepository.class), mock(MessageRepository.class),
+                mapper, props, approvals);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+
+        String reply = runtime.execute(context, "system", "thêm bước tiếp", llm,
+                delta -> {}, (tool, result) -> {});
+
+        assertTrue(reply.contains("GET /books"));
+        assertTrue(reply.contains("chưa được lưu"));
+        assertFalse(reply.contains("Bạn xác nhận để tôi tạo"));
+        assertFalse(reply.contains("Bạn cho biết bước này cần kiểm tra điều gì"));
+        verify(approvals, never()).propose(any(), any(), any());
+    }
+
+    @Test
+    void preservesShortConcreteStepProposalWithoutPendingAction() {
+        var mapper = new JacksonConfig().objectMapper();
+        AgentTool writer = lecturerTool("createTestStep", EffectType.DOMAIN_WRITE, Set.of(), Set.of());
+        WriteApprovalService approvals = mock(WriteApprovalService.class);
+        when(approvals.pendingForChat(any())).thenReturn(java.util.Optional.empty());
+        ToolRegistry registry = new ToolRegistry(List.of(writer), mapper, approvals);
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("thêm bước tiếp")),
+                        "", 10, 10, 30));
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestStep"));
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList()))
+                .thenReturn(Flux.just("Bước 3: chạy SELECT COUNT(*) FROM books, mong đợi 1. Bạn xác nhận để tôi tạo nhé?"));
+        AgentProperties props = new AgentProperties();
+        props.getLimits().setMaxModelSteps(1);
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight,
+                mock(ToolResultStore.class), mock(ConversationRepository.class), mock(MessageRepository.class),
+                mapper, props, approvals);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+
+        String reply = runtime.execute(context, "system", "thêm bước tiếp", llm,
+                delta -> {}, (tool, result) -> {});
+
+        assertTrue(reply.contains("SELECT COUNT(*) FROM books"));
+        assertTrue(reply.contains("chưa được lưu"));
+        assertFalse(reply.contains("Bạn xác nhận để tôi tạo"));
     }
 
     @Test
@@ -995,7 +1067,8 @@ class AgentRuntimeTest {
         var currentUser = vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message.builder()
                 .role("user").content("có").sequenceNo(11).build();
         var previousAssistant = vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message.builder()
-                .role("assistant").content("Mình sẽ tạo bước chấm GET /status. Bạn có đồng ý không?")
+                .role("assistant").content("Đề xuất dưới đây chưa được lưu thành thao tác chờ xác nhận:\n\n"
+                        + "Bước chấm GET /status, expected 200.")
                 .sequenceNo(10).build();
         when(messages.findScopedRecent(any(), anyString(), any()))
                 .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(currentUser, previousAssistant)));
@@ -1141,6 +1214,71 @@ class AgentRuntimeTest {
         assertEquals("Here are your classes.", runtime.execute(context, "system", "List my classes", llm,
                 delta -> {}, (tool, result) -> {}));
         assertEquals(2, calls.get());
+    }
+
+    @Test
+    void streamsFinalNoToolAnswerAsProviderChunks() {
+        var mapper = new JacksonConfig().objectMapper();
+        ToolRegistry registry = new ToolRegistry(List.of(), mapper);
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("question")), "", 10, 0, 20));
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList(), isNull(), any()))
+                .thenReturn(Flux.just("a".repeat(120), "b".repeat(20)));
+        AgentProperties props = new AgentProperties();
+        props.getLimits().setMaxModelSteps(0);
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight,
+                mock(ToolResultStore.class), mock(ConversationRepository.class), mock(MessageRepository.class),
+                mapper, props);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_STUDENT"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+        List<String> deltas = new ArrayList<>();
+        List<AgentRuntime.RuntimeEvent> events = new ArrayList<>();
+
+        String answer = runtime.execute(context, "system", "question", llm, deltas::add,
+                (tool, result) -> {}, events::add, () -> false);
+
+        assertEquals("a".repeat(120) + "b".repeat(20), answer);
+        assertTrue(deltas.size() > 1);
+        assertEquals(answer, String.join("", deltas));
+        assertTrue(events.stream().noneMatch(event -> event.type().equals("assistant.replace")));
+    }
+
+    @Test
+    void replacesStreamedDraftWhenFinalApprovalGuardChangesIt() {
+        var mapper = new JacksonConfig().objectMapper();
+        AgentTool writer = lecturerTool("createTestStep", EffectType.DOMAIN_WRITE, Set.of(), Set.of());
+        WriteApprovalService approvals = mock(WriteApprovalService.class);
+        when(approvals.pendingForChat(any())).thenReturn(java.util.Optional.empty());
+        ToolRegistry registry = new ToolRegistry(List.of(writer), mapper, approvals);
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("thêm bước")), "", 10, 0, 20));
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestStep"));
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList(), isNull(), any()))
+                .thenReturn(Flux.just("Đề xuất bước 3: GET /books. " + "Chi tiết kiểm tra. ".repeat(12)
+                        + "Bạn xá", "c nhận để tôi tạo nhé?"));
+        AgentProperties props = new AgentProperties();
+        props.getLimits().setMaxModelSteps(0);
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight,
+                mock(ToolResultStore.class), mock(ConversationRepository.class), mock(MessageRepository.class),
+                mapper, props, approvals);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+        List<String> deltas = new ArrayList<>();
+        List<AgentRuntime.RuntimeEvent> events = new ArrayList<>();
+
+        String answer = runtime.execute(context, "system", "thêm bước", llm, deltas::add,
+                (tool, result) -> {}, events::add, () -> false);
+
+        assertFalse(deltas.isEmpty());
+        assertFalse(String.join("", deltas).contains("Bạn xác nhận"));
+        assertFalse(String.join("", deltas).contains("Bạn xá"));
+        assertTrue(answer.contains("chưa được lưu"));
+        assertTrue(events.stream().anyMatch(event -> event.type().equals("assistant.replace")
+                && answer.equals(event.data().get("text"))));
     }
 
     @Test

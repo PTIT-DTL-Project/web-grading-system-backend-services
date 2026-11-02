@@ -23,6 +23,7 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.ToolResult;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.Set;
@@ -263,6 +264,42 @@ public class AgentOrchestratorTest {
         verify(runtime).execute(any(), eq("system"), eq("Xem bài nộp"), eq(llmClient), any(), any(), any());
         verify(memory).addForRun(eq(convId.toString()), eq(runId), anyList());
         assertEquals(RunStatus.SUCCEEDED, run.getStatus());
+    }
+
+    @Test
+    void streamedAnswerReplacementBecomesPersistedReply() {
+        UUID runId = UUID.randomUUID(), convId = UUID.randomUUID();
+        Run run = Run.builder().id(runId).conversationId(convId).callerRoles("ROLE_LECTURER")
+                .status(RunStatus.QUEUED).build();
+        Conversation conv = Conversation.builder().id(convId).ownerId(UUID.randomUUID()).build();
+        AgentRuntime runtime = mock(AgentRuntime.class);
+        RunTimelineService timeline = mock(RunTimelineService.class);
+        orchestrator = new AgentOrchestrator(runRepository, conversationRepository, messageRepository,
+                taskRepository, runEventRepository, guardChecker, contextBuilder, sseBroadcaster,
+                llmClient, mock(ToolRegistry.class), null, null, runtime);
+        org.springframework.test.util.ReflectionTestUtils.setField(orchestrator, "timeline", timeline);
+        when(runRepository.findById(runId)).thenReturn(Optional.of(run));
+        when(runRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        when(conversationRepository.findById(convId)).thenReturn(Optional.of(conv));
+        when(guardChecker.canContinue(any(), eq(0))).thenReturn(true);
+        when(contextBuilder.buildSystemPrompt(any(), any())).thenReturn("system");
+        when(messageRepository.findFirstByRunIdAndRoleOrderBySequenceNoAsc(runId, "user"))
+                .thenReturn(Optional.of(Message.builder().content("thêm bước" ).build()));
+        when(runtime.execute(any(), eq("system"), eq("thêm bước"), eq(llmClient), any(), any(), any(), any()))
+                .thenAnswer(call -> {
+                    java.util.function.Consumer<String> delta = call.getArgument(4);
+                    java.util.function.Consumer<AgentRuntime.RuntimeEvent> events = call.getArgument(6);
+                    delta.accept("Bạn xác nhận để tạo?");
+                    events.accept(new AgentRuntime.RuntimeEvent("assistant.replace", 9, null,
+                            Map.of("text", "Bản nháp chưa được lưu.")));
+                    return "Bản nháp chưa được lưu.";
+                });
+
+        orchestrator.executeRun(runId);
+
+        org.mockito.ArgumentCaptor<Message> saved = org.mockito.ArgumentCaptor.forClass(Message.class);
+        verify(messageRepository).save(saved.capture());
+        assertEquals("Bản nháp chưa được lưu.", saved.getValue().getContent());
     }
 
     @Test
