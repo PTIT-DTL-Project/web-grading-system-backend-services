@@ -53,7 +53,7 @@ class LlmClientTraceTest {
                     new ChatResponse(List.of(new Generation(AssistantMessage.builder()
                             .content("Đáp ").properties(Map.of("reasoningContent", "Kiểm tra dữ liệu. ")).build()))),
                     new ChatResponse(List.of(new Generation(AssistantMessage.builder()
-                            .content("án").properties(Map.of("reasoningContent", "Chọn kết quả.")).build())))));
+                            .content("án").properties(Map.of("reasoningContent", "Kiểm tra dữ liệu. Chọn kết quả.")).build())))));
             LlmClient client = new LlmClient(new AiModelProperties("openai", "live-test-key",
                     "test-model", "https://example.test/v1"), model);
             UUID runId = UUID.randomUUID();
@@ -77,6 +77,27 @@ class LlmClientTraceTest {
             logger.detachAppender(captured);
             captured.stop();
         }
+    }
+
+    @Test
+    void cumulativeReasoningSnapshotsAreEmittedAsNewTextOnly() {
+        ChatModel model = mock(ChatModel.class);
+        when(model.getOptions()).thenReturn(org.springframework.ai.openai.OpenAiChatOptions.builder().build());
+        when(model.stream(any(Prompt.class))).thenReturn(Flux.just(
+                new ChatResponse(List.of(new Generation(AssistantMessage.builder()
+                        .content("").properties(Map.of("reasoningContent", "Check ")).build()))),
+                new ChatResponse(List.of(new Generation(AssistantMessage.builder()
+                        .content("").properties(Map.of("reasoningContent", "Check data")).build()))),
+                new ChatResponse(List.of(new Generation(AssistantMessage.builder()
+                        .content("Answer").properties(Map.of("reasoningContent", "Check data")).build())))));
+        LlmClient client = new LlmClient(new AiModelProperties("groq", "live-test-key",
+                "openai/gpt-oss-120b", "https://example.test/openai/v1"), model);
+        StringBuilder streamedReasoning = new StringBuilder();
+
+        assertEquals("Answer", String.join("", client.streamAgentTurn("system",
+                List.of(new org.springframework.ai.chat.messages.UserMessage("question")), List.of(),
+                null, streamedReasoning::append).collectList().block()));
+        assertEquals("Check data", streamedReasoning.toString());
     }
 
     @Test

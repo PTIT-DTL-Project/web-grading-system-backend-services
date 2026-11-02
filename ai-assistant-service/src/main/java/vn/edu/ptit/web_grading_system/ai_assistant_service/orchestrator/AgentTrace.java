@@ -64,6 +64,7 @@ public final class AgentTrace {
     public static final class ReasoningCapture {
         private final AgentContext context;
         private final StringBuilder content = new StringBuilder();
+        private final ReasoningChunkNormalizer normalizer = new ReasoningChunkNormalizer();
         private boolean finished;
 
         private ReasoningCapture(AgentContext context) {
@@ -74,7 +75,9 @@ public final class AgentTrace {
             if (context == null || response == null || response.getResult() == null
                     || response.getResult().getOutput() == null) return;
             Object value = response.getResult().getOutput().getMetadata().get("reasoningContent");
-            if (value instanceof String reasoning && !reasoning.isEmpty()) content.append(reasoning);
+            if (value instanceof String reasoning && !reasoning.isEmpty()) {
+                content.append(normalizer.accept(reasoning, true));
+            }
         }
 
         public void finish(String termination) {

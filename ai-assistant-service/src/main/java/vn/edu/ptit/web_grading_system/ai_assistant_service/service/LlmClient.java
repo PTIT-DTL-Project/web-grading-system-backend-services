@@ -397,7 +397,7 @@ public class LlmClient {
                         Object raw = response.getResult().getOutput().getMetadata().get("reasoningContent");
                         if (!(raw instanceof String)) raw = response.getResult().getOutput().getMetadata().get("reasoning");
                         if (raw instanceof String text) {
-                            String delta = normalizer.accept(text);
+                            String delta = normalizer.accept(text, true);
                             if (!delta.isEmpty()) onReasoningDelta.accept(delta);
                         }
                     })
