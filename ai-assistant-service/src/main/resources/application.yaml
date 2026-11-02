@@ -38,15 +38,13 @@ spring:
             readTimeout: 3000
   ai:
     openai:
-      api-key: ${AI_API_KEY:dummy-key-for-local-and-test}
-      base-url: ${AI_BASE_URL:https://api.openai.com/v1}
+      api-key: ${AI_AGENT_API_KEY:${AI_API_KEY:dummy-key-for-local-and-test}}
+      base-url: ${AI_AGENT_BASE_URL:${AI_BASE_URL:https://api.openai.com/v1}}
       chat:
         options:
-          model: ${AI_MODEL_NAME:gpt-4o-mini}
-          # Review: 2026-10-31 — truncated JSON when submissions have many steps.
-          # 2048 was too low for complex analyses; 4096 provides room for ~8-10
-          # steps with full hints/keywords without hitting the limit.
-          max-completion-tokens: ${AI_MAX_COMPLETION_TOKENS:4096}
+          model: ${AI_AGENT_MODEL_NAME:${AI_MODEL_NAME:gpt-4o-mini}}
+          # Agent chat không giới hạn max-completion-tokens: để LLM tự quyết định độ dài đầu ra.
+          # Giới hạn max-completion-tokens chỉ áp dụng cho ai.explanation qua ai.explanation.max-completion-tokens.
 
 management:
   endpoints:
