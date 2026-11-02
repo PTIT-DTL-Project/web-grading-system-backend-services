@@ -10,9 +10,10 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
-import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiAgentModelProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.AgentTool;
 
 import java.util.ArrayList;
@@ -35,12 +36,12 @@ public class LlmClient {
     private final ChatClient chatClient;
     private final Gson gson = new Gson();
 
-    public LlmClient(AiModelProperties props, ChatModel chatModel) {
+    public LlmClient(AiAgentModelProperties props, @Qualifier("agentChatModel") ChatModel chatModel) {
         this.provider = props.provider();
         this.apiKey = props.apiKey();
         this.modelName = props.modelName();
         String baseUrl = props.baseUrl();
-        this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        this.baseUrl = baseUrl == null ? "" : (baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);
         this.chatModel = chatModel;
         this.chatClient = ChatClient.create(chatModel);
     }
