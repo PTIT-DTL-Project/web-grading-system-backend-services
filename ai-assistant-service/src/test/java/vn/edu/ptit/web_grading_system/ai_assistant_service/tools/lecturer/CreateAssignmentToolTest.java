@@ -170,7 +170,6 @@ public class CreateAssignmentToolTest {
         assertEquals(classId, body.getValue().classId());
         assertEquals("STUDENT_DOCKER_COMPOSE", body.getValue().gradingStrategy());
         assertEquals("Bài 1", body.getValue().title());
-        assertEquals("Quản lý sinh viên", body.getValue().topic());
         assertFalse(mapper.writeValueAsString(body.getValue()).contains("idempotencyKey"));
         verify(operations).markSuccess(anyString(), anyString());
     }

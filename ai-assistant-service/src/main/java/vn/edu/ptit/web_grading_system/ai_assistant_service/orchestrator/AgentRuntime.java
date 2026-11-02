@@ -921,20 +921,6 @@ public class AgentRuntime {
         return !registry.findReferenceLookupTools(completion, roles, 1).isEmpty();
     }
 
-    private boolean looksLikeApprovalRequest(String completion) {
-        if (completion == null || completion.isBlank() || completion.length() > 600) return false;
-        String lower = completion.toLowerCase(java.util.Locale.ROOT);
-        boolean asksConfirm = lower.contains("đồng ý") || lower.contains("dong y")
-                || lower.contains("xác nhận") || lower.contains("xac nhan")
-                || lower.contains("tiến hành") || lower.contains("tien hanh")
-                || lower.contains("làm đi") || lower.contains("lam di")
-                || lower.contains("chốt") || lower.contains("chot");
-        boolean writeVerb = lower.contains("tạo") || lower.contains("cập nhật")
-                || lower.contains("sửa") || lower.contains("xóa") || lower.contains("xoá")
-                || lower.contains("thêm") || lower.contains("gửi") || lower.contains("nộp");
-        return asksConfirm && writeVerb;
-    }
-
     private Set<String> requestedIdentifiers(String completion, Set<String> roles) {
         if (completion == null || completion.isBlank()) return Set.of();
         String lower = completion.toLowerCase(java.util.Locale.ROOT);

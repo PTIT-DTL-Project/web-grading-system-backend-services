@@ -138,8 +138,7 @@ public class CreateAssignmentTool implements AgentTool {
                     optionalInt(arguments, "startupTimeoutMs"),
                     optionalInt(arguments, "executionTimeoutMs"),
                     optionalInt(arguments, "maxMemoryMb"),
-                    optionalDouble(arguments, "maxCpu"),
-                    arguments.get("topic").asText().trim()
+                    optionalDouble(arguments, "maxCpu")
             );
         } catch (IllegalArgumentException e) {
             return ToolResult.error("INVALID_ARGUMENTS", e.getMessage(), false);

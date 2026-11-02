@@ -180,10 +180,6 @@ class DomainApiToolTest {
         RestClient.Builder builder = RestClient.builder().baseUrl("http://course.local");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         UUID assignmentId = UUID.randomUUID();
-        // Validate endpoint chấp nhận, sau đó endpoint tạo thật trả 400.
-        server.expect(requestTo("http://course.local/api/v1/internal/test-plans/validate"))
-                .andExpect(method(org.springframework.http.HttpMethod.POST))
-                .andRespond(withSuccess("{\"valid\":true,\"errors\":[]}", MediaType.APPLICATION_JSON));
         server.expect(requestTo("http://course.local/api/v1/assignments/" + assignmentId + "/plans/with-steps"))
                 .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
                         .withStatus(HttpStatus.BAD_REQUEST)

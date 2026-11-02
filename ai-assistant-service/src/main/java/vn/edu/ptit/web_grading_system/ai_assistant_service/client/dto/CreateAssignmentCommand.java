@@ -17,7 +17,6 @@ public record CreateAssignmentCommand(
         Integer startupTimeoutMs,
         Integer executionTimeoutMs,
         Integer maxMemoryMb,
-        Double maxCpu,
-        String topic
+        Double maxCpu
 ) {
 }

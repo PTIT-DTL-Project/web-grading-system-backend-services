@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.function.BiFunction;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,6 +26,8 @@ public class SseBroadcaster {
 
     private final Map<UUID, List<SseEmitter>> emitters = new ConcurrentHashMap<>();
     private final Map<UUID, List<ReplaySubscriber>> timelineEmitters = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
+            r -> { Thread thread = new Thread(r, "sse-heartbeat"); thread.setDaemon(true); return thread; });
 
     public SseEmitter subscribeReplay(UUID runId, int afterSequence,
                                       BiFunction<UUID, Integer, List<RunTimelineEvent>> replay) {
