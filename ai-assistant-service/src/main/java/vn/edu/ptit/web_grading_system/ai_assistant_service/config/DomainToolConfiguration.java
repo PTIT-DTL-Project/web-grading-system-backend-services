@@ -14,17 +14,19 @@ import java.time.Duration;
 public class DomainToolConfiguration {
     private static final String L = "ROLE_LECTURER", S = "ROLE_STUDENT";
     private static final String[] NONE = {};
-    private final RestClient course, submission;
+    private final RestClient course, submission, resultService;
     private final ObjectMapper mapper;
 
     public DomainToolConfiguration(@Value("${feign.course-service.url}") String courseUrl,
                                    @Value("${feign.submission-service.url:http://localhost:8082}") String submissionUrl,
+                                   @Value("${feign.result-service.url:http://localhost:8084}") String resultServiceUrl,
                                    ObjectMapper mapper) {
         var transport = new JdkClientHttpRequestFactory(java.net.http.HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(3)).build());
         transport.setReadTimeout(Duration.ofSeconds(10));
         this.course = RestClient.builder().baseUrl(courseUrl).requestFactory(transport).build();
         this.submission = RestClient.builder().baseUrl(submissionUrl).requestFactory(transport).build();
+        this.resultService = RestClient.builder().baseUrl(resultServiceUrl).requestFactory(transport).build();
         this.mapper = mapper;
     }
 
@@ -58,7 +60,11 @@ public class DomainToolConfiguration {
     @Bean AgentTool setScoreComponents() { return plan("setScoreComponents", "Thay toàn bộ thành phần điểm bằng payload là mảng {type, weight}; cần duyệt.", L, "PUT", "/api/v1/classes/{classId}/score-components", new String[]{"classId"}, true); }
     @Bean AgentTool setStudentScores() { return plan("setStudentScores", "Cập nhật điểm bằng payload là mảng {componentType, score}; cần duyệt.", L, "PUT", "/api/v1/classes/{classId}/students/{studentCode}/scores", new String[]{"classId", "studentCode"}, true); }
 
+    @Bean AgentTool listMyAssignments() { return t("listMyAssignments", "Liệt kê bài tập của chính mình (đã được giao hoặc bài luyện tập). Có thể lọc theo classId, topic, search.", S, "GET", "/api/v1/student/assignments", NONE, new String[]{"classId", "purpose", "topic", "search", "page", "size"}, false, course); }
+    @Bean AgentTool getMyAssignment() { return plan("getMyAssignment", "Xem chi tiết một bài tập của mình.", S, "GET", "/api/v1/student/assignments/{assignmentId}", new String[]{"assignmentId"}, false); }
+    @Bean AgentTool getMyAssignmentResults() { return t("getMyAssignmentResults", "Xem điểm cả bài của mình cho một bài tập (bao gồm các câu chưa nộp tính 0).", S, "GET", "/api/v1/results/student/assignment/{assignmentId}", new String[]{"assignmentId"}, NONE, false, resultService); }
     @Bean AgentTool listMySubmissions() { return t("listMySubmissions", "Liệt kê các bài nộp của chính mình.", S, "GET", "/api/v1/submissions", NONE, new String[]{"page", "size", "search"}, false, submission); }
+    @Bean AgentTool getMySubmissionResults() { return t("getMySubmissionResults", "Xem kết quả chi tiết của một bài nộp.", S, "GET", "/api/v1/results/{submissionId}", new String[]{"submissionId"}, NONE, false, resultService); }
     @Bean AgentTool listMyTestPlans() { return plan("listMyTestPlans", "Xem các câu kiểm tra công khai của bài tập được giao, không gồm đáp án ẩn.", S, "GET", "/api/v1/student/assignments/{assignmentId}/plans", new String[]{"assignmentId"}, false); }
     @Bean AgentTool getMyClassScores() { return plan("getMyClassScores", "Xem điểm của mình trong một lớp đã tham gia.", S, "GET", "/api/v1/student/classes/{classId}/my-scores", new String[]{"classId"}, false); }
     @Bean AgentTool getMyClass() { return plan("getMyClass", "Xem chi tiết một lớp mình đã tham gia.", S, "GET", "/api/v1/student/classes/{classId}", new String[]{"classId"}, false); }
