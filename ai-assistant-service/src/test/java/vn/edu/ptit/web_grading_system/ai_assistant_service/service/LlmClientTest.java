@@ -15,7 +15,7 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import reactor.core.publisher.Flux;
-import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiAgentModelProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.AgentTool;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.ToolResult;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.AiExplanationResultDto;
@@ -34,13 +34,13 @@ class LlmClientTest {
     @Mock
     private ChatModel chatModel;
 
-    private AiModelProperties liveProperties;
-    private AiModelProperties dummyProperties;
+    private AiAgentModelProperties liveProperties;
+    private AiAgentModelProperties dummyProperties;
 
     @BeforeEach
     void setUp() {
-        liveProperties = new AiModelProperties("openai", "sk-live-test-key", "gpt-4o-mini", "https://api.openai.com/v1");
-        dummyProperties = new AiModelProperties("openai", "dummy-key", "gpt-4o-mini", "https://api.openai.com/v1");
+        liveProperties = new AiAgentModelProperties("openai", "sk-live-test-key", "gpt-4o-mini", "https://api.openai.com/v1");
+        dummyProperties = new AiAgentModelProperties("openai", "dummy-key", "gpt-4o-mini", "https://api.openai.com/v1");
     }
 
     @Test

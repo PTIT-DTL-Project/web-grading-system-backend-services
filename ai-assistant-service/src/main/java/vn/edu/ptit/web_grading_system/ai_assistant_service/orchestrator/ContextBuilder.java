@@ -86,7 +86,20 @@ public class ContextBuilder {
                 Khi liệt kê bài tập/bài nộp phù hợp yêu cầu, hãy trình bày dưới dạng bảng có cột "Liên kết" với link markdown. Luôn mở link bằng cách trả về đường dẫn tương đối trong ứng dụng (không cần thêm domain). Nếu người dùng muốn "mở tab mới", vẫn chỉ trả về link markdown bình thường - người dùng có thể Ctrl+Click/open in new tab.
                 Để tìm bài tập theo dạng step (HTTP_REQUEST, DB_QUERY,...), hãy lấy danh sách bài tập của sinh viên (listMyAssignments), sau đó với từng bài tập quan tâm lấy danh sách plan/step (listMyTestPlans) để lọc. Sau khi tìm được bài tập phù hợp, trả về link chi tiết bài tập.
                 Để xem bài nộp hoặc kết quả, ưu tiên dùng listMySubmissions để lấy submissionId, sau đó trả về link `/student/submissions/\\{submissionId}/results`. Có thể dùng getMySubmissionResults để xác nhận nhanh nhưng vẫn phải đưa link.
-            12. KHI TRẢ VỀ LINK CHO SINH VIÊN: Luôn dùng định dạng `[Tên hiển thị](đường-dẫn-tương-đối)`. Không dùng URL tuyệt đối trừ khi người dùng yêu cầu rõ ràng. Đảm bảo đường dẫn chính xác theo route trên.
+            12. KHI TRẢ VỀ LINK CHO SINH VIÊN: Luôn dùng định dạng `[Tên hiển thị](đường-dẫn-tương-đối)`. Không dùng URL tuyệt đối trừ khi người dùng yêu cầu rõ ràng. Đảm bảo đường dẫn chính xác theo route trên. Các route `/student/...` CHỈ dành cho sinh viên (ROLE_STUDENT). KHÔNG được dùng route `/student/...` cho giảng viên.
+            13. ĐỐI VỚI GIẢNG VIÊN (ROLE_LECTURER): Khi người dùng yêu cầu tìm lớp, xem lớp, xem bài tập, xem bài nộp, xem kết quả, LUÔN trả về liên kết có thể nhấn được (markdown link) để mở trực tiếp. Sử dụng các route chính xác sau:
+                - Danh sách lớp giảng viên quản lý: `/classes`
+                - Chi tiết lớp: `/classes/\\{classId}`
+                - Xem bài tập của lớp: `/classes/\\{classId}/assignments/\\{assignmentId}`
+                - Kết quả bài tập: `/classes/\\{classId}/assignments/\\{assignmentId}/results`
+                - Danh sách bài nộp bài tập: `/classes/\\{classId}/assignments/\\{assignmentId}/submissions`
+                - Danh sách bài luyện tập: `/practice`
+                - Chi tiết bài luyện tập: `/practice/\\{assignmentId}`
+                - Kết quả bài luyện tập: `/practice/\\{assignmentId}/results`
+                - Danh sách bài nộp bài luyện tập: `/practice/\\{assignmentId}/submissions`
+                Khi liệt kê bài tập/bài nộp phù hợp yêu cầu, hãy trình bày dưới dạng bảng có cột "Liên kết" với link markdown. Luôn mở link bằng cách trả về đường dẫn tương đối trong ứng dụng (không cần thêm domain).
+                Để xem bài nộp hoặc kết quả, ưu tiên dùng các tool của giảng viên (getAssignmentResults, listTestPlans, ...) để lấy thông tin liên quan, sau đó trả về link chi tiết phù hợp.
+            14. KHI TRẢ VỀ LINK CHO GIẢNG VIÊN: Luôn dùng định dạng `[Tên hiển thị](đường-dẫn-tương-đối)`. Các route `/classes/...` và `/practice/...` (dành cho giảng viên) CHỈ dành cho giảng viên (ROLE_LECTURER). KHÔNG được dùng route sinh viên cho giảng viên và ngược lại. Dựa vào `{role}` được truyền vào để CHỌN ĐÚNG bộ route theo vai trò người dùng.
             {planSection}
             {catalogSection}
             {taskSection}""";
