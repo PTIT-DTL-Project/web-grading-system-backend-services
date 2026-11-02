@@ -3,12 +3,15 @@ package vn.edu.ptit.web_grading_system.course_service.controller;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.ValidateQuestionRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.ValidateQuestionResponse;
+import vn.edu.ptit.web_grading_system.course_service.dto.internal.ValidateStepRequest;
 import vn.edu.ptit.web_grading_system.course_service.service.StepConfigValidator;
 
 import java.util.ArrayList;
@@ -56,5 +59,35 @@ public class InternalTestPlanController {
                 .valid(errors.isEmpty())
                 .errors(errors)
                 .build());
+    }
+
+    @PostMapping("/validate-step")
+    public ResponseEntity<ValidateQuestionResponse> validateStep(
+            @Valid @RequestBody ValidateStepRequest request, BindingResult bindingResult) {
+        List<ValidateQuestionResponse.ValidationError> errors = new ArrayList<>();
+
+        if (bindingResult.hasErrors()) {
+            bindingResult.getFieldErrors().forEach(fe ->
+                    errors.add(new ValidateQuestionResponse.ValidationError(
+                            fe.getField(), fe.getDefaultMessage())));
+            return ResponseEntity.ok(ValidateQuestionResponse.builder()
+                    .valid(false).errors(errors).build());
+        }
+
+        try {
+            StepConfigValidator.validateAndSerialize(request.getStepType(), request.getConfig());
+        } catch (IllegalArgumentException e) {
+            errors.add(new ValidateQuestionResponse.ValidationError("config", e.getMessage()));
+        }
+
+        return ResponseEntity.ok(ValidateQuestionResponse.builder()
+                .valid(errors.isEmpty())
+                .errors(errors)
+                .build());
+    }
+
+    @GetMapping("/capabilities")
+    public ResponseEntity<JsonNode> capabilities() {
+        return ResponseEntity.ok(StepConfigValidator.capabilities());
     }
 }

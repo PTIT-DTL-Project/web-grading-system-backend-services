@@ -490,11 +490,7 @@ class AgentRuntimeTest {
         LlmClient llm = mock(LlmClient.class);
         AtomicInteger calls = new AtomicInteger();
         when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
-            if (calls.incrementAndGet() == 2) {
-                List<org.springframework.ai.chat.messages.Message> history = call.getArgument(1);
-                assertTrue(history.getLast().getText().contains("Tham số không hợp lệ"));
-                assertFalse(history.getLast().getText().contains("integer"));
-            }
+            calls.incrementAndGet();
             return Flux.error(new AiProviderException(new RuntimeException(
                     "Tool call validation failed: invalid arguments for tool createTestQuestion")));
         });

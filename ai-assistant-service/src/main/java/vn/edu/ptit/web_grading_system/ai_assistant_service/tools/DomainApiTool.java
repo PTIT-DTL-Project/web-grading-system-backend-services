@@ -155,9 +155,9 @@ public class DomainApiTool implements AgentTool {
     }
 
     /**
-     * Calls course-service {@code POST /api/v1/internal/test-plans/validate} so a malformed
-     * step config is rejected *before* {@link WriteApprovalService#propose} persists a pending
-     * action. The agent receives a structured error path in the same chat turn and can repair.
+     * Calls course-service {@code POST /api/v1/internal/test-plans/validate} or
+     * {@code /validate-step} so a malformed step config is rejected *before*
+     * {@link WriteApprovalService#propose} persists a pending action.
      */
     private ToolResult validateStepPayloads(JsonNode args) {
         JsonNode payload = args.path("payload");
@@ -165,47 +165,96 @@ public class DomainApiTool implements AgentTool {
             return ToolResult.error("INVALID_ARGUMENTS", "payload không phải JSON object", false);
         }
         try {
-            ObjectNode validateBody;
-            if (name.equals("createTestStep")) {
+            if (name.equals("createTestQuestion")) {
+                ObjectNode validateBody = (ObjectNode) payload;
+                String raw = client.method(HttpMethod.POST)
+                        .uri("/api/v1/internal/test-plans/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(mapper.writeValueAsString(validateBody))
+                        .retrieve().body(String.class);
+                JsonNode result = raw == null || raw.isBlank()
+                        ? mapper.createObjectNode().put("valid", true)
+                        : mapper.readTree(raw);
+                boolean valid = result.path("valid").asBoolean(false);
+                if (valid) return null;
+                return validationError(result);
+            } else if (name.equals("createTestStep")) {
+                ObjectNode validateBody = mapper.createObjectNode();
                 ArrayNode steps = mapper.createArrayNode();
                 steps.add(payload);
-                validateBody = mapper.createObjectNode().set("steps", steps);
-            } else {
-                validateBody = (ObjectNode) payload;
-            }
-            String raw = client.method(HttpMethod.POST)
-                    .uri("/api/v1/internal/test-plans/validate")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(mapper.writeValueAsString(validateBody))
-                    .retrieve().body(String.class);
-            JsonNode result = raw == null || raw.isBlank()
-                    ? mapper.createObjectNode().put("valid", true)
-                    : mapper.readTree(raw);
-            boolean valid = result.path("valid").asBoolean(false);
-            if (valid) return null;
-            JsonNode errors = result.path("errors");
-            List<String> messages = new ArrayList<>();
-            if (errors.isArray()) {
-                for (JsonNode err : errors) {
-                    String path = err.path("path").asText("");
-                    String message = err.path("message").asText("");
-                    if (!path.isBlank()) messages.add(path + ": " + message);
-                    else messages.add(message);
+                validateBody.set("steps", steps);
+                String raw = client.method(HttpMethod.POST)
+                        .uri("/api/v1/internal/test-plans/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(mapper.writeValueAsString(validateBody))
+                        .retrieve().body(String.class);
+                JsonNode result = raw == null || raw.isBlank()
+                        ? mapper.createObjectNode().put("valid", true)
+                        : mapper.readTree(raw);
+                boolean valid = result.path("valid").asBoolean(false);
+                if (valid) return null;
+                return validationError(result);
+            } else if (name.equals("updateTestStep")) {
+                if (!payload.hasNonNull("config")) {
+                    return null;
                 }
+                if (!payload.hasNonNull("stepType")) {
+                    return ToolResult.error("INVALID_ARGUMENTS", "payload.stepType bắt buộc khi cập nhật config", false);
+                }
+                ObjectNode validateBody = mapper.createObjectNode();
+                validateBody.put("stepType", payload.path("stepType").asText());
+                validateBody.set("config", payload.path("config"));
+                String raw = client.method(HttpMethod.POST)
+                        .uri("/api/v1/internal/test-plans/validate-step")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(mapper.writeValueAsString(validateBody))
+                        .retrieve().body(String.class);
+                JsonNode result = raw == null || raw.isBlank()
+                        ? mapper.createObjectNode().put("valid", true)
+                        : mapper.readTree(raw);
+                boolean valid = result.path("valid").asBoolean(false);
+                if (valid) return null;
+                return validationError(result);
             }
-            String detail = messages.isEmpty()
-                    ? "course-service từ chối config (không có chi tiết lỗi)"
-                    : String.join("; ", messages.subList(0, Math.min(messages.size(), 5)));
-            return ToolResult.error("INVALID_ARGUMENTS", "Config không hợp lệ: " + detail, false);
+            return null;
         } catch (org.springframework.web.client.HttpClientErrorException e) {
             return ToolResult.error("VALIDATION_REJECTED",
                     "course-service từ chối yêu cầu validate (" + e.getStatusCode() + ")", false);
         } catch (org.springframework.web.client.ResourceAccessException e) {
-            // Fallback local khi course-service không reachable: kiểm tra cơ bản method/path/query.
+            if (name.equals("createTestQuestion")) {
+                return fallbackValidateStepConfig(payload);
+            }
+            if (name.equals("createTestStep")) {
+                return fallbackValidateStepConfig(payload);
+            }
+            if (name.equals("updateTestStep")) {
+                if (payload.hasNonNull("config")) {
+                    return ToolResult.error("VALIDATION_REJECTED",
+                            "Không thể xác minh config khi course-service không khả dụng", false);
+                }
+                return null;
+            }
             return fallbackValidateStepConfig(payload);
         } catch (Exception e) {
             return ToolResult.error("VALIDATION_ERROR", "Không thể validate config: " + e.getMessage(), false);
         }
+    }
+
+    private ToolResult validationError(JsonNode result) {
+        JsonNode errors = result.path("errors");
+        List<String> messages = new ArrayList<>();
+        if (errors.isArray()) {
+            for (JsonNode err : errors) {
+                String path = err.path("path").asText("");
+                String message = err.path("message").asText("");
+                if (!path.isBlank()) messages.add(path + ": " + message);
+                else if (!message.isBlank()) messages.add(message);
+            }
+        }
+        String detail = messages.isEmpty()
+                ? "course-service từ chối config (không có chi tiết lỗi)"
+                : String.join("; ", messages.subList(0, Math.min(messages.size(), 5)));
+        return ToolResult.error("INVALID_ARGUMENTS", "Config không hợp lệ: " + detail, false);
     }
 
     /** Fallback kiểm tra cơ bản khi course-service không phản hồi validate endpoint. */

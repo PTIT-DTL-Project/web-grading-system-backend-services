@@ -18,7 +18,7 @@ public class AgentProperties {
         private int maxModelSteps = 8;
         private int maxToolCalls = 12;
         private int maxModelAttempts = 16;
-        private int maxValidationRepairs = 2;
+        private int maxValidationRepairs = 3;
         private int maxLookupRounds = 2;
         private int activeTimeoutSeconds = 120;
     }

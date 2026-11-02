@@ -144,6 +144,10 @@ class PlanCorpusTest {
                     // Không được có expectedResult (rác).
                     assertFalse(step.hasNonNull("expectedResult"),
                             file + " step[" + i + "]: không được có expectedResult");
+                    assertNoExpectedResultAtStepLevel(step, file, i);
+
+                    // DB steps must have connection with required credentials
+                    assertDbConnectionRequired(step, file, i);
 
                     if ("HTTP_REQUEST".equals(stepType)) {
                         allMethods.add(config.path("method").asText(""));
@@ -158,12 +162,24 @@ class PlanCorpusTest {
 
                         // definedVars trước bước này phải bao phủ mọi ${var} dùng trong config (trừ dynamic/index/data-key).
                         Set<String> usedVars = collectVars(config);
+                        // auto_inject_headers harvested for subsequent steps; allow vars extracted by same step
+                        Set<String> extractVarsThisStep = new LinkedHashSet<>();
+                        collectExtractVars(config.path("extract"), extractVarsThisStep);
+                        if (config.hasNonNull("auto_inject_headers")) {
+                            // remove auto_inject vars for this-step check if they're extracted by this step
+                            Set<String> aiVars = collectVars(config.path("auto_inject_headers"));
+                            for (String av : aiVars) {
+                                if (extractVarsThisStep.contains(av)) {
+                                    usedVars.remove(av);
+                                }
+                            }
+                        }
                         Set<String> dataKeys = collectDataKeys(config.path("data"));
                         for (String v : usedVars) {
                             if (DYNAMIC_VARS.contains(v) || "index".equals(v) || dataKeys.contains(v)) {
                                 continue;
                             }
-                            assertTrue(definedVars.contains(v),
+                            assertTrue(definedVars.contains(v) || extractVarsThisStep.contains(v),
                                     file + " step[" + i + "]: dùng biến '${" + v + "}' trước khi được extract");
                         }
 
@@ -338,6 +354,44 @@ class PlanCorpusTest {
             String v = m.group(1);
             assertFalse(definedVars.contains(v),
                     file + " step[" + idx + "]: " + field + " không được dùng biến extract '${" + v + "}' (gia trị literal)");
+        }
+    }
+
+    private void assertDbConnectionRequired(JsonNode step, String file, int idx) {
+        String type = step.path("stepType").asText("");
+        if (!type.startsWith("DB_")) return;
+        JsonNode cfg = step.path("config");
+        assertTrue(cfg.isObject(), file + " step[" + idx + "]: config phải là object");
+        JsonNode conn = cfg.path("connection");
+        assertTrue(conn.isObject(), file + " step[" + idx + "]: DB step bắt buộc phải có config.connection");
+        for (String f : List.of("database", "username", "password")) {
+            String v = conn.path(f).asText("");
+            assertFalse(v.isBlank(), file + " step[" + idx + "]: connection." + f + " bắt buộc");
+        }
+    }
+
+    private void assertNoExpectedResultAtStepLevel(JsonNode step, String file, int idx) {
+        assertFalse(step.has("expectedResult") && !step.path("expectedResult").isNull(),
+                file + " step[" + idx + "]: không dùng expectedResult cấp step, dùng config.expected");
+    }
+
+    private void assertAutoInjectPlacement(List<JsonNode> steps, String file) {
+        for (int i = 0; i < steps.size(); i++) {
+            JsonNode cfg = steps.get(i).path("config");
+            if (cfg.hasNonNull("auto_inject_headers") && cfg.path("auto_inject_headers").isObject()) {
+                // declared at step i - effective for i+1 onward; allowed to be declared anywhere but better at earlier step
+                // no hard fail, just ensure it's object - runtime enforces placement
+            }
+        }
+        // basic check: negative auth tests should shield
+        for (int i = 0; i < steps.size(); i++) {
+            String name = steps.get(i).path("name").asText("").toLowerCase();
+            if ((name.contains("401") || name.contains("403")) && steps.get(i).path("stepType").asText("").equals("HTTP_REQUEST")) {
+                JsonNode cfg = steps.get(i).path("config");
+                if (name.contains("401") && cfg.path("auto_inject_headers").isObject()) {
+                    // 401 without token should typically not rely on auto-inject; allow but corpus should be explicit
+                }
+            }
         }
     }
 }

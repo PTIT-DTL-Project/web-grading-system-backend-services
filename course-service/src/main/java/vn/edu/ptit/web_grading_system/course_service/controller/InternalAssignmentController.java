@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 import vn.edu.ptit.web_grading_system.course_service.client.ExecutorInternalClient;
@@ -14,6 +15,7 @@ import vn.edu.ptit.web_grading_system.course_service.dto.internal.AssignmentGrad
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.DryRunReport;
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.DryRunRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.InternalPlanDto;
+import vn.edu.ptit.web_grading_system.course_service.entity.StepType;
 import vn.edu.ptit.web_grading_system.course_service.service.StepConfigValidator;
 import vn.edu.ptit.web_grading_system.course_service.service.TestPlanService;
 
@@ -70,16 +72,25 @@ public class InternalAssignmentController {
     }
 
     /**
-     * Phase 7 — Returns the JSON Schema (draft-07) for HTTP_REQUEST step config.
+     * Phase 7 — Returns the JSON Schema (draft-07) for step config.
      * The frontend uses this to validate the step editor in real time before
      * saving to the backend.
      */
     @GetMapping("/{id}/config-schema")
-    public ResponseEntity<JsonNode> configSchema(@PathVariable UUID id)
+    public ResponseEntity<JsonNode> configSchema(@PathVariable UUID id,
+                                                 @RequestParam(value = "type", required = false) String type)
     {
         // Assignment existence is implicitly checked by the caller; this endpoint
         // is schema-only and does not depend on assignment state.
-        JsonNode schema = StepConfigValidator.generateHttpSchema();
+        StepType stepType = StepType.HTTP_REQUEST;
+        if (type != null && !type.isBlank()) {
+            try {
+                stepType = StepType.valueOf(type.trim());
+            } catch (Exception ignored) {
+                stepType = StepType.HTTP_REQUEST;
+            }
+        }
+        JsonNode schema = StepConfigValidator.generateSchema(stepType);
         return ResponseEntity.ok(schema);
     }
 }

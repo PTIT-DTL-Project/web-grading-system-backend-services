@@ -8,14 +8,14 @@ Chỉ 4 loại chạy được: HTTP_REQUEST, DB_QUERY, DB_SCHEMA_CHECK, DB_MIGR
 |---|---|---|
 | method | có | GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS |
 | path | có | bắt đầu bằng `/`, có thể chứa `${var}` |
-| expected_status | không | số nguyên 100–599 |
+| expected_status | không | số nguyên 100–599 (**khuyến nghị luôn đặt**) |
 | headers | không | object string |
 | query_params | không | object |
 | body | không | object hoặc giá trị bất kỳ |
 | assertions | không | mảng assertion, xem bảng dưới |
 | extract | không | mảng {name, from, expression, as?, fallback?} |
 | data | không | mảng object, 1–10 phần tử, mỗi phần tử chạy 1 lần step |
-| auto_inject_headers | không | object string, chỉ có tác dụng trong cùng plan |
+| auto_inject_headers | không | object string, chỉ áp dụng cho các bước sau (không áp cho chính bước) |
 
 ### 13 assertion kind (chữ thường, bắt buộc đúng tên)
 
@@ -33,7 +33,7 @@ Chỉ 4 loại chạy được: HTTP_REQUEST, DB_QUERY, DB_SCHEMA_CHECK, DB_MIGR
 | greater_than | path, value | lớn hơn |
 | less_than | path, value | nhỏ hơn |
 | matches_regex | path, pattern | khớp regex |
-| any_of | assertions | ít nhất 1 assertion con đúng |
+| any_of | assertions | ít nhất 1 assertion con đúng. **Không được lồng `kind: status`** |
 
 ### extract
 
@@ -47,7 +47,7 @@ Chỉ 4 loại chạy được: HTTP_REQUEST, DB_QUERY, DB_SCHEMA_CHECK, DB_MIGR
 
 - `connection`: object, xem bảng connection
 - `query`: câu SQL
-- `expected`: object, ví dụ `{"row_count": 0}`
+- `expected`: object, ví dụ `{"row_count": 0}` hoặc `{"row_count": 1, "columns": ["id", "name"]}`
 
 ### DB_SCHEMA_CHECK
 
@@ -68,14 +68,16 @@ Chỉ 4 loại chạy được: HTTP_REQUEST, DB_QUERY, DB_SCHEMA_CHECK, DB_MIGR
 
 ### connection
 
-| Field | Ràng buộc |
-|---|---|
-| db_type | postgres, mysql, mariadb |
-| db_service | tên service DB trong compose, mặc định `db` |
-| db_port | số nguyên 1–65535 |
-| database | chỉ chữ, số, `_`, `$` |
-| username | tuỳ chọn |
-| password | tuỳ chọn |
+| Field | Bắt buộc | Ràng buộc |
+|---|---|---|
+| database | **có** | chỉ chữ, số, `_`, `$` |
+| username | **có** | tài khoản DB |
+| password | **có** | mật khẩu DB |
+| db_type | không | postgres, mysql, mariadb (mặc định postgres) |
+| db_service | không | tên service DB trong compose, mặc định `db` |
+| db_port | không | số nguyên 1–65535 |
+
+**Lưu ý:** Sandbox reset giữa các plan dùng chính `username/password` để `DROP/CREATE DATABASE`, nên cần tài khoản có quyền tương ứng.
 
 ### required
 
@@ -85,7 +87,9 @@ Chỉ 4 loại chạy được: HTTP_REQUEST, DB_QUERY, DB_SCHEMA_CHECK, DB_MIGR
 
 ### auto_inject_headers
 
-- Chỉ có tác dụng trong cùng plan. Bước login phải đứng đầu mỗi plan cần auth.
+- Chỉ có tác dụng trong cùng plan, áp dụng cho các HTTP_REQUEST **sau** bước khai báo. Header khai báo trên chính bước đó **không** tự động áp cho chính bước.
+- Khai báo `auto_inject_headers` tại **bước login/bước sinh token** (đứng trước các bước cần dùng).
+- Nếu bước đã có header cùng tên trong `headers`, auto-inject **không ghi đè**. Với bước âm tính (401/403) cần "shield" bằng cách tự đặt `headers` rõ ràng (vd `headers: {}` hoặc giá trị sai).
 - Tách một luồng auth sang plan khác thì plan đó phải có bước login riêng.
 
 ### Biến
