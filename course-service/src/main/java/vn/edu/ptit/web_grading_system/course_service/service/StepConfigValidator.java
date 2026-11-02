@@ -8,7 +8,9 @@ import org.springframework.util.StringUtils;
 import vn.edu.ptit.web_grading_system.course_service.entity.StepType;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -24,6 +26,8 @@ public final class StepConfigValidator {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Set<String> HTTP_METHODS =
             Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
+
+    private static final List<String> DB_CONNECTION_REQUIRED_FIELDS = List.of("database", "username", "password");
     private static final Set<String> ASSERTION_KINDS =
             Set.of("status", "body_structure", "body_equals", "json_path", "contains", "field_equals",
                     "array_length", "contains_item", "json_path_equals", "greater_than", "less_than", "matches_regex", "any_of");
@@ -125,6 +129,11 @@ public final class StepConfigValidator {
                         if (!a.hasNonNull("assertions") || !a.get("assertions").isArray() || a.get("assertions").isEmpty()) {
                             throw new IllegalArgumentException(ctx + ".assertions[any_of]: 'assertions' must be a non-empty array");
                         }
+                        for (JsonNode inner : a.get("assertions")) {
+                            if (inner != null && inner.isObject() && "status".equals(inner.path("kind").asString())) {
+                                throw new IllegalArgumentException(ctx + ".assertions[any_of]: status assertion không được lồng trong any_of");
+                            }
+                        }
                     }
                     default -> { /* body_structure / body_equals carry 'json' of any shape */ }
                 }
@@ -179,28 +188,32 @@ public final class StepConfigValidator {
     }
 
     /**
-     * The `connection` block is optional (unknown keys tolerated, forward
-     * compatible) but when present:
+     * The `connection` block is required for all DB steps.
      * <ul>
+     *   <li>{@code database}, {@code username}, {@code password} are required.</li>
      *   <li>{@code db_type} must be a known engine key
-     *       ({@code postgres}, {@code mysql}, {@code mariadb}) — the executor
-     *       maps it to a JDBC dialect; unknown values 400 at save time.</li>
+     *       ({@code postgres}, {@code mysql}, {@code mariadb}) if present.</li>
      *   <li>{@code database}, when present, must be a bare identifier
-     *       ({@code [A-Za-z0-9_$]+}) — it is concatenated into the JDBC URL,
-     *       so a value with {@code ?}&amp;#&amp;/&amp;:&amp;} would inject
-     *       connection properties. Review: 2026-09-26, Pullfrog PR #17 (F4).</li>
-     *   <li>{@code db_port}, when present, must be an integer in 1–65535
-     *       (mirrors the {@code expected_status} range check). Out-of-range
-     *       values are unrecoverable at boot time, so they 400 here.</li>
+     *       ({@code [A-Za-z0-9_$]+}) to avoid URL injection.</li>
+     *   <li>{@code db_port}, when present, must be an integer in 1–65535.</li>
      * </ul>
      */
     private static void validateConnection(JsonNode c, String ctx) {
         if (!c.hasNonNull("connection")) {
-            return;
+            throw new IllegalArgumentException(ctx + ": connection is required");
         }
         JsonNode conn = c.get("connection");
         if (!conn.isObject()) {
             throw new IllegalArgumentException(ctx + ": connection must be an object");
+        }
+        List<String> missing = new ArrayList<>();
+        for (String field : DB_CONNECTION_REQUIRED_FIELDS) {
+            if (!conn.hasNonNull(field) || conn.get(field).asString("").trim().isEmpty()) {
+                missing.add(field);
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new IllegalArgumentException(ctx + ": connection thiếu trường bắt buộc: " + missing);
         }
         if (conn.hasNonNull("db_type")) {
             String dbType = conn.get("db_type").asString().trim().toLowerCase();
@@ -529,7 +542,11 @@ public final class StepConfigValidator {
     {
         ObjectNode node = MAPPER.createObjectNode();
         node.put("type", "object");
-        node.put("description", "Database connection configuration");
+        node.put("description", "Database connection configuration (database, username, password are required)");
+
+        ArrayNode connRequired = MAPPER.createArrayNode();
+        DB_CONNECTION_REQUIRED_FIELDS.forEach(connRequired::add);
+        node.set("required", connRequired);
 
         ObjectNode props = MAPPER.createObjectNode();
 
@@ -556,17 +573,17 @@ public final class StepConfigValidator {
         ObjectNode database = MAPPER.createObjectNode();
         database.put("type", "string");
         database.put("pattern", "^[A-Za-z0-9_$]+$");
-        database.put("description", "Bare database identifier");
+        database.put("description", "Bare database identifier (required)");
         props.set("database", database);
 
         ObjectNode username = MAPPER.createObjectNode();
         username.put("type", "string");
-        username.put("description", "DB username");
+        username.put("description", "DB username (required)");
         props.set("username", username);
 
         ObjectNode password = MAPPER.createObjectNode();
         password.put("type", "string");
-        password.put("description", "DB password");
+        password.put("description", "DB password (required)");
         props.set("password", password);
 
         node.set("properties", props);
@@ -582,6 +599,7 @@ public final class StepConfigValidator {
 
         ArrayNode required = MAPPER.createArrayNode();
         required.add("query");
+        required.add("connection");
         schema.set("required", required);
 
         ObjectNode props = MAPPER.createObjectNode();
@@ -595,7 +613,7 @@ public final class StepConfigValidator {
 
         ObjectNode expectedProp = MAPPER.createObjectNode();
         expectedProp.put("type", "object");
-        expectedProp.put("description", "Expected result, e.g. {\"row_count\": 0}");
+        expectedProp.put("description", "Expected result, e.g. {\"row_count\": 0, \"columns\": [\"id\", \"name\"]}");
         props.set("expected", expectedProp);
 
         schema.set("properties", props);
@@ -611,6 +629,7 @@ public final class StepConfigValidator {
 
         ArrayNode required = MAPPER.createArrayNode();
         required.add("checks");
+        required.add("connection");
         schema.set("required", required);
 
         ObjectNode props = MAPPER.createObjectNode();
@@ -680,6 +699,7 @@ public final class StepConfigValidator {
 
         ArrayNode required = MAPPER.createArrayNode();
         required.add("statements");
+        required.add("connection");
         schema.set("required", required);
 
         ObjectNode props = MAPPER.createObjectNode();
@@ -696,5 +716,50 @@ public final class StepConfigValidator {
 
         schema.set("properties", props);
         return schema;
+    }
+
+    /**
+     * Returns a capabilities descriptor derived from the validator (single source of truth).
+     */
+    public static JsonNode capabilities()
+    {
+        ObjectNode root = MAPPER.createObjectNode();
+        ArrayNode stepTypes = MAPPER.createArrayNode();
+        stepTypes.add("HTTP_REQUEST");
+        stepTypes.add("DB_QUERY");
+        stepTypes.add("DB_SCHEMA_CHECK");
+        stepTypes.add("DB_MIGRATION");
+        root.set("stepTypes", stepTypes);
+
+        ObjectNode connection = MAPPER.createObjectNode();
+        connection.put("required", true);
+        ArrayNode connReq = MAPPER.createArrayNode();
+        DB_CONNECTION_REQUIRED_FIELDS.forEach(connReq::add);
+        connection.set("requiredFields", connReq);
+        root.set("dbConnection", connection);
+
+        ArrayNode httpMethods = MAPPER.createArrayNode();
+        HTTP_METHODS.stream().sorted().forEach(httpMethods::add);
+        root.set("httpMethods", httpMethods);
+
+        ArrayNode assertionKinds = MAPPER.createArrayNode();
+        ASSERTION_KINDS.stream().sorted().forEach(assertionKinds::add);
+        root.set("assertionKinds", assertionKinds);
+
+        ArrayNode schemaCheckKinds = MAPPER.createArrayNode();
+        SCHEMA_CHECK_KINDS.stream().sorted().forEach(schemaCheckKinds::add);
+        root.set("schemaCheckKinds", schemaCheckKinds);
+
+        ObjectNode limits = MAPPER.createObjectNode();
+        limits.put("dataMaxItems", 10);
+        root.set("limits", limits);
+
+        root.set("schemas", MAPPER.createObjectNode()
+                .putPOJO("HTTP_REQUEST", generateHttpSchema())
+                .putPOJO("DB_QUERY", generateDbQuerySchema())
+                .putPOJO("DB_SCHEMA_CHECK", generateSchemaCheckSchema())
+                .putPOJO("DB_MIGRATION", generateMigrationSchema()));
+
+        return root;
     }
 }

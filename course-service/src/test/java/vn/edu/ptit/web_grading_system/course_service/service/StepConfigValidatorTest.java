@@ -108,14 +108,15 @@ class StepConfigValidatorTest {
     @Test
     void dbQuery_validWithExpected_passes() {
         ObjectNode n = node("""
-            {"query":"SELECT id, title FROM books WHERE id = ${bookId}",
+            {"connection":{"database":"appdb","username":"root","password":"root"},
+             "query":"SELECT id, title FROM books WHERE id = ${bookId}",
              "expected":{"row_count":1,"columns":["id","title"],"sample":{"title":"De Men"}}}""");
         assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, n));
     }
 
     @Test
     void dbQuery_emptyQuery_fails() {
-        ObjectNode n = node("{\"query\":\"\"}");
+        ObjectNode n = node("{\"connection\":{\"database\":\"appdb\",\"username\":\"root\",\"password\":\"root\"},\"query\":\"\"}");
         var e = assertThrows(IllegalArgumentException.class,
                 () -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, n));
         assertTrue(e.getMessage().contains("'query'"));
@@ -123,7 +124,7 @@ class StepConfigValidatorTest {
 
     @Test
     void dbQuery_expectedAsArray_fails() {
-        ObjectNode n = node("{\"query\":\"SELECT 1\",\"expected\":[]}");
+        ObjectNode n = node("{\"connection\":{\"database\":\"appdb\",\"username\":\"root\",\"password\":\"root\"},\"query\":\"SELECT 1\",\"expected\":[]}");
         var e = assertThrows(IllegalArgumentException.class,
                 () -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, n));
         assertTrue(e.getMessage().contains("expected must be an object"));
@@ -134,7 +135,8 @@ class StepConfigValidatorTest {
     @Test
     void schemaCheck_validKinds_pass() {
         ObjectNode n = node("""
-            {"checks":[
+            {"connection":{"database":"appdb","username":"root","password":"root"},
+             "checks":[
               {"kind":"TABLE_EXISTS","table_name":"books"},
               {"kind":"COLUMN_EXISTS","table_name":"books","column_name":"title","data_type":"VARCHAR"},
               {"kind":"INDEX_EXISTS","index_name":"idx_books_title","table_name":"books"},
@@ -145,7 +147,7 @@ class StepConfigValidatorTest {
 
     @Test
     void schemaCheck_indexExistsWithoutTableName_fails() {
-        ObjectNode n = node("{\"checks\":[{\"kind\":\"INDEX_EXISTS\",\"index_name\":\"idx_books_title\"}]}");
+        ObjectNode n = node("{\"connection\":{\"database\":\"appdb\",\"username\":\"root\",\"password\":\"root\"},\"checks\":[{\"kind\":\"INDEX_EXISTS\",\"index_name\":\"idx_books_title\"}]}");
         var e = assertThrows(IllegalArgumentException.class,
                 () -> StepConfigValidator.validateAndSerialize(StepType.DB_SCHEMA_CHECK, n));
         assertTrue(e.getMessage().contains("'table_name'"));
@@ -153,7 +155,7 @@ class StepConfigValidatorTest {
 
     @Test
     void schemaCheck_primaryKeyWithoutTableName_fails() {
-        ObjectNode n = node("{\"checks\":[{\"kind\":\"PRIMARY_KEY\",\"column\":\"id\"}]}");
+        ObjectNode n = node("{\"connection\":{\"database\":\"appdb\",\"username\":\"root\",\"password\":\"root\"},\"checks\":[{\"kind\":\"PRIMARY_KEY\",\"column\":\"id\"}]}");
         var e = assertThrows(IllegalArgumentException.class,
                 () -> StepConfigValidator.validateAndSerialize(StepType.DB_SCHEMA_CHECK, n));
         assertTrue(e.getMessage().contains("'table_name'"));
@@ -161,7 +163,7 @@ class StepConfigValidatorTest {
 
     @Test
     void schemaCheck_columnExistsWithoutDataType_fails() {
-        ObjectNode n = node("{\"checks\":[{\"kind\":\"COLUMN_EXISTS\",\"table_name\":\"books\",\"column_name\":\"title\"}]}");
+        ObjectNode n = node("{\"connection\":{\"database\":\"appdb\",\"username\":\"root\",\"password\":\"root\"},\"checks\":[{\"kind\":\"COLUMN_EXISTS\",\"table_name\":\"books\",\"column_name\":\"title\"}]}");
         var e = assertThrows(IllegalArgumentException.class,
                 () -> StepConfigValidator.validateAndSerialize(StepType.DB_SCHEMA_CHECK, n));
         assertTrue(e.getMessage().contains("'data_type'"));
@@ -169,7 +171,7 @@ class StepConfigValidatorTest {
 
     @Test
     void schemaCheck_columnExistsWithoutColumnName_fails() {
-        ObjectNode n = node("{\"checks\":[{\"kind\":\"COLUMN_EXISTS\",\"table_name\":\"books\"}]}");
+        ObjectNode n = node("{\"connection\":{\"database\":\"appdb\",\"username\":\"root\",\"password\":\"root\"},\"checks\":[{\"kind\":\"COLUMN_EXISTS\",\"table_name\":\"books\"}]}");
         var e = assertThrows(IllegalArgumentException.class,
                 () -> StepConfigValidator.validateAndSerialize(StepType.DB_SCHEMA_CHECK, n));
         assertTrue(e.getMessage().contains("'column_name'"));
@@ -177,7 +179,7 @@ class StepConfigValidatorTest {
 
     @Test
     void schemaCheck_emptyChecks_fails() {
-        ObjectNode n = node("{\"checks\":[]}");
+        ObjectNode n = node("{\"connection\":{\"database\":\"appdb\",\"username\":\"root\",\"password\":\"root\"},\"checks\":[]}");
         var e = assertThrows(IllegalArgumentException.class,
                 () -> StepConfigValidator.validateAndSerialize(StepType.DB_SCHEMA_CHECK, n));
         assertTrue(e.getMessage().contains("non-empty"));
@@ -188,13 +190,14 @@ class StepConfigValidatorTest {
     @Test
     void migration_validStatements_pass() {
         ObjectNode n = node("""
-            {"statements":["INSERT INTO books VALUES ('1','A',2000)","UPDATE books SET year=2001"]}""");
+            {"connection":{"database":"appdb","username":"root","password":"root"},
+             "statements":["INSERT INTO books VALUES ('1','A',2000)","UPDATE books SET year=2001"]}""");
         assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.DB_MIGRATION, n));
     }
 
     @Test
     void migration_blankStatement_fails() {
-        ObjectNode n = node("{\"statements\":[\"INSERT INTO books VALUES ('1','A')\",\"   \"]}");
+        ObjectNode n = node("{\"connection\":{\"database\":\"appdb\",\"username\":\"root\",\"password\":\"root\"},\"statements\":[\"INSERT INTO books VALUES ('1','A')\",\"   \"]}");
         var e = assertThrows(IllegalArgumentException.class,
                 () -> StepConfigValidator.validateAndSerialize(StepType.DB_MIGRATION, n));
         assertTrue(e.getMessage().contains("non-empty strings"));
@@ -213,15 +216,17 @@ class StepConfigValidatorTest {
     }
 
     @Test
-    void connection_absent_passes_defaultsToPostgres() {
+    void connection_absent_fails_for_db_steps() {
         ObjectNode n = node("{\"query\":\"SELECT 1\"}");
-        assertDoesNotThrow(() -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, n));
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, n));
+        assertTrue(e.getMessage().contains("connection"));
     }
 
     @Test
     void connection_unknownDbType_failsNamingAllowedValues() {
         ObjectNode n = node("""
-            {"connection":{"db_type":"oracle"},
+            {"connection":{"db_type":"oracle","database":"appdb","username":"root","password":"root"},
              "query":"SELECT 1"}""");
         var e = assertThrows(IllegalArgumentException.class,
                 () -> StepConfigValidator.validateAndSerialize(StepType.DB_QUERY, n));
@@ -242,13 +247,13 @@ class StepConfigValidatorTest {
     @Test
     void connection_unknownDbType_failsOnSchemaCheckAndMigrationToo() {
         ObjectNode schema = node("""
-            {"connection":{"db_type":"oracle"},
+            {"connection":{"db_type":"oracle","database":"appdb","username":"root","password":"root"},
              "checks":[{"kind":"TABLE_EXISTS","table_name":"books"}]}""");
         var e = assertThrows(IllegalArgumentException.class,
                 () -> StepConfigValidator.validateAndSerialize(StepType.DB_SCHEMA_CHECK, schema));
         assertTrue(e.getMessage().contains("db_type"));
         ObjectNode migration = node("""
-            {"connection":{"db_type":"oracle"},
+            {"connection":{"db_type":"oracle","database":"appdb","username":"root","password":"root"},
              "statements":["INSERT INTO books VALUES (1)"]}""");
         var e2 = assertThrows(IllegalArgumentException.class,
                 () -> StepConfigValidator.validateAndSerialize(StepType.DB_MIGRATION, migration));
@@ -339,7 +344,7 @@ class StepConfigValidatorTest {
                 "{\"kind\":\"less_than\",\"path\":\"$.price\",\"value\":\"200\"}," +
                 "{\"kind\":\"matches_regex\",\"path\":\"$.code\",\"pattern\":\"" + regex + "\"}," +
                 "{\"kind\":\"any_of\",\"assertions\":[" +
-                "{\"kind\":\"status\",\"equals\":200}," +
+                "{\"kind\":\"contains\",\"text\":\"ok\"}," +
                 "{\"kind\":\"json_path\",\"path\":\"$.id\"}" +
                 "]}" +
                 "]}";

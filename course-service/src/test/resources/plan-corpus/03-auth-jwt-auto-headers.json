@@ -1,193 +1,194 @@
 {
-  "prompt": "Tạo bài quản lý sách có JWT auth: login lấy token, tạo sách với header Authorization tự động tiêm, lấy sách, kiểm tra 401 khi không token và 403 khi không quyền",
-  "domain": "Auth JWT + CRUD",
-  "expected": {
-    "batchCount": 1,
-    "totalSteps": 5,
-    "stepTypes": [
-      "HTTP_REQUEST"
-    ],
-    "methods": [
-      "POST",
-      "POST",
-      "GET",
-      "GET",
-      "GET"
-    ],
-    "assertionKinds": [
-      "status",
-      "contains",
-      "json_path"
-    ],
-    "httpStatuses": [
-      200,
-      201,
-      200,
-      401,
-      403
-    ],
-    "requiredFalseSteps": [
-      3,
-      4
-    ],
-    "maxStepsPerBatch": 6
-  },
-  "batches": [
-    {
-      "tool": "createTestQuestion",
-      "payload": {
-        "plan": {
-          "name": "Auth JWT + CRUD — Quản lý sách",
-          "description": "Login lấy token, tạo sách có auth, lấy sách, kiểm tra 401/403",
-          "sequenceOrder": 1,
-          "weight": 10
-        },
-        "steps": [
-          {
-            "stepOrder": 0,
-            "name": "Login lấy access token",
-            "stepType": "HTTP_REQUEST",
-            "config": {
-              "method": "POST",
-              "path": "/api/v1/auth/login",
-              "body": {
-                "username": "lecturer",
-                "password": "secret"
-              },
-              "expected_status": 200,
-              "assertions": [
-                {
-                  "kind": "status",
-                  "equals": 200
+    "prompt": "Tạo bài quản lý sách có JWT auth: login lấy token, tạo sách với header Authorization tự động tiêm, lấy sách, kiểm tra 401 khi không token và 403 khi không quyền",
+    "domain": "Auth JWT + CRUD",
+    "expected": {
+        "batchCount": 1,
+        "totalSteps": 5,
+        "stepTypes": [
+            "HTTP_REQUEST"
+        ],
+        "methods": [
+            "POST",
+            "POST",
+            "GET",
+            "GET",
+            "GET"
+        ],
+        "assertionKinds": [
+            "status",
+            "contains",
+            "json_path"
+        ],
+        "httpStatuses": [
+            200,
+            201,
+            200,
+            401,
+            403
+        ],
+        "requiredFalseSteps": [
+            3,
+            4
+        ],
+        "maxStepsPerBatch": 6
+    },
+    "batches": [
+        {
+            "tool": "createTestQuestion",
+            "payload": {
+                "plan": {
+                    "name": "Auth JWT + CRUD — Quản lý sách",
+                    "description": "Login lấy token, tạo sách có auth, lấy sách, kiểm tra 401/403",
+                    "sequenceOrder": 1,
+                    "weight": 10
                 },
-                {
-                  "kind": "contains",
-                  "text": "accessToken"
-                }
-              ],
-              "extract": [
-                {
-                  "name": "accessToken",
-                  "from": "response_body",
-                  "expression": "$.accessToken"
-                }
-              ],
-              "timeoutMs": 5000
-            },
-            "weight": 1,
-            "required": true
-          },
-          {
-            "stepOrder": 1,
-            "name": "Tạo sách có auth",
-            "stepType": "HTTP_REQUEST",
-            "config": {
-              "method": "POST",
-              "path": "/api/v1/books",
-              "headers": {
-                "Authorization": "Bearer ${accessToken}"
-              },
-              "auto_inject_headers": {
-                "Authorization": "Bearer ${accessToken}"
-              },
-              "body": {
-                "title": "Sách có auth",
-                "author": "Tác giả"
-              },
-              "expected_status": 201,
-              "assertions": [
-                {
-                  "kind": "status",
-                  "equals": 201
-                },
-                {
-                  "kind": "json_path",
-                  "path": "$.id",
-                  "exists": true
-                }
-              ],
-              "extract": [
-                {
-                  "name": "bookId",
-                  "from": "response_body",
-                  "expression": "$.id"
-                }
-              ],
-              "timeoutMs": 5000
-            },
-            "weight": 1,
-            "required": true
-          },
-          {
-            "stepOrder": 2,
-            "name": "Lấy sách có token",
-            "stepType": "HTTP_REQUEST",
-            "config": {
-              "method": "GET",
-              "path": "/api/v1/books/${bookId}",
-              "headers": {
-                "Authorization": "Bearer ${accessToken}"
-              },
-              "expected_status": 200,
-              "assertions": [
-                {
-                  "kind": "status",
-                  "equals": 200
-                },
-                {
-                  "kind": "field_equals",
-                  "path": "$.title",
-                  "equals": "Sách có auth"
-                }
-              ],
-              "timeoutMs": 5000
-            },
-            "weight": 1,
-            "required": true
-          },
-          {
-            "stepOrder": 3,
-            "name": "Kiểm tra 401 khi không token",
-            "stepType": "HTTP_REQUEST",
-            "config": {
-              "method": "GET",
-              "path": "/api/v1/books/${bookId}",
-              "expected_status": 401,
-              "assertions": [
-                {
-                  "kind": "status",
-                  "equals": 401
-                }
-              ]
-            },
-            "weight": 1,
-            "required": false,
-            "timeoutMs": 5000
-          },
-          {
-            "stepOrder": 4,
-            "name": "Kiểm tra 403 khi không quyền",
-            "stepType": "HTTP_REQUEST",
-            "config": {
-              "method": "GET",
-              "path": "/api/v1/books/${bookId}",
-              "headers": {
-                "Authorization": "Bearer wrong-token"
-              },
-              "expected_status": 403,
-              "assertions": [
-                {
-                  "kind": "status",
-                  "equals": 403
-                }
-              ]
-            },
-            "weight": 1,
-            "required": false,
-            "timeoutMs": 5000
-          }
-        ]
-      }
-    }
-  ]
+                "steps": [
+                    {
+                        "stepOrder": 0,
+                        "name": "Login lấy access token",
+                        "stepType": "HTTP_REQUEST",
+                        "config": {
+                            "method": "POST",
+                            "path": "/api/v1/auth/login",
+                            "body": {
+                                "username": "lecturer",
+                                "password": "secret"
+                            },
+                            "expected_status": 200,
+                            "assertions": [
+                                {
+                                    "kind": "status",
+                                    "equals": 200
+                                },
+                                {
+                                    "kind": "contains",
+                                    "text": "accessToken"
+                                }
+                            ],
+                            "extract": [
+                                {
+                                    "name": "accessToken",
+                                    "from": "response_body",
+                                    "expression": "$.accessToken"
+                                }
+                            ],
+                            "auto_inject_headers": {
+                                "Authorization": "Bearer ${accessToken}"
+                            },
+                            "timeoutMs": 5000
+                        },
+                        "weight": 1,
+                        "required": true
+                    },
+                    {
+                        "stepOrder": 1,
+                        "name": "Tạo sách có auth",
+                        "stepType": "HTTP_REQUEST",
+                        "config": {
+                            "method": "POST",
+                            "path": "/api/v1/books",
+                            "headers": {
+                                "Authorization": "Bearer ${accessToken}"
+                            },
+                            "body": {
+                                "title": "Sách có auth",
+                                "author": "Tác giả"
+                            },
+                            "expected_status": 201,
+                            "assertions": [
+                                {
+                                    "kind": "status",
+                                    "equals": 201
+                                },
+                                {
+                                    "kind": "json_path",
+                                    "path": "$.id",
+                                    "exists": true
+                                }
+                            ],
+                            "extract": [
+                                {
+                                    "name": "bookId",
+                                    "from": "response_body",
+                                    "expression": "$.id"
+                                }
+                            ],
+                            "timeoutMs": 5000
+                        },
+                        "weight": 1,
+                        "required": true
+                    },
+                    {
+                        "stepOrder": 2,
+                        "name": "Lấy sách có token",
+                        "stepType": "HTTP_REQUEST",
+                        "config": {
+                            "method": "GET",
+                            "path": "/api/v1/books/${bookId}",
+                            "headers": {
+                                "Authorization": "Bearer ${accessToken}"
+                            },
+                            "expected_status": 200,
+                            "assertions": [
+                                {
+                                    "kind": "status",
+                                    "equals": 200
+                                },
+                                {
+                                    "kind": "field_equals",
+                                    "path": "$.title",
+                                    "equals": "Sách có auth"
+                                }
+                            ],
+                            "timeoutMs": 5000
+                        },
+                        "weight": 1,
+                        "required": true
+                    },
+                    {
+                        "stepOrder": 3,
+                        "name": "Kiểm tra 401 khi không token",
+                        "stepType": "HTTP_REQUEST",
+                        "config": {
+                            "method": "GET",
+                            "path": "/api/v1/books/${bookId}",
+                            "headers": {},
+                            "expected_status": 401,
+                            "assertions": [
+                                {
+                                    "kind": "status",
+                                    "equals": 401
+                                }
+                            ],
+                            "timeoutMs": 5000
+                        },
+                        "weight": 1,
+                        "required": false
+                    },
+                    {
+                        "stepOrder": 4,
+                        "name": "Kiểm tra 403 khi không quyền",
+                        "stepType": "HTTP_REQUEST",
+                        "config": {
+                            "method": "GET",
+                            "path": "/api/v1/books/${bookId}",
+                            "headers": {
+                                "Authorization": "Bearer invalid.token.here"
+                            },
+                            "expected_status": 403,
+                            "assertions": [
+                                {
+                                    "kind": "status",
+                                    "equals": 403
+                                }
+                            ],
+                            "timeoutMs": 5000
+                        },
+                        "weight": 1,
+                        "required": false
+                    }
+                ]
+            }
+        }
+    ]
 }
