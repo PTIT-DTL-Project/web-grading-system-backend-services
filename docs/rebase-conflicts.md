@@ -2,7 +2,16 @@
 
 Kiểm tra ngày 2026-11-02. Repo: `web-grading-system-backend-services`.
 
-## Kết quả xử lý
+## Rebase lần 2 lên `86a1bdb` (origin/main sau PR #75)
+
+- Đã phát lại 30 commit của `feat/improve-ai-agent-lookup`; rebase hoàn tất tại `60a3e6e` trước commit sửa test bổ sung.
+- `ContextBuilder`: giữ hướng dẫn link theo vai trò từ remote (quy tắc 11–14), đồng thời giữ `{planSection}` và `{lecturerRules}` từ local. Quy tắc local cũ cho phép tự đề xuất smoke test `GET /` đã bị chính commit local mới hơn thay bằng quy tắc không tự đặt `GET /` hay status 200, nên không giữ hai chỉ dẫn mâu thuẫn.
+- `GetTestStepCapabilitiesTool`: remote đã thay tool trả dữ liệu tĩnh bằng tool cùng tên gọi endpoint `/api/v1/internal/test-plans/capabilities` của course-service. Giữ phiên bản động để tránh đăng ký trùng tên và sai khác với validator; test chỉ dành cho tool tĩnh cũng không được khôi phục.
+- `DomainApiTool`: giữ kiểm tra cấu hình local trước, sau đó gọi endpoint validate của course-service cho `createTestQuestion`, `createTestStep` và `updateTestStep`. Test đã được cập nhật để xác nhận bước validate trước API ghi.
+- `LlmClient`: giữ cấu hình `AiAgentModelProperties` của remote cùng phần ghi trace của local; test trace dùng đúng loại cấu hình.
+- Kiểm chứng `ai-assistant-service`: `mvn -q test` chạy 224 test, 0 failure/error/skipped. Các sửa test bổ sung sau rebase được commit riêng.
+
+## Kết quả xử lý lần 1
 
 - Đã rebase xong 29 commit lên `9820ac9` bằng `git rebase -X theirs 9820ac9`. Trong rebase, `theirs` là commit từ nhánh local `feat/improve-ai-agent-lookup`, nên các hunk xung đột ưu tiên code local. HEAD sau rebase: `b8eb3c8`.
 - Git đã bỏ qua 3 commit có thay đổi tương đương đã nằm trên nhánh đích: `461663d`, `e78d4fb`, `4814fe1`.

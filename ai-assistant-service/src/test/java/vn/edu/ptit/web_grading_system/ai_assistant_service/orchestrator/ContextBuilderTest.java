@@ -105,12 +105,15 @@ public class ContextBuilderTest {
         }
         assertTrue(prompt.contains("không tự bịa"));
         assertTrue(prompt.contains("đồng ý trong chat"));
+        assertTrue(prompt.contains("/classes/"));
+        assertTrue(prompt.contains("Không tự đặt GET / hay status 200"));
     }
 
     @Test
     void studentPromptDoesNotExposeLecturerAuthoringRules() {
         String prompt = new ContextBuilder().buildSystemPrompt("ROLE_STUDENT", null);
         assertTrue(prompt.contains("test case ẩn"));
+        assertTrue(prompt.contains("/student/assignments"));
         assertTrue(!prompt.contains("db_service"));
         assertTrue(!prompt.contains("PRACTICE không gắn classId"));
     }

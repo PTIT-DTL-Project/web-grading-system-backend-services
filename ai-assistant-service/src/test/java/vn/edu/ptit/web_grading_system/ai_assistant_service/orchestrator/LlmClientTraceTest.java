@@ -13,7 +13,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import reactor.core.publisher.Flux;
-import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiAgentModelProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.service.LlmClient;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.AgentContext;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.AgentTool;
@@ -54,7 +54,7 @@ class LlmClientTraceTest {
                             .content("Đáp ").properties(Map.of("reasoningContent", "Kiểm tra dữ liệu. ")).build()))),
                     new ChatResponse(List.of(new Generation(AssistantMessage.builder()
                             .content("án").properties(Map.of("reasoningContent", "Kiểm tra dữ liệu. Chọn kết quả.")).build())))));
-            LlmClient client = new LlmClient(new AiModelProperties("openai", "live-test-key",
+            LlmClient client = new LlmClient(new AiAgentModelProperties("openai", "live-test-key",
                     "test-model", "https://example.test/v1"), model);
             UUID runId = UUID.randomUUID();
             AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_STUDENT"),
@@ -90,7 +90,7 @@ class LlmClientTraceTest {
                         .content("").properties(Map.of("reasoningContent", "Check data")).build()))),
                 new ChatResponse(List.of(new Generation(AssistantMessage.builder()
                         .content("Answer").properties(Map.of("reasoningContent", "Check data")).build())))));
-        LlmClient client = new LlmClient(new AiModelProperties("groq", "live-test-key",
+        LlmClient client = new LlmClient(new AiAgentModelProperties("groq", "live-test-key",
                 "openai/gpt-oss-120b", "https://example.test/openai/v1"), model);
         StringBuilder streamedReasoning = new StringBuilder();
 
@@ -111,7 +111,7 @@ class LlmClientTraceTest {
             when(model.getOptions()).thenReturn(org.springframework.ai.openai.OpenAiChatOptions.builder().build());
             when(model.stream(any(Prompt.class))).thenReturn(Flux.just(new ChatResponse(List.of(
                     new Generation(new AssistantMessage("Answer"))))));
-            LlmClient client = new LlmClient(new AiModelProperties("openai", "live-test-key",
+            LlmClient client = new LlmClient(new AiAgentModelProperties("openai", "live-test-key",
                     "test-model", "https://example.test/v1"), model);
             AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_STUDENT"),
                     UUID.randomUUID(), UUID.randomUUID(), "");
@@ -149,7 +149,7 @@ class LlmClientTraceTest {
                     .name("listMyClasses").description("List accessible classes")
                     .inputSchema("{\"type\":\"object\",\"properties\":{}}")
                     .build());
-            LlmClient client = new LlmClient(new AiModelProperties("openai", "live-test-key",
+            LlmClient client = new LlmClient(new AiAgentModelProperties("openai", "live-test-key",
                     "test-model", "https://example.test/v1"), model);
             UUID runId = UUID.randomUUID();
             AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_STUDENT"),
