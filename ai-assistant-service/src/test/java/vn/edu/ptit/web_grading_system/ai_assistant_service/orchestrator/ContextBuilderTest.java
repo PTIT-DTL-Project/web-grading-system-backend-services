@@ -93,4 +93,22 @@ public class ContextBuilderTest {
         org.junit.jupiter.api.Assertions.assertNotNull(prompt);
         assertTrue(prompt.contains("ROLE_LECTURER"));
     }
+
+    // Review: 2026-11-02 — SystemPromptTemplate (StringTemplate) throws for every `{name}`
+    // not present in the render map, so the route placeholders must be escaped to reach the
+    // model as literal text. The student practice route is `/student/practice/{id}`, not the
+    // lecturer-only `/practice/{id}` — the prompt must mirror the router's role guards.
+    @Test
+    void studentPromptRendersLiteralDeepLinkRoutes() {
+        ContextBuilder builder = new ContextBuilder();
+        String prompt = builder.buildSystemPrompt("ROLE_STUDENT", null);
+        assertTrue(prompt.contains("/student/assignments/{assignmentId}"),
+                "assignment route must render as literal text");
+        assertTrue(prompt.contains("/student/assignments/{assignmentId}?submit=1"),
+                "submit deep link must render as literal text");
+        assertTrue(prompt.contains("/student/practice/{assignmentId}"),
+                "student practice route must point at the STUDENT-gated path");
+        assertTrue(prompt.contains("/student/submissions/{submissionId}/results"),
+                "result route must render as literal text");
+    }
 }

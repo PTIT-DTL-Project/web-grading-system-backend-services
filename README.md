@@ -129,7 +129,7 @@ Quản lý lớp học, sinh viên trong lớp, assignments, test plans và đi�
 
 ### ai-assistant-service
 Port: 8086  
-Giải thích kết quả chấm bằng LLM (fallback template khi thiếu `AI_API_KEY`); đọc dữ liệu qua course-service và result-service.
+Giải thích kết quả chấm bằng LLM (fallback template khi thiếu `AI_API_KEY`); đọc dữ liệu qua course-service và result-service. Hỗ trợ agent chat cho sinh viên/giảng viên với công cụ tra cứu và tạo link điều hướng trực tiếp (deep links) đến bài tập, bài nộp, kết quả.
 
 ## 🧪 Testing Flow: Classes & Scores
 
