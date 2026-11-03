@@ -74,6 +74,8 @@ public class AgentRuntime {
     private static final String UNSAVED_PROPOSAL_PREFIX =
             "Đề xuất dưới đây chưa được lưu thành thao tác chờ xác nhận:\n\n";
     private static final Pattern APPROVAL_CUE = Pattern.compile("(?iu)xác nhận|đồng ý|xac nhan|dong y");
+    private static final Pattern MULTI_STEP_PLAN_PATTERN = Pattern.compile(
+            "(?siu)(?:(?:^|[\\r\\n]|\\s)(?:1[\\.\\)/](?!\\d)|bước\\s*1\\b|buoc\\s*1\\b|step\\s*1\\b)).*?(?:(?:^|[\\r\\n]|\\s)(?:2[\\.\\)/](?!\\d)|bước\\s*2\\b|buoc\\s*2\\b|step\\s*2\\b))");
     private static final int FINAL_STREAM_HOLDBACK_CHARS = 96;
     private enum LookupPhase { NORMAL, SEARCH, READ }
     private enum CreationTarget { NONE, ASSIGNMENT, PLAN, PLAN_WITH_STEPS, STEP }
@@ -119,6 +121,7 @@ public class AgentRuntime {
                 "userPrompt", latestUserText == null ? "" : latestUserText));
         String unpersistedProposal = "";
         boolean pendingActionInChat = false;
+        boolean continuingMultiStepPlan = false;
         if (approvalService != null) {
             Optional<WriteApprovalService.ChatPendingAction> pending = approvalService.pendingForChat(context);
             if (pending.isPresent()) {
@@ -173,19 +176,33 @@ public class AgentRuntime {
                                     context.runId(), error.getClass().getSimpleName());
                         }
                     }
-                    onFinalDelta.accept(completion);
-                    return completion;
-                }
-                if (decision == LlmClient.ApprovalDecision.REJECT) {
+                    if (approvalSucceeded) {
+                        String multiStepPlan = priorMultiStepPlan(context);
+                        if (!multiStepPlan.isBlank()) {
+                            unpersistedProposal = "Thao tác '" + action.description() + "' đã được thực thi thành công (" + completion + ").\nKế hoạch tổng thể ban đầu:\n" + multiStepPlan + "\nHãy tiếp tục thực hiện bước tiếp theo trong kế hoạch (chú ý: chỉ gọi tối đa 1 thao tác ghi ở lượt này). Nếu toàn bộ kế hoạch đã hoàn tất, hãy tổng kết lại cho người dùng.";
+                            timeline(context, "assistant.delta", 0, "confirm-info-" + action.id(),
+                                    Map.of("content", completion + "\n\nTiếp tục thực hiện bước tiếp theo trong kế hoạch..."));
+                            continuingMultiStepPlan = true;
+                            pendingActionInChat = false;
+                        } else {
+                            onFinalDelta.accept(completion);
+                            return completion;
+                        }
+                    } else {
+                        onFinalDelta.accept(completion);
+                        return completion;
+                    }
+                } else if (decision == LlmClient.ApprovalDecision.REJECT) {
                     checkCancelled(isCancelled);
                     approvalService.rejectFromChat(action.id(), context);
                     String completion = "Đã hủy yêu cầu: " + action.description();
                     onFinalDelta.accept(completion);
                     return completion;
+                } else {
+                    systemPrompt += "\nĐang có thao tác chờ người dùng đồng ý qua chat: " + action.summary()
+                            + ". Nếu tin nhắn mới chưa đồng ý hay từ chối rõ ràng, không thực hiện thao tác này. "
+                            + "Trả lời câu hỏi mới của người dùng hoặc hỏi lại về thao tác đang chờ khi phù hợp.";
                 }
-                systemPrompt += "\nĐang có thao tác chờ người dùng đồng ý qua chat: " + action.summary()
-                        + ". Nếu tin nhắn mới chưa đồng ý hay từ chối rõ ràng, không thực hiện thao tác này. "
-                        + "Trả lời câu hỏi mới của người dùng hoặc hỏi lại về thao tác đang chờ khi phù hợp.";
             } else if (isShortAffirmation(latestUserText)) {
                 unpersistedProposal = lastUnpersistedProposal(context);
             }
@@ -238,10 +255,14 @@ public class AgentRuntime {
         if (!unpersistedProposal.isBlank()) {
             toolRequest += "\nCurrent task: prepare the exact write proposed by the immediately previous assistant message: "
                     + unpersistedProposal;
-            systemPrompt += "\nNgười dùng vừa đồng ý với đề xuất ngay trước đó, nhưng chưa có pending action được lưu. "
-                    + "Hãy gọi công cụ ghi phù hợp với đúng tham số trong đề xuất đó để lưu yêu cầu duyệt thật. "
-                    + "Không quay lại yêu cầu cũ và không tuyên bố đã thực hiện thao tác. "
-                    + "Nếu thiếu dữ liệu, chỉ hỏi phần còn thiếu của đề xuất này.";
+            if (continuingMultiStepPlan) {
+                systemPrompt += "\n" + unpersistedProposal;
+            } else {
+                systemPrompt += "\nNgười dùng vừa đồng ý với đề xuất ngay trước đó, nhưng chưa có pending action được lưu. "
+                        + "Hãy gọi công cụ ghi phù hợp với đúng tham số trong đề xuất đó để lưu yêu cầu duyệt thật. "
+                        + "Không quay lại yêu cầu cũ và không tuyên bố đã thực hiện thao tác. "
+                        + "Nếu thiếu dữ liệu, chỉ hỏi phần còn thiếu của đề xuất này.";
+            }
         }
         Set<String> selected = java.util.Collections.synchronizedSet(new LinkedHashSet<>());
         AgentTrace.record(context.runId(), context.gatewaySecret(), "tool.selection.request", Map.of(
@@ -945,6 +966,35 @@ public class AgentRuntime {
                     context.runId(), error.getClass().getSimpleName());
             return "";
         }
+    }
+
+    String priorMultiStepPlan(AgentContext context) {
+        if (messages == null) return "";
+        try {
+            String roleScope = context.roles().stream().sorted().collect(Collectors.joining(","));
+            var page = messages.findScopedRecent(context.conversationId(), roleScope,
+                    org.springframework.data.domain.PageRequest.of(0, 6));
+            if (page == null) return "";
+            return page.getContent().stream()
+                    .filter(message -> "assistant".equals(message.getRole()) && message.getContent() != null)
+                    .map(vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message::getContent)
+                    .filter(this::isMultiStepPlanContent)
+                    .findFirst().map(content -> content.length() > 3000 ? content.substring(0, 3000) : content)
+                    .orElse("");
+        } catch (RuntimeException error) {
+            log.warn("AI runId={} priorMultiStepPlanUnavailable errorType={}",
+                    context.runId(), error.getClass().getSimpleName());
+            return "";
+        }
+    }
+
+    private boolean isMultiStepPlanContent(String content) {
+        if (content == null || content.isBlank()) return false;
+        if (MULTI_STEP_PLAN_PATTERN.matcher(content).find()) {
+            return true;
+        }
+        int firstIndex = content.indexOf("stepOrder");
+        return firstIndex >= 0 && content.indexOf("stepOrder", firstIndex + 1) >= 0;
     }
 
     private boolean asksForLookupInformation(String completion, Set<String> roles) {

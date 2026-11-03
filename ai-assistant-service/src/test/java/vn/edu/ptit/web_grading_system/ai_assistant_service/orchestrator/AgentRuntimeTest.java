@@ -2264,4 +2264,81 @@ class AgentRuntimeTest {
         assertNotNull(reply);
         assertTrue(reply.contains("GET /status-1"));
     }
+
+    @Test
+    void confirmPendingActionContinuesAgentLoopWhenMultiStepPlanExists() {
+        var mapper = new JacksonConfig().objectMapper();
+        AgentTool writer = mock(AgentTool.class);
+        when(writer.getName()).thenReturn("createTestStep");
+        when(writer.getDescription()).thenReturn("Tạo bước chấm");
+        when(writer.getDefinition()).thenReturn(new ToolDefinition("createTestStep", "Tạo bước chấm",
+                "1", "lecturer", "write", "assignment", EffectType.DOMAIN_WRITE,
+                Set.of("ROLE_LECTURER"), Duration.ofSeconds(5), 1000));
+        when(writer.getToolDefinition()).thenReturn(org.springframework.ai.tool.definition.ToolDefinition.builder()
+                .name("createTestStep").description("Tạo bước chấm")
+                .inputSchema("{\"type\":\"object\"}").build());
+
+        WriteApprovalService approvals = mock(WriteApprovalService.class);
+        UUID actionId = UUID.randomUUID();
+        UUID originRunId = UUID.randomUUID();
+        var pending = new WriteApprovalService.ChatPendingAction(actionId, originRunId, "updateTestStep",
+                "Sửa bước 1", mapper.createObjectNode().put("name", "Bước 1"));
+        when(approvals.pendingForChat(any())).thenReturn(java.util.Optional.of(pending));
+        ToolResult executedResult = ToolResult.ok(java.util.Map.of("id", "step-1", "name", "Bước 1"));
+        when(approvals.confirmFromChat(eq(actionId), any())).thenReturn(java.util.Map.of(
+                "status", "COMPLETED", "result", executedResult));
+        when(approvals.propose(eq(writer), any(), any())).thenReturn(ToolResult.ok(java.util.Map.of(
+                "status", "AWAITING_CONFIRMATION", "pendingActionId", UUID.randomUUID(),
+                "toolName", "createTestStep", "arguments", mapper.createObjectNode().put("name", "Thêm bước 3"))));
+
+        ToolRegistry registry = new ToolRegistry(List.of(writer), mapper, approvals);
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("ok")), "", 10, 10, 30));
+        ToolResultStore store = mock(ToolResultStore.class);
+        when(store.offer(anyString(), any(), anyInt())).thenAnswer(call ->
+                new ToolResultStore.ToolResultDelivery(call.getArgument(0), true, null, null, "full", 0));
+
+        MessageRepository messages = mock(MessageRepository.class);
+        when(messages.findFirstByRunIdAndRoleOrderBySequenceNoAsc(originRunId, "user"))
+                .thenReturn(java.util.Optional.of(vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message
+                        .builder().content("Sửa bài tập theo kế hoạch").build()));
+        String multiStepPlan = "Kế hoạch thực hiện:\n1. Sửa bước 1: Đổi endpoint /status\n2. Thêm bước 3: Kiểm tra payload";
+        when(messages.findScopedRecent(any(), anyString(), any()))
+                .thenReturn(new PageImpl<>(List.of(
+                        vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message
+                                .builder().role("assistant").content(multiStepPlan).sequenceNo(2).build()
+                )));
+
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestStep"));
+        when(llm.generateConfirmedActionReply(any(), any(), any(), any()))
+                .thenReturn("Đã cập nhật bước 1 thành công.");
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList(), any(), any())).thenAnswer(call -> {
+            List<ToolCallback> callbacks = call.getArgument(2);
+            ToolCallback callback = callbacks.stream()
+                    .filter(cb -> cb.getToolDefinition().name().equals("createTestStep"))
+                    .findFirst().orElseThrow();
+            callback.call("{\"name\":\"Thêm bước 3\"}");
+            return Flux.just("Final answer");
+        });
+
+        AgentProperties props = new AgentProperties();
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight, store,
+                mock(ConversationRepository.class), messages, mapper, props, approvals);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+
+        List<AgentRuntime.RuntimeEvent> events = new ArrayList<>();
+        String reply = runtime.execute(context, "system", "ok", llm,
+                delta -> {}, (tool, result) -> {}, events::add, () -> false);
+
+        verify(approvals).confirmFromChat(eq(actionId), eq(context));
+        verify(llm).streamAgentTurn(anyString(), anyList(), anyList(), any(), any());
+        verify(approvals).propose(eq(writer), any(), eq(context));
+        assertNotNull(reply);
+        assertTrue(reply.contains("Thêm bước 3"));
+        assertTrue(events.stream().anyMatch(e -> "assistant.delta".equals(e.type())
+                && String.valueOf(e.data().get("content")).contains("Tiếp tục thực hiện bước tiếp theo")));
+    }
 }
