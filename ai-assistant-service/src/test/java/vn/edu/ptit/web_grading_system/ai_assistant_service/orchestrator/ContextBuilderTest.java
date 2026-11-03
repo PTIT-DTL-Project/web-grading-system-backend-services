@@ -117,4 +117,12 @@ public class ContextBuilderTest {
         assertTrue(!prompt.contains("db_service"));
         assertTrue(!prompt.contains("PRACTICE không gắn classId"));
     }
+
+    @Test
+    void systemPromptContainsSequentialWriteRule() {
+        ContextBuilder builder = new ContextBuilder();
+        String prompt = builder.buildSystemPrompt("ROLE_LECTURER", null);
+        assertTrue(prompt.contains("mỗi lượt chỉ gọi tối đa 1 công cụ ghi")
+                || prompt.contains("mỗi lượt phản hồi chỉ được gọi tối đa 1"));
+    }
 }
