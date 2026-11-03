@@ -115,3 +115,4 @@ if (decision == LlmClient.ApprovalDecision.CONFIRM) {
    - `testMultipleWritesInSingleTurnAreGuarded`: Giả lập model trả về 2 write tool calls trong cùng 1 turn. Xác nhận tool thứ 2 nhận được thông báo `SEQUENTIAL_WRITE_REQUIRED` thay vì làm vỡ flow.
 2. **Toàn bộ regression test suite:**
    - Chạy toàn bộ 221 tests hiện có của `ai-assistant-service` để đảm bảo không phá vỡ bất kỳ tính năng nào đã hoàn thiện.
+
