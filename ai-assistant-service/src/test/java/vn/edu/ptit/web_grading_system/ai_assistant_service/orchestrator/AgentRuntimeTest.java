@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -2209,5 +2210,58 @@ class AgentRuntimeTest {
 
         assertEquals("Mình chưa xác định được lớp 4. Bạn cho mình tên lớp đầy đủ nhé?", reply);
         assertEquals(1, reads.get());
+    }
+
+    @Test
+    void guardsAgainstMultipleWritesInSingleModelTurn() {
+        var mapper = new JacksonConfig().objectMapper();
+        AgentTool writer = mock(AgentTool.class);
+        when(writer.getName()).thenReturn("createTestStep");
+        when(writer.getDescription()).thenReturn("Tạo bước chấm");
+        when(writer.getDefinition()).thenReturn(new ToolDefinition("createTestStep", "Tạo bước chấm",
+                "1", "lecturer", "write", "assignment", EffectType.DOMAIN_WRITE,
+                Set.of("ROLE_LECTURER"), Duration.ofSeconds(5), 1000));
+        when(writer.getToolDefinition()).thenReturn(org.springframework.ai.tool.definition.ToolDefinition.builder()
+                .name("createTestStep").description("Tạo bước chấm")
+                .inputSchema("{\"type\":\"object\"}").build());
+        WriteApprovalService approvals = mock(WriteApprovalService.class);
+        when(approvals.propose(eq(writer), any(), any())).thenReturn(ToolResult.ok(java.util.Map.of(
+                "status", "AWAITING_CONFIRMATION", "pendingActionId", UUID.randomUUID(),
+                "toolName", "createTestStep", "arguments", mapper.createObjectNode().put("name", "GET /status-1"))));
+        ToolRegistry registry = new ToolRegistry(List.of(writer), mapper, approvals);
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("Tạo 2 bước")), "", 10, 10, 30));
+        ToolResultStore store = mock(ToolResultStore.class);
+        when(store.offer(anyString(), any(), anyInt())).thenAnswer(call ->
+                new ToolResultStore.ToolResultDelivery(call.getArgument(0), true, null, null, "full", 0));
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("createTestStep"));
+
+        AtomicReference<String> secondCallResult = new AtomicReference<>();
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
+            List<ToolCallback> callbacks = call.getArgument(2);
+            ToolCallback callback = callbacks.stream()
+                    .filter(cb -> cb.getToolDefinition().name().equals("createTestStep"))
+                    .findFirst().orElseThrow();
+            callback.call("{\"name\":\"GET /status-1\"}");
+            String res2 = callback.call("{\"name\":\"GET /status-2\"}");
+            secondCallResult.set(res2);
+            return Flux.just("Final answer");
+        });
+
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight, store,
+                mock(ConversationRepository.class), mock(MessageRepository.class), mapper, new AgentProperties(), approvals);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+
+        String reply = runtime.execute(context, "system", "Tạo 2 bước", llm, delta -> {}, (tool, result) -> {});
+
+        assertNotNull(secondCallResult.get());
+        assertTrue(secondCallResult.get().contains("SEQUENTIAL_WRITE_REQUIRED"));
+        assertTrue(secondCallResult.get().contains("Đã chuẩn bị một thao tác ghi trong lượt này"));
+        verify(approvals, times(1)).propose(eq(writer), any(), eq(context));
+        assertNotNull(reply);
+        assertTrue(reply.contains("GET /status-1"));
     }
 }

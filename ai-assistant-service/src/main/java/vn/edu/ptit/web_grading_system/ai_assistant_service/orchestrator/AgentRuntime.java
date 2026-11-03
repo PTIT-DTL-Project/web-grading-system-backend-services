@@ -292,6 +292,7 @@ public class AgentRuntime {
                     context.runId(), modelStep, selected.size());
             AtomicBoolean searched = new AtomicBoolean(false);
             AtomicBoolean usedTool = new AtomicBoolean(false);
+            AtomicBoolean writeProposedInStep = new AtomicBoolean(false);
             AtomicReference<String> pendingQuestion = new AtomicReference<>();
             List<ToolCallback> callbacks = new ArrayList<>();
             BiConsumer<AgentTool, ToolResult> trackResult = (tool, result) -> {
@@ -300,13 +301,14 @@ public class AgentRuntime {
                         && result.getData() instanceof java.util.Map<?, ?> data
                         && "AWAITING_CONFIRMATION".equals(data.get("status"))) {
                     pendingQuestion.set(formatPendingQuestion(tool, data.get("arguments")));
+                    writeProposedInStep.set(true);
                 }
             };
             Set<String> activeNames = lookupPhase == LookupPhase.SEARCH ? Set.of()
                     : lookupPhase == LookupPhase.READ ? Set.of(lookupToolName) : selected;
             for (ToolCallback domain : registry.callbacksForNames(activeNames, context, trackResult)) {
                 callbacks.add(boundedResult(domain, context, inFlight, readGuard,
-                        usedTool, toolCalls, modelStep, isCancelled));
+                        usedTool, toolCalls, modelStep, isCancelled, writeProposedInStep));
             }
             ToolCallback discovery = new SearchToolsTool(registry, mapper,
                     properties.getContext().getToolSearchLimit(), llm).callback(context, selected);
@@ -537,7 +539,7 @@ public class AgentRuntime {
                         .map(AgentTool::getName).collect(Collectors.toSet());
                 List<ToolCallback> offeredReads = registry.callbacksForNames(readNames, context, trackResult).stream()
                         .map(callback -> boundedResult(callback, context, inFlight, readGuard, usedTool, toolCalls,
-                                modelStep, isCancelled)).toList();
+                                modelStep, isCancelled, writeProposedInStep)).toList();
                 try {
                     Optional<ToolCallPlanner.Decision> decision = new ToolCallPlanner(mapper)
                             .choose(llm, latestUserText, completion, offeredReads, inFlight);
@@ -1198,7 +1200,8 @@ public class AgentRuntime {
                                        List<org.springframework.ai.chat.messages.Message> inFlight,
                                        ReadToolCallGuard readGuard,
                                        AtomicBoolean usedTool, AtomicInteger toolCalls, int modelStep,
-                                       BooleanSupplier isCancelled) {
+                                       BooleanSupplier isCancelled,
+                                       AtomicBoolean writeProposedInStep) {
         return new ToolCallback() {
             @Override public org.springframework.ai.tool.definition.ToolDefinition getToolDefinition() {
                 return delegate.getToolDefinition();
@@ -1211,13 +1214,29 @@ public class AgentRuntime {
                 checkCancelled(isCancelled);
                 usedTool.set(true);
                 String name = delegate.getToolDefinition().name();
-                boolean read = registry.find(name)
-                        .map(tool -> tool.getDefinition().effectType() == EffectType.READ).orElse(false);
-                String full = read ? readGuard.call(name, input,
-                        arguments -> loggedToolCall(context, modelStep, toolCalls, delegate, arguments,
-                                () -> delegate.call(arguments, toolContext)))
-                        : loggedToolCall(context, modelStep, toolCalls, delegate, input,
-                                () -> delegate.call(input, toolContext));
+                boolean write = registry.find(name)
+                        .map(tool -> tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE).orElse(false);
+                String full;
+                if (write && writeProposedInStep.get()) {
+                    full = loggedToolCall(context, modelStep, toolCalls, delegate, input, () -> {
+                        try {
+                            return mapper.writeValueAsString(ToolResult.error(
+                                    "SEQUENTIAL_WRITE_REQUIRED",
+                                    "Đã chuẩn bị một thao tác ghi trong lượt này. Vui lòng chờ người dùng xác nhận thao tác đó trước khi thực hiện thao tác ghi tiếp theo.",
+                                    false));
+                        } catch (Exception e) {
+                            return "{\"success\":false,\"code\":\"SEQUENTIAL_WRITE_REQUIRED\"}";
+                        }
+                    });
+                } else {
+                    boolean read = registry.find(name)
+                            .map(tool -> tool.getDefinition().effectType() == EffectType.READ).orElse(false);
+                    full = read ? readGuard.call(name, input,
+                            arguments -> loggedToolCall(context, modelStep, toolCalls, delegate, arguments,
+                                    () -> delegate.call(arguments, toolContext)))
+                            : loggedToolCall(context, modelStep, toolCalls, delegate, input,
+                                    () -> delegate.call(input, toolContext));
+                }
                 var delivery = resultStore.offer(full, context,
                         Math.max(100, properties.getContext().getToolMaxTokens() / 2));
                 String sent;
