@@ -74,6 +74,7 @@ public class LlmClient {
         } catch (AiProviderException e) {
             throw e;
         } catch (Exception e) {
+            log.error("Failed to select tools via LLM: {}", e.getMessage(), e);
             throw new AiProviderException(e);
         }
     }
@@ -103,6 +104,7 @@ public class LlmClient {
                     content == null ? "" : content));
             return content;
         } catch (Exception e) {
+            log.error("Failed to select tools via LLM: {}", e.getMessage(), e);
             throw new AiProviderException(e);
         }
     }
@@ -146,6 +148,7 @@ public class LlmClient {
             }
             return List.copyOf(chosen);
         } catch (Exception e) {
+            log.error("Failed to select tools via LLM: {}", e.getMessage(), e);
             throw new AiProviderException(e);
         }
     }
@@ -395,6 +398,7 @@ public class LlmClient {
                         reasoning.accept(response);
                         if (response.getResult() == null || response.getResult().getOutput() == null) return;
                         Object raw = response.getResult().getOutput().getMetadata().get("reasoningContent");
+                        if (!(raw instanceof String)) raw = response.getResult().getOutput().getMetadata().get("reasoning_content");
                         if (!(raw instanceof String)) raw = response.getResult().getOutput().getMetadata().get("reasoning");
                         if (raw instanceof String text) {
                             String delta = normalizer.accept(text, true);

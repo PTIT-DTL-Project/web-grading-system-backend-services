@@ -75,6 +75,8 @@ public final class AgentTrace {
             if (context == null || response == null || response.getResult() == null
                     || response.getResult().getOutput() == null) return;
             Object value = response.getResult().getOutput().getMetadata().get("reasoningContent");
+            if (!(value instanceof String)) value = response.getResult().getOutput().getMetadata().get("reasoning_content");
+            if (!(value instanceof String)) value = response.getResult().getOutput().getMetadata().get("reasoning");
             if (value instanceof String reasoning && !reasoning.isEmpty()) {
                 content.append(normalizer.accept(reasoning, true));
             }

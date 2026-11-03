@@ -23,9 +23,9 @@ public class AgentPropertiesTest {
     @Test
     void testPropertiesBoundSuccessfully() {
         assertNotNull(agentProperties, "AgentProperties should be auto-wired");
-        assertEquals(8, agentProperties.getLimits().getMaxModelSteps());
-        assertEquals(12, agentProperties.getLimits().getMaxToolCalls());
-        assertEquals(120, agentProperties.getLimits().getActiveTimeoutSeconds());
-        assertEquals(10, agentProperties.getContext().getHistoryWindowSize());
+        assertEquals(16, agentProperties.getLimits().getMaxModelSteps());
+        assertEquals(24, agentProperties.getLimits().getMaxToolCalls());
+        assertEquals(180, agentProperties.getLimits().getActiveTimeoutSeconds());
+        assertEquals(30, agentProperties.getContext().getHistoryWindowSize());
     }
 }
