@@ -168,4 +168,36 @@ class WriteApprovalServiceTest {
         Mockito.verify(pending).save(Mockito.argThat(action -> action.getQuestionJson().contains("Q1")
                 && action.getStatus().equals("PENDING")));
     }
+
+    @Test
+    void supersedesPendingActionFromPriorRunWhenNewWriteIsProposed() throws Exception {
+        UUID conversationId = UUID.randomUUID();
+        UUID oldRunId = UUID.randomUUID();
+        UUID newRunId = UUID.randomUUID();
+        PendingAction oldAction = PendingAction.builder().id(UUID.randomUUID()).runId(oldRunId)
+                .status("PENDING").expiresAt(Instant.now().plusSeconds(600)).build();
+        PendingActionRepository pending = Mockito.mock(PendingActionRepository.class);
+        Mockito.when(pending.findPendingByConversationId(conversationId)).thenReturn(List.of(oldAction));
+        Mockito.when(pending.save(Mockito.any())).thenAnswer(invocation -> {
+            PendingAction a = invocation.getArgument(0);
+            if (a.getId() == null) a.setId(UUID.randomUUID());
+            return a;
+        });
+        AgentTool tool = Mockito.mock(AgentTool.class);
+        Mockito.when(tool.getName()).thenReturn("createTestQuestion");
+        Mockito.when(tool.getDefinition()).thenReturn(new ToolDefinition("createTestQuestion", "", "1", "lecturer",
+                "write", "plan", EffectType.DOMAIN_WRITE, Set.of("ROLE_LECTURER"), Duration.ofSeconds(5), 1000));
+        WriteApprovalService service = new WriteApprovalService(pending,
+                Mockito.mock(RunRepository.class), Mockito.mock(ConversationRepository.class), List.of(tool),
+                new ObjectMapper(), new GatewayTrustProperties("secret"), null);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                conversationId, newRunId, "secret");
+
+        ToolResult result = service.propose(tool, new ObjectMapper().readTree("{}"), context);
+
+        assertTrue(result.isSuccess());
+        assertEquals("AWAITING_CONFIRMATION", ((java.util.Map<?, ?>) result.getData()).get("status"));
+        assertEquals("SUPERSEDED", oldAction.getStatus());
+        Mockito.verify(pending).save(oldAction);
+    }
 }

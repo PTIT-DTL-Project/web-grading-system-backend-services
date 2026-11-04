@@ -100,6 +100,29 @@ public class DomainApiTool implements AgentTool {
             variables.put(key, value);
         }
         try {
+            if (name.equals("createTestSteps")) {
+                JsonNode payload = args.path("payload");
+                JsonNode steps = payload.has("steps") ? payload.path("steps") : payload;
+                if (!steps.isArray() || steps.isEmpty()) {
+                    return ToolResult.error("INVALID_ARGUMENTS", "payload.steps phải là mảng không rỗng", false);
+                }
+                ArrayNode created = mapper.createArrayNode();
+                for (JsonNode step : steps) {
+                    RestClient.RequestBodySpec req = client.method(HttpMethod.POST)
+                            .uri(builder -> builder.path(path).build(variables))
+                            .header("X-User-Id", context.userId().toString())
+                            .header("X-User-Roles", role)
+                            .header("X-User-Email", context.email() == null ? "" : context.email())
+                            .header("X-Gateway-Secret", context.gatewaySecret() == null ? "" : context.gatewaySecret())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(mapper.writeValueAsString(step));
+                    String raw = req.retrieve().body(String.class);
+                    JsonNode res = raw == null || raw.isBlank() ? mapper.createObjectNode().put("completed", true) : mapper.readTree(raw);
+                    if (res.has("data")) res = res.path("data");
+                    created.add(res);
+                }
+                return ToolResult.ok(created);
+            }
             RestClient.RequestBodySpec request = client.method(HttpMethod.valueOf(method))
                     .uri(builder -> {
                         builder.path(path);
@@ -162,7 +185,10 @@ public class DomainApiTool implements AgentTool {
         }
         if (bodyRequired && (!args.hasNonNull("payload") ||
                 ((name.equals("setScoreComponents") || name.equals("setStudentScores"))
-                        ? !args.path("payload").isArray() : !args.path("payload").isObject()))) {
+                        ? !args.path("payload").isArray()
+                        : (name.equals("createTestSteps")
+                                ? (!args.path("payload").isObject() && !args.path("payload").isArray())
+                                : !args.path("payload").isObject())))) {
             return ToolResult.error("INVALID_ARGUMENTS", "payload không đúng cấu trúc JSON", false);
         }
         if (name.equals("createTestQuestion")) {
@@ -178,8 +204,16 @@ public class DomainApiTool implements AgentTool {
         } else if (name.equals("createTestStep")) {
             ToolResult invalid = validateStepConfig(args.path("payload"), "payload");
             if (invalid != null) return invalid;
+        } else if (name.equals("createTestSteps")) {
+            JsonNode payload = args.path("payload");
+            JsonNode steps = payload.has("steps") ? payload.path("steps") : payload;
+            if (!steps.isArray() || steps.isEmpty()) return invalidStep("payload.steps", "cần mảng bước không rỗng");
+            for (int i = 0; i < steps.size(); i++) {
+                ToolResult invalid = validateStepConfig(steps.get(i), "payload.steps[" + i + "]");
+                if (invalid != null) return invalid;
+            }
         }
-        if (name.equals("createTestQuestion") || name.equals("createTestStep") || name.equals("updateTestStep"))
+        if (name.equals("createTestQuestion") || name.equals("createTestStep") || name.equals("createTestSteps") || name.equals("updateTestStep"))
             return validateStepPayloads(args);
         return null;
     }
@@ -191,12 +225,27 @@ public class DomainApiTool implements AgentTool {
      */
     private ToolResult validateStepPayloads(JsonNode args) {
         JsonNode payload = args.path("payload");
-        if (payload == null || !payload.isObject()) {
-            return ToolResult.error("INVALID_ARGUMENTS", "payload không phải JSON object", false);
+        if (payload == null || (!payload.isObject() && !payload.isArray())) {
+            return ToolResult.error("INVALID_ARGUMENTS", "payload không phải JSON object hoặc array", false);
         }
         try {
             if (name.equals("createTestQuestion")) {
                 ObjectNode validateBody = (ObjectNode) payload;
+                String raw = client.method(HttpMethod.POST)
+                        .uri("/api/v1/internal/test-plans/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(mapper.writeValueAsString(validateBody))
+                        .retrieve().body(String.class);
+                JsonNode result = raw == null || raw.isBlank()
+                        ? mapper.createObjectNode().put("valid", true)
+                        : mapper.readTree(raw);
+                boolean valid = result.path("valid").asBoolean(false);
+                if (valid) return null;
+                return validationError(result);
+            } else if (name.equals("createTestSteps")) {
+                ObjectNode validateBody = mapper.createObjectNode();
+                JsonNode steps = payload.has("steps") ? payload.path("steps") : payload;
+                validateBody.set("steps", steps);
                 String raw = client.method(HttpMethod.POST)
                         .uri("/api/v1/internal/test-plans/validate")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -289,8 +338,8 @@ public class DomainApiTool implements AgentTool {
 
     /** Fallback kiểm tra cơ bản khi course-service không phản hồi validate endpoint. */
     private ToolResult fallbackValidateStepConfig(JsonNode payload) {
-        if (name.equals("createTestQuestion")) {
-            JsonNode steps = payload.path("steps");
+        if (name.equals("createTestQuestion") || name.equals("createTestSteps")) {
+            JsonNode steps = payload.has("steps") ? payload.path("steps") : payload;
             if (steps.isArray()) {
                 for (int i = 0; i < steps.size(); i++) {
                     ToolResult invalid = checkStepConfig(steps.get(i), "payload.steps[" + i + "]");
@@ -451,7 +500,7 @@ public class DomainApiTool implements AgentTool {
     public String summarize(JsonNode arguments) {
         if (arguments == null || !arguments.isObject()) return null;
         JsonNode payload = arguments.path("payload");
-        if (payload == null || !payload.isObject()) return null;
+        if (payload == null || (!payload.isObject() && !payload.isArray())) return null;
 
         StringBuilder sb = new StringBuilder();
         if (name.equals("createTestQuestion")) {
@@ -488,6 +537,34 @@ public class DomainApiTool implements AgentTool {
                 }
             }
             sb.append("\nSau khi tạo, gõ **tiếp** để làm câu kế tiếp.");
+        } else if (name.equals("createTestSteps")) {
+            JsonNode steps = payload.has("steps") ? payload.path("steps") : payload;
+            sb.append("Mình đã chuẩn bị tạo **").append(steps.size()).append(" bước chấm** cho câu kiểm tra:\n\n");
+            sb.append("| # | Bước | Loại | Kiểm tra chính |\n");
+            sb.append("|---|------|------|----------------|\n");
+            if (steps.isArray()) {
+                int i = 0;
+                for (JsonNode step : steps) {
+                    i++;
+                    String stepName = step.path("name").asText("bước " + i);
+                    String stepType = step.path("stepType").asText("");
+                    JsonNode config = step.path("config");
+                    String typeDesc;
+                    String checkDesc;
+                    if ("HTTP_REQUEST".equals(stepType)) {
+                        String method = config.path("method").asText("");
+                        String path = config.path("path").asText("");
+                        typeDesc = method.isBlank() ? "HTTP" : method + " " + path;
+                        checkDesc = checkSummary(config);
+                    } else {
+                        typeDesc = stepType.isBlank() ? "DB" : stepType;
+                        checkDesc = dbCheckSummary(stepType, config);
+                    }
+                    sb.append("| ").append(i).append(" | ").append(escape(stepName))
+                            .append(" | ").append(typeDesc).append(" | ").append(checkDesc).append(" |\n");
+                }
+            }
+            sb.append("\nSau khi tạo xong các bước, gõ **tiếp** để làm câu kế tiếp.");
         } else if (name.equals("createTestStep")) {
             String stepName = payload.path("name").asText("bước");
             String stepType = payload.path("stepType").asText("");
@@ -573,6 +650,9 @@ public class DomainApiTool implements AgentTool {
                     "plan", plan, "steps", Map.of("type", "array", "items", step, "minItems", 1)),
                     "required", List.of("plan", "steps"));
             case "createTestStep" -> step;
+            case "createTestSteps" -> Map.of("type", "object", "properties", Map.of(
+                    "steps", Map.of("type", "array", "items", step, "minItems", 1)),
+                    "required", List.of("steps"));
             case "updateTestPlan" -> Map.of("type", "object", "properties", Map.of(
                     "name", text, "description", text, "sequenceOrder", integer, "weight", integer),
                     "required", List.of("name"));

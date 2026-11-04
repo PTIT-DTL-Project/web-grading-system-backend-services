@@ -130,9 +130,14 @@ public class AgentRuntime {
                 AgentTrace.record(context.runId(), context.gatewaySecret(), "approval.pending", Map.of(
                         "actionId", action.id().toString(), "tool", action.toolName(),
                         "summary", action.summary()));
+                String actionSummary = action.summary();
+                String lastAssistant = lastAssistantMessage(context);
+                if (!lastAssistant.isBlank()) {
+                    actionSummary += "\n\nNgữ cảnh trợ lý vừa hỏi hoặc hướng dẫn ngay trước đó:\n" + lastAssistant;
+                }
                 LlmClient.ApprovalDecision decision = isShortAffirmation(latestUserText)
                         ? LlmClient.ApprovalDecision.CONFIRM
-                        : llm.classifyPendingActionReply(latestUserText, action.summary());
+                        : llm.classifyPendingActionReply(latestUserText, actionSummary);
                 AgentTrace.record(context.runId(), context.gatewaySecret(), "approval.decision", Map.of(
                         "actionId", action.id().toString(), "decision", decision.name()));
                 if (decision == LlmClient.ApprovalDecision.CONFIRM) {
@@ -204,8 +209,19 @@ public class AgentRuntime {
                             + ". Nếu tin nhắn mới chưa đồng ý hay từ chối rõ ràng, không thực hiện thao tác này. "
                             + "Trả lời câu hỏi mới của người dùng hoặc hỏi lại về thao tác đang chờ khi phù hợp.";
                 }
-            } else if (isShortAffirmation(latestUserText)) {
-                unpersistedProposal = lastUnpersistedProposal(context);
+            } else {
+                String priorProposal = lastUnpersistedProposal(context);
+                if (!priorProposal.isBlank()) {
+                    if (isShortAffirmation(latestUserText)) {
+                        unpersistedProposal = priorProposal;
+                    } else {
+                        LlmClient.ApprovalDecision decision = llm.classifyPendingActionReply(latestUserText,
+                                "Đề xuất trước đó trong đoạn chat:\n" + priorProposal);
+                        if (decision == LlmClient.ApprovalDecision.CONFIRM) {
+                            unpersistedProposal = priorProposal;
+                        }
+                    }
+                }
             }
         }
         String toolRequest = "Current user request:\n" + (latestUserText == null ? "" : latestUserText)
@@ -231,18 +247,20 @@ public class AgentRuntime {
             systemPrompt += "\nYÊU CẦU HIỆN TẠI: tạo CÂU KIỂM TRA trong bài tập đã có. "
                     + "Tra cứu bài tập theo tên và các câu hiện có để chọn sequenceOrder. "
                     + (creationTarget == CreationTarget.PLAN_WITH_STEPS
-                    ? "Người dùng muốn tạo câu cùng các bước; dùng createTestQuestion cho thao tác ghi. "
-                    : "Chỉ dùng createTestPlan cho thao tác ghi. ")
+                    ? "Người dùng muốn tạo câu cùng các bước; dùng createTestQuestion cho thao tác ghi để tạo trọn gói cả câu và toàn bộ các bước trong một transaction và một lần duyệt. "
+                    : "Chỉ dùng createTestPlan cho thao tác ghi khi người dùng chỉ muốn tạo câu rỗng không có bước chấm. ")
                     + "Không chuyển sang tạo riêng bước chấm; hỏi đúng dữ liệu còn thiếu.";
         }
         if (stepIntent.active()) {
-            toolRequest += "\nCurrent task: create a grading step in an existing test plan. "
-                    + "Resolve the assignment and plan by name before preparing createTestStep.";
+            toolRequest += "\nCurrent task: create grading step(s) in an existing test plan. "
+                    + "Resolve the assignment and plan by name before preparing write tools.";
             systemPrompt += "\nYÊU CẦU HIỆN TẠI: tạo BƯỚC CHẤM trong câu kiểm tra đã có. "
                     + "Tra cứu bài tập và câu kiểm tra theo tên, kiểm tra các bước hiện có để chọn stepOrder. "
                     + "Khi người dùng nói bước tiếp theo, chỉ chuẩn bị một bước kế tiếp theo stepOrder. "
-                    + "Chỉ dùng createTestStep cho thao tác ghi; không tạo lại câu kiểm tra, không hỏi name/sequenceOrder của câu kiểm tra. "
-                    + "Nếu đã đủ dữ liệu, gọi createTestStep để lưu thao tác chờ duyệt trước khi hỏi xác nhận. "
+                    + "Nếu cần tạo nhiều bước chấm (theo khung đã thống nhất hoặc người dùng yêu cầu nhiều bước), hãy dùng createTestSteps với mảng steps để tạo toàn bộ các bước trong một lần duyệt duy nhất. "
+                    + "Nếu chỉ tạo một bước đơn lẻ, dùng createTestStep. "
+                    + "Chỉ dùng createTestStep hoặc createTestSteps cho thao tác ghi; không tạo lại câu kiểm tra đã có. "
+                    + "Nếu đã đủ dữ liệu, gọi tool tạo bước để lưu thao tác chờ duyệt trước khi hỏi xác nhận. "
                     + "Nếu thiếu thông tin thực sự cần thiết cho bước chấm, hỏi đúng phần đó. "
                     + "Không suy đoán endpoint hoặc body chưa được người dùng nêu hay chấp nhận.";
             if (!stepIntent.suggestedStep().isBlank()) {
@@ -277,8 +295,11 @@ public class AgentRuntime {
         }
         if (creationTarget != CreationTarget.NONE) constrainCreationWrites(selected, creationTarget);
         if (creationTarget == CreationTarget.STEP || stepIntent.active()
-                || (!unpersistedProposal.isBlank() && (unpersistedProposal.contains("createTestStep") || unpersistedProposal.contains("stepOrder")))) {
+                || (!unpersistedProposal.isBlank() && (unpersistedProposal.contains("createTestStep") || unpersistedProposal.contains("createTestSteps") || unpersistedProposal.contains("stepOrder")))) {
             selected.add("createTestStep");
+            if (registry.find("createTestSteps").isPresent()) {
+                selected.add("createTestSteps");
+            }
         } else if (creationTarget == CreationTarget.ASSIGNMENT) {
             selected.add("createAssignment");
         } else if (creationTarget == CreationTarget.PLAN) {
@@ -642,9 +663,9 @@ public class AgentRuntime {
                 }
                 completion = unpreparedApprovalReply(completion, selected);
             }
-            if (asksForLookupInformation(completion, context.roles())
-                    && lookupRounds < Math.max(0, properties.getLimits().getMaxLookupRounds())
-                    && toolCalls.get() < properties.getLimits().getMaxToolCalls()) {
+            if (toolCalls.get() == 0
+                    && asksForLookupInformation(completion, context.roles())
+                    && lookupRounds < Math.max(0, properties.getLimits().getMaxLookupRounds())) {
                 lookupQuery = latestUserText + " " + completion;
                 lookupPhase = LookupPhase.SEARCH;
                 inFlight.add(new UserMessage("Câu trả lời dự định đang hỏi người dùng về đối tượng có thể tra cứu: "
@@ -801,14 +822,15 @@ public class AgentRuntime {
         String normalized = normalizeIntent(latestUserText);
         boolean explicit = !isPlanCreation(normalized)
                 && (normalized.contains("tao") || normalized.contains("them")
-                    || normalized.contains("create") || normalized.contains("add"))
+                    || normalized.contains("create") || normalized.contains("add")
+                    || normalized.contains("suy luan"))
                 && (normalized.contains("buoc cham") || normalized.contains("buoc kiem tra")
-                    || normalized.matches("(?s).*\\bstep\\b.*"));
+                    || normalized.contains("buoc") || normalized.matches("(?s).*\\bstep\\b.*"));
         if (explicit) return new StepIntent(true, "");
         String suggestion = normalizeIntent(suggestedCreation);
         if (!suggestion.isBlank() && !isPlanCreation(suggestion)
                 && (suggestion.contains("buoc cham") || suggestion.contains("buoc kiem tra")
-                    || suggestion.matches("(?s).*\\bstep\\b.*"))) {
+                    || suggestion.contains("buoc") || suggestion.matches("(?s).*\\bstep\\b.*"))) {
             return new StepIntent(true, suggestedCreation);
         }
         return new StepIntent(false, "");
@@ -816,14 +838,7 @@ public class AgentRuntime {
 
     private String continuationCreationRequest(AgentContext context, String latestUserText) {
         if (latestUserText == null) return "";
-        String normalized = normalizeIntent(latestUserText);
-        if (latestUserText.length() > 140 || !(normalized.contains("tiep tuc")
-                || normalized.contains("tu tim") || normalized.contains("tao giup")
-                || normalized.contains("cu tao") || normalized.contains("cu them")
-                || normalized.contains("them buoc") || normalized.contains("lam buoc")
-                || normalized.contains("buoc 3") || normalized.contains("buoc tiep")
-                || normalized.startsWith("ok") || normalized.startsWith("oke")
-                || normalized.contains("theo mau"))) {
+        if (latestUserText.strip().length() > 100) {
             return latestUserText;
         }
         if (stepIntent(latestUserText, "").active()
@@ -852,13 +867,16 @@ public class AgentRuntime {
     }
 
     private String acceptedCreationSuggestion(AgentContext context, String latestUserText) {
+        if (latestUserText == null) return "";
         String normalized = normalizeIntent(latestUserText);
-        boolean acceptance = (normalized.startsWith("ok") || normalized.startsWith("duoc")
-                || normalized.startsWith("dong y") || normalized.startsWith("cu tao")
-                || normalized.startsWith("cu them") || normalized.contains("them buoc")
-                || normalized.contains("lam buoc") || normalized.contains("thoi cu"))
-                && (normalized.contains("mau") || normalized.contains("goi y")
-                    || normalized.contains("nhu tren") || normalized.contains("buoc") || normalized.contains("step") || normalized.length() <= 35);
+        if (normalized.contains("?") || normalized.contains("khong") || normalized.contains("dung lai") || normalized.contains("huy")) {
+            return "";
+        }
+        boolean acceptance = isShortAffirmation(latestUserText)
+                || normalized.length() <= 40
+                || normalized.contains("mau") || normalized.contains("goi y")
+                || normalized.contains("nhu tren") || normalized.contains("de xuat")
+                || normalized.contains("buoc") || normalized.contains("step");
         if (!acceptance) return "";
         try {
             String roleScope = context.roles().stream().sorted().collect(Collectors.joining(","));
@@ -889,40 +907,49 @@ public class AgentRuntime {
     private static CreationTarget creationTarget(String latestUserText, String suggestedCreation,
                                                  StepIntent stepIntent) {
         if (stepIntent.active()) return CreationTarget.STEP;
-        String normalized = normalizeIntent(latestUserText);
-        if (!suggestedCreation.isBlank()) normalized = normalizeIntent(suggestedCreation);
-        if (!(normalized.contains("tao") || normalized.contains("them")
-                || normalized.contains("create") || normalized.contains("add"))) return CreationTarget.NONE;
-        if (isPlanCreation(normalized)) {
-            return (normalized.matches("(?s).*\\b(va|kem|cung) (cac )?buoc (cham|kiem tra)\\b.*")
-                    || normalized.contains("with steps"))
-                    ? CreationTarget.PLAN_WITH_STEPS : CreationTarget.PLAN;
+        String userNorm = normalizeIntent(latestUserText);
+        String suggNorm = normalizeIntent(suggestedCreation);
+        String combined = userNorm + " " + suggNorm;
+        if (!(combined.contains("tao") || combined.contains("them")
+                || combined.contains("create") || combined.contains("add")
+                || userNorm.matches("(?s).*\\b\\d+\\s*cau\\b.*"))) return CreationTarget.NONE;
+        if (isPlanCreation(userNorm) || isPlanCreation(suggNorm)
+                || (isPlanCreation(combined) && !userNorm.contains("bai tap"))) {
+            boolean hasSteps = userNorm.matches("(?s).*\\b(?:\\d+\\s*(?:buoc|step)|buoc|step)\\b.*")
+                    || suggNorm.contains("buoc") || suggNorm.contains("step")
+                    || combined.matches("(?s).*\\b(va|kem|cung) (cac )?buoc (cham|kiem tra)\\b.*")
+                    || combined.contains("with steps");
+            return hasSteps ? CreationTarget.PLAN_WITH_STEPS : CreationTarget.PLAN;
         }
-        if (normalized.contains("bai tap") || normalized.contains("assignment")) return CreationTarget.ASSIGNMENT;
+        if (combined.contains("bai tap") || combined.contains("assignment")) return CreationTarget.ASSIGNMENT;
         return CreationTarget.NONE;
     }
 
     private static boolean isPlanCreation(String normalized) {
-        var matcher = Pattern.compile("\\b(tao|them|create|add) (mot )?(cau kiem tra|test plan)\\b")
+        if (normalized == null || normalized.isBlank()) return false;
+        var matcher = Pattern.compile("\\b(tao|them|create|add) (mot )?(cau kiem tra|test plan|cau|plan)\\b")
                 .matcher(normalized);
         while (matcher.find()) {
             String prefix = normalized.substring(Math.max(0, matcher.start() - 3), matcher.start());
             if (!prefix.equals("da ")) return true;
         }
-        return false;
+        return normalized.matches("(?s).*\\b\\d+\\s*cau\\b.*")
+                || normalized.matches("(?s).*\\bcau\\s*\\d+\\b.*");
     }
 
     private void constrainCreationWrites(Set<String> selected, CreationTarget target) {
-        String writer = switch (target) {
-            case ASSIGNMENT -> "createAssignment";
-            case PLAN -> "createTestPlan";
-            case PLAN_WITH_STEPS -> "createTestQuestion";
-            case STEP -> "createTestStep";
-            default -> "";
+        Set<String> writers = switch (target) {
+            case ASSIGNMENT -> Set.of("createAssignment");
+            case PLAN -> Set.of("createTestPlan");
+            case PLAN_WITH_STEPS -> Set.of("createTestQuestion");
+            case STEP -> Set.of("createTestStep", "createTestSteps");
+            default -> Set.of();
         };
-        selected.removeIf(name -> registry.find(name).map(tool ->
-                tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE
-                        && !name.equals(writer)).orElse(false));
+        if (!writers.isEmpty()) {
+            selected.removeIf(name -> registry.find(name).map(tool ->
+                    tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE
+                            && !writers.contains(name)).orElse(false));
+        }
     }
 
     private static boolean asksForPlanCreationFields(String completion) {
@@ -962,11 +989,28 @@ public class AgentRuntime {
         String normalized = text.strip().toLowerCase(java.util.Locale.ROOT)
                 .replaceAll("[.!?]+$", "").strip();
         return Set.of("có", "co", "ok", "oke", "đồng ý", "dong y", "yes", "ừ", "u", "được", "duoc",
-                "thôi cứ thêm bước 3 thôi", "thôi cứ thêm bước 3", "cứ thêm bước 3 thôi", "cứ thêm bước 3")
-                .contains(normalized)
-                || normalized.matches("(?i)^(?:ok|oke|duoc|được|dong y|đồng ý|yes|uh|ừ|co|có)(?:\\s.*)?$")
-                || normalized.matches("(?i)^(?:thoi\\s+)?cu\\s+(?:them|tao|lam)\\s+.*")
-                || normalized.matches("(?i)^.*(?:them|lam)\\s+buoc\\s*\\d+.*");
+                "tiếp", "tiep", "chuẩn", "chuan", "yep", "yeah", "ok nhé", "ok nha")
+                .contains(normalized);
+    }
+
+    private String lastAssistantMessage(AgentContext context) {
+        if (messages == null) return "";
+        try {
+            String roleScope = context.roles().stream().sorted().collect(Collectors.joining(","));
+            var page = messages.findScopedRecent(context.conversationId(), roleScope,
+                    org.springframework.data.domain.PageRequest.of(0, 4));
+            if (page == null) return "";
+            return page.getContent().stream()
+                    .filter(message -> "assistant".equals(message.getRole()) && message.getContent() != null)
+                    .map(vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message::getContent)
+                    .findFirst()
+                    .map(c -> c.length() > 2000 ? c.substring(0, 2000) : c)
+                    .orElse("");
+        } catch (RuntimeException error) {
+            log.warn("AI runId={} priorAssistantMessageUnavailable errorType={}",
+                    context.runId(), error.getClass().getSimpleName());
+            return "";
+        }
     }
 
     private String lastUnpersistedProposal(AgentContext context) {
@@ -1015,8 +1059,9 @@ public class AgentRuntime {
         if (latestUserText != null) {
             String norm = normalizeIntent(latestUserText);
             if (norm.contains("chi them buoc") || norm.contains("cu them buoc")
-                    || norm.contains("thoi cu them") || norm.contains("them buoc 3")
-                    || norm.contains("buoc 3 thoi") || norm.contains("chi lam buoc")) {
+                    || norm.contains("thoi cu them") || norm.contains("chi lam buoc")
+                    || norm.contains("tung buoc mot") || norm.contains("chi mot buoc")
+                    || norm.contains("dung o day") || norm.contains("chi lam cau nay")) {
                 return true;
             }
         }
@@ -1029,8 +1074,9 @@ public class AgentRuntime {
                     if ("user".equals(msg.getRole()) && msg.getContent() != null) {
                         String norm = normalizeIntent(msg.getContent());
                         if (norm.contains("chi them buoc") || norm.contains("cu them buoc")
-                                || norm.contains("thoi cu them") || norm.contains("them buoc 3")
-                                || norm.contains("buoc 3 thoi")) {
+                                || norm.contains("thoi cu them") || norm.contains("chi lam buoc")
+                                || norm.contains("tung buoc mot") || norm.contains("chi mot buoc")
+                                || norm.contains("dung o day")) {
                             return true;
                         }
                     }
@@ -1111,7 +1157,7 @@ public class AgentRuntime {
                     .stripTrailing();
             if (!draft.isBlank()) return UNSAVED_PROPOSAL_PREFIX + draft;
         }
-        if (selected.contains("createTestStep")) {
+        if (selected.contains("createTestStep") || selected.contains("createTestSteps")) {
             return "Mình chưa chuẩn bị được bước chấm để bạn xác nhận. "
                     + "Bạn cho biết bước này cần kiểm tra điều gì (ví dụ HTTP endpoint và kết quả mong đợi, "
                     + "hoặc truy vấn và kết quả mong đợi) nhé?";
@@ -1181,7 +1227,10 @@ public class AgentRuntime {
     private boolean isToolChoiceRequiredFailure(Throwable error) {
         for (Throwable cause = error; cause != null; cause = cause.getCause()) {
             String message = cause.getMessage();
-            if (message != null && message.contains("Tool choice is required, but model did not call a tool")) {
+            if (message != null && (message.contains("Tool choice is required, but model did not call a tool")
+                    || message.contains("Thinking mode does not support this tool_choice")
+                    || message.contains("does not support this tool_choice")
+                    || message.contains("tool_choice"))) {
                 return true;
             }
         }
@@ -1226,6 +1275,10 @@ public class AgentRuntime {
         }
         JsonNode data = result.getData() instanceof JsonNode nd
                 ? nd : mapper.valueToTree(result.getData());
+        if (data.isArray()) {
+            return "Đã tạo thành công **" + data.size() + " bước chấm** cho câu kiểm tra."
+                    + " Nếu kế hoạch còn câu khác, gõ **tiếp** để làm câu kế tiếp.";
+        }
         String planName = data.path("name").asText("câu kiểm tra");
         JsonNode steps = data.path("steps");
         int stepCount = steps.isArray() ? steps.size() : (data.path("stepOrder") != null ? 1 : 0);

@@ -58,10 +58,20 @@ public class WriteApprovalService {
             ToolResult invalid = domainTool.validateArguments(args);
             if (invalid != null) return invalid;
         }
-        if (pendingActions.findPendingByConversationId(context.conversationId()).stream()
-                .anyMatch(action -> action.getExpiresAt() != null && action.getExpiresAt().isAfter(Instant.now()))) {
+        List<PendingAction> activePending = pendingActions.findPendingByConversationId(context.conversationId()).stream()
+                .filter(action -> action.getExpiresAt() != null && action.getExpiresAt().isAfter(Instant.now()))
+                .toList();
+        boolean hasSameRunPending = activePending.stream()
+                .anyMatch(action -> action.getRunId() == null || context.runId().equals(action.getRunId()));
+        if (hasSameRunPending) {
             return ToolResult.error("PENDING_ACTION_EXISTS",
                     "Đang có thao tác chờ đồng ý trong chat; hãy trả lời thao tác đó trước", false);
+        }
+        for (PendingAction old : activePending) {
+            if (old.getRunId() != null && !context.runId().equals(old.getRunId())) {
+                old.setStatus("SUPERSEDED");
+                pendingActions.save(old);
+            }
         }
         try {
             String payload = mapper.writeValueAsString(args);

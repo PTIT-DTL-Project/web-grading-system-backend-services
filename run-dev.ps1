@@ -6,6 +6,10 @@ param(
 
 $rootDir = $PSScriptRoot
 
+# Clear lingering / deprecated environment variables in current PowerShell session
+Remove-Item env:SPRING_AI_OPENAI_CHAT_OPTIONS_REASONING_EFFORT -ErrorAction SilentlyContinue
+[System.Environment]::SetEnvironmentVariable("SPRING_AI_OPENAI_CHAT_OPTIONS_REASONING_EFFORT", $null, "Process")
+
 # 1. Load root .env
 $rootEnv = Join-Path $rootDir ".env"
 if (Test-Path $rootEnv) {

@@ -29,20 +29,29 @@ class DomainApiToolTest {
             new String[]{"assignmentId", "planId"}, new String[]{}, true, null,
             RestClient.create("http://localhost:1"), mapper);
 
+    private final DomainApiTool createSteps = new DomainApiTool(
+            "createTestSteps", "Tạo nhiều bước chấm", "ROLE_LECTURER", "POST",
+            "/api/v1/assignments/{assignmentId}/plans/{planId}/steps",
+            new String[]{"assignmentId", "planId"}, new String[]{}, true, null,
+            RestClient.create("http://localhost:1"), mapper);
+
     private ToolResult validateStepThrough(DomainApiTool tool, String stepJson) throws Exception {
         String ids = "\"assignmentId\":\"" + UUID.randomUUID() + "\"";
-        String json = tool == createQuestion
+        String json = (tool == createQuestion)
                 ? "{" + ids + ",\"payload\":{\"plan\":{\"name\":\"Q1\",\"sequenceOrder\":1},\"steps\":[" + stepJson + "]}}"
-                : "{" + ids + ",\"planId\":\"" + UUID.randomUUID() + "\",\"payload\":" + stepJson + "}";
+                : (tool == createSteps
+                        ? "{" + ids + ",\"planId\":\"" + UUID.randomUUID() + "\",\"payload\":{\"steps\":[" + stepJson + "]}}"
+                        : "{" + ids + ",\"planId\":\"" + UUID.randomUUID() + "\",\"payload\":" + stepJson + "}");
         return tool.validateArguments(mapper.readTree(json));
     }
 
     @Test
     void stepSchemaDescribesHttpAndDbFeaturesForBothCreationRoutes() throws Exception {
-        for (DomainApiTool tool : java.util.List.of(createQuestion, createStep)) {
+        for (DomainApiTool tool : java.util.List.of(createQuestion, createStep, createSteps)) {
             var schema = mapper.readTree(tool.getToolDefinition().inputSchema());
             var payload = schema.path("properties").path("payload");
-            var step = tool == createQuestion ? payload.path("properties").path("steps").path("items") : payload;
+            var step = (tool == createQuestion || tool == createSteps)
+                    ? payload.path("properties").path("steps").path("items") : payload;
             var config = step.path("properties").path("config");
             for (String key : java.util.List.of("method", "path", "assertions", "extract", "data",
                     "auto_inject_headers", "connection", "checks", "query", "statements")) {
@@ -199,6 +208,40 @@ class DomainApiToolTest {
 
         assertEquals("DOMAIN_REJECTED", result.getCode());
         assertTrue(result.getMessage().contains("HTTP_REQUEST: missing or empty 'path'"));
+        server.verify();
+    }
+
+    @Test
+    void createTestStepsExecutesMultipleCallsInLoop() throws Exception {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://course.local");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        UUID assignmentId = UUID.randomUUID();
+        UUID planId = UUID.randomUUID();
+        server.expect(requestTo("http://course.local/api/v1/internal/test-plans/validate"))
+                .andExpect(method(org.springframework.http.HttpMethod.POST))
+                .andRespond(withSuccess("{\"valid\":true,\"errors\":[]}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://course.local/api/v1/assignments/" + assignmentId + "/plans/" + planId + "/steps"))
+                .andExpect(method(org.springframework.http.HttpMethod.POST))
+                .andRespond(withSuccess("{\"id\":\"" + UUID.randomUUID() + "\",\"stepOrder\":1,\"name\":\"S1\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://course.local/api/v1/assignments/" + assignmentId + "/plans/" + planId + "/steps"))
+                .andExpect(method(org.springframework.http.HttpMethod.POST))
+                .andRespond(withSuccess("{\"id\":\"" + UUID.randomUUID() + "\",\"stepOrder\":2,\"name\":\"S2\"}", MediaType.APPLICATION_JSON));
+
+        DomainApiTool tool = new DomainApiTool("createTestSteps", "Tạo nhiều bước chấm", "ROLE_LECTURER",
+                "POST", "/api/v1/assignments/{assignmentId}/plans/{planId}/steps",
+                new String[]{"assignmentId", "planId"}, new String[]{}, true, null, builder.build(), mapper);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                UUID.randomUUID(), UUID.randomUUID(), "secret");
+
+        String payloadJson = "{\"assignmentId\":\"" + assignmentId + "\",\"planId\":\"" + planId + "\",\"payload\":{\"steps\":["
+                + "{\"stepOrder\":1,\"name\":\"S1\",\"stepType\":\"HTTP_REQUEST\",\"config\":{\"method\":\"GET\",\"path\":\"/s1\"}},"
+                + "{\"stepOrder\":2,\"name\":\"S2\",\"stepType\":\"HTTP_REQUEST\",\"config\":{\"method\":\"POST\",\"path\":\"/s2\"}}"
+                + "]}}";
+        ToolResult result = tool.execute(mapper.readTree(payloadJson), context);
+
+        assertTrue(result.isSuccess());
+        assertTrue(result.getData() instanceof com.fasterxml.jackson.databind.node.ArrayNode);
+        assertEquals(2, ((com.fasterxml.jackson.databind.node.ArrayNode) result.getData()).size());
         server.verify();
     }
 }
