@@ -37,8 +37,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${WGS_DEPS_MINIO_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${WGS_DEPS_MINIO_PASSWORD:-minioadmin}
     command: server /data --console-address ":9001"
     networks:
       - wgs-network
@@ -49,14 +49,17 @@ services:
     container_name: wgs-minio-setup
     depends_on:
       - minio
-    entrypoint: >
-      /bin/sh -c "
-      sleep 3;
-      mc alias set myminio http://minio:9000 minioadmin minioadmin;
-      mc mb myminio/submission-files || true;
-      mc anonymous set public myminio/submission-files || mc policy set public myminio/submission-files || true;
-      exit 0;
-      "
+    environment:
+      MINIO_ROOT_USER: ${WGS_DEPS_MINIO_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${WGS_DEPS_MINIO_PASSWORD:-minioadmin}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        sleep 3
+        mc alias set myminio http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
+        mc mb myminio/submission-files || true
+        mc anonymous set public myminio/submission-files || mc policy set public myminio/submission-files || true
     networks:
       - wgs-network
 
@@ -69,7 +72,7 @@ services:
       - "5433:5432"
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${WGS_DEPS_POSTGRES_PASSWORD:-postgres}
     volumes:
       - ./init-dbs.sql:/docker-entrypoint-initdb.d/init-dbs.sql
       - postgres-data:/var/lib/postgresql/data
@@ -91,9 +94,9 @@ services:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres-db:5432/keycloak
       KC_DB_USERNAME: postgres
-      KC_DB_PASSWORD: postgres
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB_PASSWORD: ${WGS_DEPS_POSTGRES_PASSWORD:-postgres}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${WGS_DEPS_KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${WGS_DEPS_KEYCLOAK_ADMIN_PASSWORD:-admin}
       KC_HTTP_PORT: 8080
     ports:
       - "8180:8080"

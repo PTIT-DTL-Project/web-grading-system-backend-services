@@ -100,6 +100,8 @@ Khởi chạy cả 2 container bằng lệnh:
 docker compose -f docker-compose.deps.yml up postgres-db keycloak -d
 ```
 
+File Compose này giữ tài khoản mặc định để chạy local. Khi dùng stack ở môi trường khác, đặt các biến `WGS_DEPS_POSTGRES_PASSWORD`, `WGS_DEPS_KEYCLOAK_ADMIN_USERNAME`, `WGS_DEPS_KEYCLOAK_ADMIN_PASSWORD`, `WGS_DEPS_MINIO_USER` và `WGS_DEPS_MINIO_PASSWORD` trước khi chạy. MinIO và container tạo bucket dùng cùng một cặp biến. Với PostgreSQL đã có volume dữ liệu, đổi biến mật khẩu không tự đổi mật khẩu trong database; cần cập nhật database tương ứng.
+
 ### 3.1. Nạp Dữ Liệu Backup Cho AI Database
 Để có sẵn 12 bản ghi phân tích bài làm mẫu đã được trích xuất từ môi trường Neon Cloud, bạn chỉ cần chạy script restore tự động một lần:
 ```powershell
