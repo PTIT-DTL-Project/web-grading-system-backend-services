@@ -26,7 +26,12 @@ public class ToolSelector {
         List<String> proposed = llm.chooseRelevantTools(request, authorized);
         if (proposed == null) return List.of();
         Set<String> allowed = authorized.stream().map(AgentTool::getName).collect(Collectors.toSet());
-        return proposed.stream().filter(allowed::contains).distinct().toList();
+        Set<String> seenReads = new java.util.HashSet<>();
+        return proposed.stream().filter(allowed::contains)
+                .filter(name -> registry.find(name).map(tool ->
+                        tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE
+                                || seenReads.add(name)).orElse(false))
+                .toList();
     }
 
     static int score(Set<String> query, AgentTool tool) {

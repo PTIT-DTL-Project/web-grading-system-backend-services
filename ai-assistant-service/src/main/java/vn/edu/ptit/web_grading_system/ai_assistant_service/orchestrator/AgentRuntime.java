@@ -18,6 +18,7 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.service.AiProviderExc
 import vn.edu.ptit.web_grading_system.ai_assistant_service.service.LlmClient;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.service.ToolResultStore;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.service.WriteApprovalService;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.service.OrderedWritePlanService;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.*;
 
 import java.time.Duration;
@@ -182,10 +183,31 @@ public class AgentRuntime {
                         }
                     }
                     if (approvalSucceeded) {
+                        Optional<OrderedWritePlanService.Plan> nextWrite = approvalService.activeWritePlan(context);
+                        if (action.taskId() != null && nextWrite.isEmpty()) {
+                            onFinalDelta.accept(completion);
+                            return completion;
+                        }
                         String multiStepPlan = priorMultiStepPlan(context);
                         boolean singleStepOnly = isSingleStepIntent(context, latestUserText);
-                        if (!singleStepOnly && !multiStepPlan.isBlank()) {
-                            unpersistedProposal = "Thao tác '" + action.description() + "' đã được thực thi thành công (" + completion + ").\nKế hoạch tổng thể ban đầu:\n" + multiStepPlan + "\nHãy tiếp tục thực hiện bước tiếp theo trong kế hoạch (chú ý: chỉ gọi tối đa 1 thao tác ghi ở lượt này). Nếu toàn bộ kế hoạch đã hoàn tất, hãy tổng kết lại cho người dùng.";
+                        if (!singleStepOnly && (nextWrite.isPresent() || !multiStepPlan.isBlank())) {
+                            String previousResult = "";
+                            if (nextWrite.isPresent() && outcome instanceof java.util.Map<?, ?> completed
+                                    && completed.get("result") instanceof ToolResult toolResult) {
+                                try {
+                                    previousResult = mapper.writeValueAsString(toolResult.getData());
+                                    if (previousResult.length() > 3000) previousResult = previousResult.substring(0, 3000);
+                                } catch (Exception error) {
+                                    log.warn("AI runId={} previousWriteResultUnavailable", context.runId());
+                                }
+                            }
+                            String resultContext = previousResult;
+                            unpersistedProposal = nextWrite.isPresent()
+                                    ? "Thao tác trước đã thành công (" + completion + "). Tiếp tục bước "
+                                    + (nextWrite.get().index() + 1) + "/" + nextWrite.get().tools().size()
+                                    + " của yêu cầu: " + nextWrite.get().request()
+                                    + "\nKết quả thao tác trước (dùng để xác định ID và tham số cho bước tiếp theo): " + resultContext
+                                    : "Thao tác '" + action.description() + "' đã được thực thi thành công (" + completion + ").\nKế hoạch tổng thể ban đầu:\n" + multiStepPlan + "\nHãy tiếp tục thực hiện bước tiếp theo trong kế hoạch (chú ý: chỉ gọi tối đa 1 thao tác ghi ở lượt này). Nếu toàn bộ kế hoạch đã hoàn tất, hãy tổng kết lại cho người dùng.";
                             timeline(context, "assistant.delta", 0, "confirm-info-" + action.id(),
                                     Map.of("content", completion + "\n\nTiếp tục thực hiện bước tiếp theo trong kế hoạch..."));
                             continuingMultiStepPlan = true;
@@ -226,7 +248,7 @@ public class AgentRuntime {
         }
         String toolRequest = "Current user request:\n" + (latestUserText == null ? "" : latestUserText)
                 + "\nRecent conversation for context:\n" + recentToolRequest(context, latestUserText);
-        String creationRequest = continuationCreationRequest(context, latestUserText);
+        String creationRequest = continuationCreationRequest(context, latestUserText, llm);
         String suggestedCreation = acceptedCreationSuggestion(context, latestUserText);
         StepIntent stepIntent = stepIntent(creationRequest, suggestedCreation);
         CreationTarget creationTarget = creationTarget(creationRequest, suggestedCreation, stepIntent);
@@ -240,6 +262,7 @@ public class AgentRuntime {
                     + "\nDùng thông tin được gợi ý làm giả định cho đề xuất chờ duyệt; "
                     + "nếu vẫn thiếu dữ liệu bắt buộc thì hỏi riêng phần còn thiếu.";
         }
+        String promptBeforeCreationTarget = systemPrompt;
         if (creationTarget == CreationTarget.ASSIGNMENT) {
             systemPrompt += "\nYÊU CẦU HIỆN TẠI: tạo BÀI TẬP. Chỉ dùng createAssignment cho thao tác ghi. "
                     + "Xác định purpose, title, topic và classId theo quy tắc bài tập; hỏi dữ liệu còn thiếu, không tạo câu kiểm tra hay bước chấm.";
@@ -286,25 +309,61 @@ public class AgentRuntime {
         Set<String> selected = java.util.Collections.synchronizedSet(new LinkedHashSet<>());
         AgentTrace.record(context.runId(), context.gatewaySecret(), "tool.selection.request", Map.of(
                 "request", toolRequest, "roles", context.roles()));
+        List<String> proposedTools;
         try {
-            selected.addAll(selector.selectFromModel(toolRequest, context.roles(), llm));
+            proposedTools = selector.selectFromModel(toolRequest, context.roles(), llm);
+            selected.addAll(proposedTools);
         } catch (AiProviderException error) {
             log.warn("AI runId={} phase=toolSelection errorType={}",
                     context.runId(), error.getClass().getSimpleName());
             throw error;
         }
-        if (creationTarget != CreationTarget.NONE) constrainCreationWrites(selected, creationTarget);
-        if (creationTarget == CreationTarget.STEP || stepIntent.active()
-                || (!unpersistedProposal.isBlank() && (unpersistedProposal.contains("createTestStep") || unpersistedProposal.contains("createTestSteps") || unpersistedProposal.contains("stepOrder")))) {
+        Optional<OrderedWritePlanService.Plan> activeWritePlan = approvalService == null
+                ? Optional.empty() : approvalService.activeWritePlan(context);
+        if (activeWritePlan.isPresent() && !continuingMultiStepPlan
+                && !isShortAffirmation(latestUserText)
+                && !llm.classifyCreationContinuation(latestUserText, activeWritePlan.get().request(),
+                        recentToolRequest(context, latestUserText))) {
+            approvalService.supersedeWritePlan(context);
+            activeWritePlan = Optional.empty();
+        }
+        if (activeWritePlan.isEmpty() && approvalService != null) {
+            List<String> orderedWriters = proposedTools.stream()
+                    .filter(name -> registry.find(name).map(tool ->
+                            tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE).orElse(false))
+                    .toList();
+            if (orderedWriters.size() > 1) {
+                approvalService.startWritePlan(context, creationRequest, orderedWriters);
+                activeWritePlan = approvalService.activeWritePlan(context);
+            }
+        }
+        if (activeWritePlan.isPresent()) {
+            OrderedWritePlanService.Plan plan = activeWritePlan.get();
+            String completedWriteContext = plan.completedResults().toString();
+            if (completedWriteContext.length() > 6000) {
+                completedWriteContext = completedWriteContext.substring(0, 6000);
+            }
+            systemPrompt = promptBeforeCreationTarget + "\nKẾ HOẠCH THAO TÁC GHI ĐÃ LƯU: " + plan.request()
+                    + "\nĐang thực hiện bước " + (plan.index() + 1) + "/" + plan.tools().size()
+                    + " bằng công cụ " + plan.currentTool() + ". Chỉ chuẩn bị thao tác ghi của bước này; "
+                    + "không bỏ qua hoặc thực hiện trước bước sau. Sau khi người dùng xác nhận và thực thi thành công, mới tiếp tục bước kế tiếp."
+                    + "\nKết quả các bước đã hoàn thành: " + completedWriteContext
+                    + (unpersistedProposal.isBlank() ? "" : "\n" + unpersistedProposal);
+            retainOnlyCurrentWriter(selected, plan.currentTool());
+        } else if (creationTarget != CreationTarget.NONE) {
+            constrainCreationWrites(selected, creationTarget);
+        }
+        if (activeWritePlan.isEmpty() && (creationTarget == CreationTarget.STEP || stepIntent.active()
+                || (!unpersistedProposal.isBlank() && (unpersistedProposal.contains("createTestStep") || unpersistedProposal.contains("createTestSteps") || unpersistedProposal.contains("stepOrder"))))) {
             selected.add("createTestStep");
             if (registry.find("createTestSteps").isPresent()) {
                 selected.add("createTestSteps");
             }
-        } else if (creationTarget == CreationTarget.ASSIGNMENT) {
+        } else if (activeWritePlan.isEmpty() && creationTarget == CreationTarget.ASSIGNMENT) {
             selected.add("createAssignment");
-        } else if (creationTarget == CreationTarget.PLAN) {
+        } else if (activeWritePlan.isEmpty() && creationTarget == CreationTarget.PLAN) {
             selected.add("createTestPlan");
-        } else if (creationTarget == CreationTarget.PLAN_WITH_STEPS) {
+        } else if (activeWritePlan.isEmpty() && creationTarget == CreationTarget.PLAN_WITH_STEPS) {
             selected.add("createTestQuestion");
         }
         log.info("AI runId={} phase=toolSelection selectedTools={}", context.runId(), selected);
@@ -338,7 +397,8 @@ public class AgentRuntime {
         try {
         for (int step = 0; step < properties.getLimits().getMaxModelSteps(); step++) {
             checkCancelled(isCancelled);
-            if (creationTarget != CreationTarget.NONE) constrainCreationWrites(selected, creationTarget);
+            if (activeWritePlan.isPresent()) retainOnlyCurrentWriter(selected, activeWritePlan.get().currentTool());
+            else if (creationTarget != CreationTarget.NONE) constrainCreationWrites(selected, creationTarget);
             int modelStep = modelSteps.incrementAndGet();
             long stepStarted = System.nanoTime();
             log.info("AI runId={} modelStep={} started selectedTools={}",
@@ -364,7 +424,8 @@ public class AgentRuntime {
                         usedTool, toolCalls, modelStep, isCancelled, writeProposedInStep));
             }
             ToolCallback discovery = new SearchToolsTool(registry, mapper,
-                    properties.getContext().getToolSearchLimit(), llm).callback(context, selected);
+                    properties.getContext().getToolSearchLimit(), llm).callback(context, selected,
+                            activeWritePlan.map(OrderedWritePlanService.Plan::currentTool).orElse(null));
             callbacks.add(new ToolCallback() {
                 @Override public org.springframework.ai.tool.definition.ToolDefinition getToolDefinition() {
                     return discovery.getToolDefinition();
@@ -836,11 +897,8 @@ public class AgentRuntime {
         return new StepIntent(false, "");
     }
 
-    private String continuationCreationRequest(AgentContext context, String latestUserText) {
+    private String continuationCreationRequest(AgentContext context, String latestUserText, LlmClient llm) {
         if (latestUserText == null) return "";
-        if (latestUserText.strip().length() > 100) {
-            return latestUserText;
-        }
         if (stepIntent(latestUserText, "").active()
                 || creationTarget(latestUserText, "", new StepIntent(false, "")) != CreationTarget.NONE) {
             return latestUserText;
@@ -850,7 +908,7 @@ public class AgentRuntime {
             var page = messages.findScopedRecent(context.conversationId(), roleScope,
                     org.springframework.data.domain.PageRequest.of(0, 12));
             if (page == null) return latestUserText;
-            return page.getContent().stream()
+            String earlierRequest = page.getContent().stream()
                     .filter(message -> "user".equals(message.getRole()) && message.getContent() != null)
                     .sorted(Comparator.comparingInt((vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message message) ->
                             message.getSequenceNo() == null ? 0 : message.getSequenceNo()).reversed())
@@ -858,7 +916,10 @@ public class AgentRuntime {
                     .filter(content -> stepIntent(content, "").active()
                             || creationTarget(content, "", new StepIntent(false, "")) != CreationTarget.NONE)
                     .findFirst().map(content -> content.length() > 500 ? content.substring(0, 500) : content)
-                    .orElse(latestUserText);
+                    .orElse("");
+            if (earlierRequest.isBlank()) return latestUserText;
+            return llm.classifyCreationContinuation(latestUserText, earlierRequest,
+                    recentToolRequest(context, latestUserText)) ? earlierRequest : latestUserText;
         } catch (RuntimeException error) {
             log.warn("AI runId={} continuationHistoryUnavailable errorType={}",
                     context.runId(), error.getClass().getSimpleName());
@@ -950,6 +1011,13 @@ public class AgentRuntime {
                     tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE
                             && !writers.contains(name)).orElse(false));
         }
+    }
+
+    private void retainOnlyCurrentWriter(Set<String> selected, String currentTool) {
+        selected.removeIf(name -> registry.find(name).map(tool ->
+                tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE
+                        && !currentTool.equals(name)).orElse(false));
+        selected.add(currentTool);
     }
 
     private static boolean asksForPlanCreationFields(String completion) {

@@ -128,7 +128,11 @@ public class LlmClient {
                     new SystemMessage("Interpret the recent request as a concise English task while preserving its intent. "
                             + "Select every tool needed to complete the current user request, including read tools "
                             + "needed to resolve names before write tools. Use recent conversation only as context. "
-                            + "Tool descriptions may be Vietnamese. Return only a JSON array of exact tool names; "
+                            + "Choose one write tool for one requested action; do not list alternative tools for the same action. "
+                            + "Include multiple write entries only when the user requests multiple write actions. "
+                            + "Tool descriptions may be Vietnamese. Put write tools in the user's requested execution order; "
+                            + "repeat a write tool name when the user requests that operation more than once. "
+                            + "Return only a JSON array of exact tool names; "
                             + "return [] when no tool is needed. Do not invent names or execute tools."),
                     new UserMessage("Recent request:\n" + userRequest + "\nAvailable tools (name | short description | parameters):\n" + catalog)));
             AgentTrace.recordCurrent("model.request.toolSelection", Map.of("prompt", prompt.getContents()));
@@ -143,7 +147,7 @@ public class LlmClient {
             for (JsonElement item : parsed.getAsJsonArray()) {
                 if (item.isJsonPrimitive() && item.getAsJsonPrimitive().isString()) {
                     String name = item.getAsString();
-                    if (allowed.contains(name) && !chosen.contains(name)) chosen.add(name);
+                    if (allowed.contains(name)) chosen.add(name);
                 }
             }
             return List.copyOf(chosen);
@@ -194,6 +198,32 @@ public class LlmClient {
             log.warn("Could not generate conversation title: {}", e.getMessage());
         }
         return fallback;
+    }
+
+    /** Decide whether a new message continues an earlier creation request or starts a new task. */
+    public boolean classifyCreationContinuation(String latestMessage, String earlierRequest, String recentContext) {
+        if (isOfflineMode() || latestMessage == null || earlierRequest == null) return false;
+        try {
+            Prompt prompt = new Prompt(List.of(
+                    new SystemMessage("Classify whether the newest user message continues the earlier task or ordered plan. "
+                            + "Use the recent conversation for context. A standalone question, including a question "
+                            + "about assistant capabilities, or a request for a different concrete action, is a NEW task. A clear follow-up "
+                            + "such as 'ok', 'continue', or supplying requested details is CONTINUE. "
+                            + "Reply with exactly CONTINUE or NEW."),
+                    new UserMessage("Earlier creation request:\n" + earlierRequest.substring(0, Math.min(earlierRequest.length(), 500))
+                            + "\nRecent conversation:\n" + (recentContext == null ? "" : recentContext.substring(0, Math.min(recentContext.length(), 3000)))
+                            + "\nNewest user message:\n" + latestMessage.substring(0, Math.min(latestMessage.length(), 1000)))));
+            AgentTrace.recordCurrent("model.request.creationContinuation", Map.of("prompt", prompt.getContents()));
+            ChatResponse response = chatModel.call(prompt);
+            AgentTrace.recordCurrentReasoning(response);
+            String answer = response == null || response.getResult() == null || response.getResult().getOutput() == null
+                    ? "" : response.getResult().getOutput().getText();
+            AgentTrace.recordCurrent("model.response.creationContinuation", Map.of("content", answer == null ? "" : answer));
+            return answer != null && "CONTINUE".equals(answer.strip().toUpperCase(Locale.ROOT));
+        } catch (Exception error) {
+            log.warn("Could not classify creation continuation: {}", error.getMessage());
+            return false;
+        }
     }
 
     public ApprovalDecision classifyPendingActionReply(String userReply, String actionDescription) {

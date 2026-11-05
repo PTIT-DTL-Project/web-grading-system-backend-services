@@ -3,6 +3,7 @@ package vn.edu.ptit.web_grading_system.ai_assistant_service.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -27,9 +28,14 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class WriteApprovalService {
-    public record ChatPendingAction(UUID id, UUID originRunId, String toolName, String description, JsonNode arguments) {
+    public record ChatPendingAction(UUID id, UUID originRunId, UUID taskId,
+                                    String toolName, String description, JsonNode arguments) {
         public ChatPendingAction(UUID id, String toolName, String description, JsonNode arguments) {
-            this(id, null, toolName, description, arguments);
+            this(id, null, null, toolName, description, arguments);
+        }
+        public ChatPendingAction(UUID id, UUID originRunId, String toolName,
+                                 String description, JsonNode arguments) {
+            this(id, originRunId, null, toolName, description, arguments);
         }
         public String summary() {
             return description + " (" + toolName + ") với tham số " + arguments;
@@ -43,6 +49,25 @@ public class WriteApprovalService {
     private final ObjectMapper mapper;
     private final vn.edu.ptit.web_grading_system.ai_assistant_service.config.GatewayTrustProperties gateway;
     private final PlatformTransactionManager transactionManager;
+    private OrderedWritePlanService orderedPlans;
+
+    @Autowired(required = false)
+    public void setOrderedPlans(OrderedWritePlanService orderedPlans) {
+        this.orderedPlans = orderedPlans;
+    }
+
+    public Optional<OrderedWritePlanService.Plan> activeWritePlan(AgentContext context) {
+        return orderedPlans == null ? Optional.empty() : orderedPlans.active(context);
+    }
+
+    public Optional<vn.edu.ptit.web_grading_system.ai_assistant_service.domain.task.Task> startWritePlan(
+            AgentContext context, String request, List<String> writers) {
+        return orderedPlans == null ? Optional.empty() : orderedPlans.start(context, request, writers);
+    }
+
+    public void supersedeWritePlan(AgentContext context) {
+        if (orderedPlans != null) orderedPlans.supersede(context);
+    }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ToolResult propose(AgentTool tool, JsonNode args, AgentContext context) {
@@ -53,6 +78,10 @@ public class WriteApprovalService {
                 || context.roles() == null
                 || context.roles().stream().noneMatch(tool.getDefinition().requiredRoles()::contains)) {
             return ToolResult.error("FORBIDDEN", "Không có quyền tạo yêu cầu này", false);
+        }
+        Optional<OrderedWritePlanService.Plan> activePlan = activeWritePlan(context);
+        if (activePlan.isPresent() && !activePlan.get().currentTool().equals(tool.getName())) {
+            return ToolResult.error("PLAN_OUT_OF_ORDER", "Thao tác này chưa đến lượt trong kế hoạch", false);
         }
         if (tool instanceof vn.edu.ptit.web_grading_system.ai_assistant_service.tools.DomainApiTool domainTool) {
             ToolResult invalid = domainTool.validateArguments(args);
@@ -76,7 +105,8 @@ public class WriteApprovalService {
         try {
             String payload = mapper.writeValueAsString(args);
             PendingAction action = pendingActions.save(PendingAction.builder()
-                    .runId(context.runId()).type("CONFIRM")
+                    .runId(context.runId()).taskId(activePlan.map(OrderedWritePlanService.Plan::id).orElse(null))
+                    .type("CONFIRM")
                     .questionJson(payload)
                     .optionsJson(mapper.writeValueAsString(java.util.Map.of("toolName", tool.getName())))
                     .status("PENDING")
@@ -114,7 +144,7 @@ public class WriteApprovalService {
                         String toolName = mapper.readTree(action.getOptionsJson()).path("toolName").asText();
                         String description = tools.stream().filter(tool -> tool.getName().equals(toolName))
                                 .map(AgentTool::getDescription).findFirst().orElse(toolName);
-                        return new ChatPendingAction(action.getId(), action.getRunId(), toolName, description,
+                        return new ChatPendingAction(action.getId(), action.getRunId(), action.getTaskId(), toolName, description,
                                 mapper.readTree(action.getQuestionJson()));
                     } catch (Exception e) {
                         throw new IllegalStateException("Yêu cầu chờ duyệt không hợp lệ", e);
@@ -197,6 +227,9 @@ public class WriteApprovalService {
             action.setStatus(finalStatus);
             try { action.setResultJson(mapper.writeValueAsString(finalResult)); }
             catch (Exception e) { throw new IllegalStateException("Không lưu được kết quả thao tác", e); }
+            if (finalResult.isSuccess() && action.getTaskId() != null && orderedPlans != null) {
+                orderedPlans.advance(action.getTaskId(), reservation.tool().getName(), finalResult.getData());
+            }
         });
         return java.util.Map.of("pendingActionId", id, "status", finalStatus, "result", finalResult);
     }

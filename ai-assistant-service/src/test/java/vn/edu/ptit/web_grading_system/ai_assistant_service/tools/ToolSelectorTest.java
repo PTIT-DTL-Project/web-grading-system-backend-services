@@ -16,6 +16,21 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class ToolSelectorTest {
+    @Test
+    void repeatedWriteToolRepresentsTwoOrderedActions() {
+        AgentTool writer = mock(AgentTool.class);
+        when(writer.getName()).thenReturn("createTestPlan");
+        when(writer.getDefinition()).thenReturn(new ToolDefinition("createTestPlan", "", "1", "lecturer",
+                "write", "plan", EffectType.DOMAIN_WRITE, Set.of("ROLE_LECTURER"), Duration.ofSeconds(5), 1000));
+        ToolRegistry registry = new ToolRegistry(List.of(writer), mapper);
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList()))
+                .thenReturn(List.of("createTestPlan", "createTestPlan"));
+
+        assertEquals(List.of("createTestPlan", "createTestPlan"),
+                new ToolSelector(registry).selectFromModel("tạo hai câu", Set.of("ROLE_LECTURER"), llm));
+    }
+
     private final ObjectMapper mapper = new JacksonConfig().objectMapper();
 
     private AgentTool tool(String name, String description, String role) {

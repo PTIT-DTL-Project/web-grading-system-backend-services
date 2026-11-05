@@ -36,6 +36,175 @@ import static org.mockito.Mockito.*;
 
 class AgentRuntimeTest {
     @Test
+    void confirmedOrderedStepOffersNextWriterDespiteOldCreationIntent() {
+        var mapper = new JacksonConfig().objectMapper();
+        AgentTool publish = mock(AgentTool.class), create = mock(AgentTool.class);
+        for (var entry : java.util.Map.of(publish, "publishAssignment", create, "createTestPlan").entrySet()) {
+            AgentTool tool = entry.getKey();
+            String name = entry.getValue();
+            when(tool.getName()).thenReturn(name);
+            when(tool.getDefinition()).thenReturn(new ToolDefinition(name, name, "1", "lecturer",
+                    "write", "assignment", EffectType.DOMAIN_WRITE, Set.of("ROLE_LECTURER"), Duration.ofSeconds(5), 1000));
+            when(tool.getToolDefinition()).thenReturn(org.springframework.ai.tool.definition.ToolDefinition.builder()
+                    .name(name).description(name).inputSchema("{\"type\":\"object\"}").build());
+        }
+        WriteApprovalService approvals = mock(WriteApprovalService.class);
+        UUID taskId = UUID.randomUUID(), actionId = UUID.randomUUID();
+        when(approvals.pendingForChat(any())).thenReturn(java.util.Optional.of(
+                new WriteApprovalService.ChatPendingAction(actionId, UUID.randomUUID(), taskId,
+                        "publishAssignment", "Công bố bài tập", mapper.createObjectNode())));
+        when(approvals.confirmFromChat(eq(actionId), any())).thenReturn(java.util.Map.of(
+                "status", "COMPLETED", "result", ToolResult.ok(java.util.Map.of(
+                        "published", true, "id", "assignment-from-previous-step"))));
+        when(approvals.activeWritePlan(any())).thenReturn(java.util.Optional.of(
+                new vn.edu.ptit.web_grading_system.ai_assistant_service.service.OrderedWritePlanService.Plan(
+                        taskId, "công bố rồi tạo câu kiểm tra", List.of("publishAssignment", "createTestPlan"), 1,
+                        List.of(mapper.valueToTree(java.util.Map.of("tool", "publishAssignment",
+                                "data", java.util.Map.of("id", "stored-first-result")))))));
+        when(approvals.propose(eq(create), any(), any())).thenReturn(ToolResult.ok(java.util.Map.of(
+                "status", "AWAITING_CONFIRMATION", "pendingActionId", UUID.randomUUID(),
+                "toolName", "createTestPlan", "arguments", mapper.createObjectNode())));
+        ToolRegistry registry = new ToolRegistry(List.of(publish, create), mapper, approvals);
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("ok")), "", 10, 10, 30));
+        ToolResultStore store = mock(ToolResultStore.class);
+        when(store.offer(anyString(), any(), anyInt())).thenAnswer(call ->
+                new ToolResultStore.ToolResultDelivery(call.getArgument(0), true, null, null, "full", 0));
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("publishAssignment", "createTestPlan"));
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
+            assertTrue(((String) call.getArgument(0)).contains("assignment-from-previous-step"));
+            assertTrue(((String) call.getArgument(0)).contains("stored-first-result"));
+            List<ToolCallback> callbacks = call.getArgument(2);
+            assertTrue(callbacks.stream().anyMatch(cb -> cb.getToolDefinition().name().equals("createTestPlan")));
+            assertFalse(callbacks.stream().anyMatch(cb -> cb.getToolDefinition().name().equals("publishAssignment")));
+            return Flux.just(callbacks.stream().filter(cb -> cb.getToolDefinition().name().equals("createTestPlan"))
+                    .findFirst().orElseThrow().call("{\"name\":\"Q1\"}"));
+        });
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight, store,
+                mock(ConversationRepository.class), mock(MessageRepository.class), mapper, new AgentProperties(), approvals);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+
+        runtime.execute(context, "system", "ok", llm, delta -> {}, (tool, result) -> {});
+
+        verify(approvals).confirmFromChat(eq(actionId), eq(context));
+        verify(approvals).propose(eq(create), any(), eq(context));
+    }
+
+    @Test
+    void orderedPlanOffersOnlyItsFirstWriterForGenericMixedRequest() {
+        var mapper = new JacksonConfig().objectMapper();
+        AgentTool first = mock(AgentTool.class), second = mock(AgentTool.class);
+        for (var entry : java.util.Map.of(first, "publishAssignment", second, "createTestPlan").entrySet()) {
+            AgentTool tool = entry.getKey();
+            String name = entry.getValue();
+            when(tool.getName()).thenReturn(name);
+            when(tool.getDefinition()).thenReturn(new ToolDefinition(name, name, "1", "lecturer",
+                    "write", "assignment", EffectType.DOMAIN_WRITE, Set.of("ROLE_LECTURER"), Duration.ofSeconds(5), 1000));
+            when(tool.getToolDefinition()).thenReturn(org.springframework.ai.tool.definition.ToolDefinition.builder()
+                    .name(name).description(name).inputSchema("{\"type\":\"object\"}").build());
+        }
+        WriteApprovalService approvals = mock(WriteApprovalService.class);
+        UUID planId = UUID.randomUUID();
+        when(approvals.startWritePlan(any(), anyString(), anyList())).thenReturn(java.util.Optional.of(
+                vn.edu.ptit.web_grading_system.ai_assistant_service.domain.task.Task.builder().id(planId).build()));
+        when(approvals.activeWritePlan(any())).thenReturn(java.util.Optional.empty(), java.util.Optional.of(
+                new vn.edu.ptit.web_grading_system.ai_assistant_service.service.OrderedWritePlanService.Plan(
+                        planId, "công bố rồi tạo câu", List.of("publishAssignment", "createTestPlan"), 0)));
+        when(approvals.propose(eq(first), any(), any())).thenReturn(ToolResult.ok(java.util.Map.of(
+                "status", "AWAITING_CONFIRMATION", "pendingActionId", UUID.randomUUID(),
+                "toolName", "publishAssignment", "arguments", mapper.createObjectNode())));
+        ToolRegistry registry = new ToolRegistry(List.of(first, second), mapper, approvals);
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("công bố rồi tạo câu")), "", 10, 10, 30));
+        ToolResultStore store = mock(ToolResultStore.class);
+        when(store.offer(anyString(), any(), anyInt())).thenAnswer(call ->
+                new ToolResultStore.ToolResultDelivery(call.getArgument(0), true, null, null, "full", 0));
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("publishAssignment", "createTestPlan"));
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
+            List<ToolCallback> callbacks = call.getArgument(2);
+            assertTrue(callbacks.stream().anyMatch(cb -> cb.getToolDefinition().name().equals("publishAssignment")));
+            assertFalse(callbacks.stream().anyMatch(cb -> cb.getToolDefinition().name().equals("createTestPlan")));
+            return Flux.just(callbacks.stream().filter(cb -> cb.getToolDefinition().name().equals("publishAssignment"))
+                    .findFirst().orElseThrow().call("{\"assignmentId\":\"abc\"}"));
+        });
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight, store,
+                mock(ConversationRepository.class), mock(MessageRepository.class), mapper, new AgentProperties(), approvals);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+
+        runtime.execute(context, "system", "công bố rồi tạo câu kiểm tra", llm,
+                delta -> {}, (tool, result) -> {});
+
+        verify(approvals).startWritePlan(eq(context), anyString(), eq(List.of("publishAssignment", "createTestPlan")));
+    }
+
+    @Test
+    void newQuestionDoesNotResumeEarlierCreationTask() {
+        var mapper = new JacksonConfig().objectMapper();
+        ToolRegistry registry = new ToolRegistry(List.of(), mapper);
+        MessageRepository messages = mock(MessageRepository.class);
+        when(messages.findScopedRecent(any(), anyString(), any())).thenReturn(new PageImpl<>(List.of(
+                vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message.builder()
+                        .role("user").content("Tạo bước chấm cho câu kiểm tra Q1").sequenceNo(1).build(),
+                vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message.builder()
+                        .role("user").content("bạn có thể làm gì cho tôi?").sequenceNo(2).build())));
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("bạn có thể làm gì cho tôi?")), "", 10, 10, 30));
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
+            String prompt = call.getArgument(0);
+            assertFalse(prompt.contains("YÊU CẦU ĐANG TIẾP NỐI"));
+            assertFalse(prompt.contains("YÊU CẦU HIỆN TẠI: tạo BƯỚC CHẤM"));
+            return Flux.just("Tôi có thể giúp bạn quản lý bài tập và bước chấm.");
+        });
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight,
+                mock(ToolResultStore.class), mock(ConversationRepository.class), messages, mapper, new AgentProperties());
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+
+        assertEquals("Tôi có thể giúp bạn quản lý bài tập và bước chấm.", runtime.execute(context,
+                "system", "bạn có thể làm gì cho tôi?", llm, delta -> {}, (tool, result) -> {}));
+        verify(llm).classifyCreationContinuation(eq("bạn có thể làm gì cho tôi?"),
+                eq("Tạo bước chấm cho câu kiểm tra Q1"), contains("Tạo bước chấm"));
+    }
+
+    @Test
+    void explicitContinuationResumesEarlierCreationTaskWhenModelChoosesIt() {
+        var mapper = new JacksonConfig().objectMapper();
+        ToolRegistry registry = new ToolRegistry(List.of(), mapper);
+        MessageRepository messages = mock(MessageRepository.class);
+        when(messages.findScopedRecent(any(), anyString(), any())).thenReturn(new PageImpl<>(List.of(
+                vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message.builder()
+                        .role("user").content("Tạo bước chấm cho câu kiểm tra Q1").sequenceNo(1).build(),
+                vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Message.builder()
+                        .role("user").content("làm tiếp").sequenceNo(2).build())));
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("làm tiếp")), "", 10, 10, 30));
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.classifyCreationContinuation(anyString(), anyString(), anyString())).thenReturn(true);
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
+            String prompt = call.getArgument(0);
+            assertTrue(prompt.contains("YÊU CẦU ĐANG TIẾP NỐI"));
+            assertTrue(prompt.contains("YÊU CẦU HIỆN TẠI: tạo BƯỚC CHẤM"));
+            return Flux.just("Đang tiếp tục tạo bước chấm.");
+        });
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight,
+                mock(ToolResultStore.class), mock(ConversationRepository.class), messages, mapper, new AgentProperties());
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+
+        assertEquals("Đang tiếp tục tạo bước chấm.", runtime.execute(context,
+                "system", "làm tiếp", llm, delta -> {}, (tool, result) -> {}));
+    }
+
+    @Test
     void liveRunEmitsReasoningTurnAroundProviderChunks() {
         var mapper = new JacksonConfig().objectMapper();
         ToolRegistry registry = new ToolRegistry(List.of(), mapper);
@@ -151,6 +320,9 @@ class AgentRuntimeTest {
         when(messages.findScopedRecent(eq(context.conversationId()), eq("ROLE_LECTURER"), any()))
                 .thenReturn(new PageImpl<>(List.of(latest, previous)));
         LlmClient llm = mock(LlmClient.class);
+        when(llm.classifyCreationContinuation(eq("bạn tự tìm id và tạo giúp t"),
+                eq("tạo step kiểm tra của câu Kiểm tra API thêm sách của bài Quản lý Thư viện"), anyString()))
+                .thenReturn(true);
         when(llm.chooseRelevantTools(anyString(), anyList()))
                 .thenReturn(List.of("listVisibleAssignments", "listTestPlans", "createTestStep"));
         when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
