@@ -28,7 +28,8 @@ public class ListVisibleAssignmentsTool implements AgentTool {
 
     @Override
     public String getDescription() {
-        return "Lấy danh sách các bài tập (assignments) hiển thị cho người dùng, có thể lọc theo mã lớp (classId).";
+        return "Lấy danh sách các bài tập (assignments) hiển thị cho người dùng, có thể lọc theo mã lớp (classId). "
+                + "Kết quả sắp theo thời điểm tạo giảm dần: items[0] của page 0 là bài tạo gần nhất trong bộ lọc.";
     }
 
     @Override
@@ -44,7 +45,8 @@ public class ListVisibleAssignmentsTool implements AgentTool {
         return org.springframework.ai.tool.definition.ToolDefinition.builder()
                 .name(getName())
                 .description(getDescription() + " Dùng khi người dùng nói tên bài tập nhưng chưa biết ID; "
-                        + "search là tên hoặc một phần tên, để trống nếu cần liệt kê.")
+                        + "search là tên hoặc một phần tên, để trống nếu cần liệt kê. "
+                        + "Muốn tìm bài tạo gần nhất của lớp, truyền classId, page=0, size=1.")
                 .inputSchema("{\"type\":\"object\",\"properties\":{\"classId\":{\"type\":\"string\",\"description\":\"Optional class UUID; omit or use an empty string when unknown\"},"
                         + "\"search\":{\"type\":\"string\"},"
                         + "\"page\":{\"type\":\"integer\",\"minimum\":0,\"description\":\"Zero-based page index; first page is 0. Omit to start at page 0.\"},"

@@ -36,6 +36,53 @@ import static org.mockito.Mockito.*;
 
 class AgentRuntimeTest {
     @Test
+    void assignmentCreatedMostRecentlyIsPublishTargetNotNewCreation() {
+        var mapper = new JacksonConfig().objectMapper();
+        AgentTool publish = mock(AgentTool.class), create = mock(AgentTool.class);
+        for (var entry : java.util.Map.of(publish, "publishAssignment", create, "createAssignment").entrySet()) {
+            AgentTool tool = entry.getKey();
+            String name = entry.getValue();
+            when(tool.getName()).thenReturn(name);
+            when(tool.getDefinition()).thenReturn(new ToolDefinition(name, name, "1", "lecturer",
+                    "write", "assignment", EffectType.DOMAIN_WRITE, Set.of("ROLE_LECTURER"), Duration.ofSeconds(5), 1000));
+            when(tool.getToolDefinition()).thenReturn(org.springframework.ai.tool.definition.ToolDefinition.builder()
+                    .name(name).description(name).inputSchema("{\"type\":\"object\"}").build());
+        }
+        WriteApprovalService approvals = mock(WriteApprovalService.class);
+        when(approvals.propose(eq(publish), any(), any())).thenReturn(ToolResult.ok(java.util.Map.of(
+                "status", "AWAITING_CONFIRMATION", "pendingActionId", UUID.randomUUID(),
+                "toolName", "publishAssignment", "arguments", mapper.createObjectNode())));
+        ToolRegistry registry = new ToolRegistry(List.of(publish, create), mapper, approvals);
+        ContextPreflight preflight = mock(ContextPreflight.class);
+        when(preflight.prepare(any(), any(), anySet(), anyString(), anyList(), anyList()))
+                .thenReturn(new ContextPreflight.PreparedContext(List.of(new UserMessage("công bố bài mới nhất")), "", 10, 10, 30));
+        ToolResultStore store = mock(ToolResultStore.class);
+        when(store.offer(anyString(), any(), anyInt())).thenAnswer(call ->
+                new ToolResultStore.ToolResultDelivery(call.getArgument(0), true, null, null, "full", 0));
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of("publishAssignment"));
+        when(llm.streamAgentTurn(anyString(), anyList(), anyList())).thenAnswer(call -> {
+            String prompt = call.getArgument(0);
+            List<ToolCallback> callbacks = call.getArgument(2);
+            assertFalse(prompt.contains("YÊU CẦU HIỆN TẠI: tạo BÀI TẬP"));
+            assertTrue(callbacks.stream().anyMatch(cb -> cb.getToolDefinition().name().equals("publishAssignment")));
+            assertFalse(callbacks.stream().anyMatch(cb -> cb.getToolDefinition().name().equals("createAssignment")));
+            return Flux.just(callbacks.stream().filter(cb -> cb.getToolDefinition().name().equals("publishAssignment"))
+                    .findFirst().orElseThrow().call("{\"assignmentId\":\"abc\"}"));
+        });
+        AgentRuntime runtime = new AgentRuntime(registry, new ToolSelector(registry), preflight, store,
+                mock(ConversationRepository.class), mock(MessageRepository.class), mapper, new AgentProperties(), approvals);
+        AgentContext context = new AgentContext(UUID.randomUUID(), "", Set.of("ROLE_LECTURER"),
+                UUID.randomUUID(), UUID.randomUUID(), "");
+
+        runtime.execute(context, "system", "công bố cho t bài tập tạo gần nhất cửa lớp test", llm,
+                delta -> {}, (tool, result) -> {});
+
+        verify(approvals).propose(eq(publish), any(), eq(context));
+        verify(approvals, never()).propose(eq(create), any(), any());
+    }
+
+    @Test
     void publishingClarificationDoesNotResumeOlderAssignmentCreation() {
         var mapper = new JacksonConfig().objectMapper();
         AgentTool publish = mock(AgentTool.class), create = mock(AgentTool.class);

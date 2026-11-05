@@ -337,8 +337,11 @@ public class AgentRuntime {
             default -> "";
         };
         boolean stepCreationTarget = creationTarget == CreationTarget.STEP;
+        boolean explicitCurrentCreation = creationRequest.equals(latestUserText)
+                && (stepIntent(latestUserText, "").active()
+                || creationTarget(latestUserText, "", new StepIntent(false, "")) != CreationTarget.NONE);
         boolean conflictingCurrentWrite = activeWritePlan.isEmpty()
-                && !creationRequest.equals(latestUserText)
+                && !explicitCurrentCreation
                 && !creationWriter.isEmpty()
                 && proposedTools.stream().anyMatch(name -> registry.find(name).map(tool ->
                         tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE).orElse(false))
@@ -1010,8 +1013,14 @@ public class AgentRuntime {
                     || combined.contains("with steps");
             return hasSteps ? CreationTarget.PLAN_WITH_STEPS : CreationTarget.PLAN;
         }
-        if (combined.contains("bai tap") || combined.contains("assignment")) return CreationTarget.ASSIGNMENT;
+        if (isAssignmentCreation(userNorm) || isAssignmentCreation(suggNorm)) return CreationTarget.ASSIGNMENT;
         return CreationTarget.NONE;
+    }
+
+    private static boolean isAssignmentCreation(String normalized) {
+        return normalized != null && Pattern.compile(
+                "\\b(tao|them|create|add)\\b.{0,60}\\b(bai tap|assignment)\\b")
+                .matcher(normalized).find();
     }
 
     private static boolean isPlanCreation(String normalized) {
