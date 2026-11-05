@@ -248,6 +248,8 @@ public class AgentRuntime {
         }
         String toolRequest = "Current user request:\n" + (latestUserText == null ? "" : latestUserText)
                 + "\nRecent conversation for context:\n" + recentToolRequest(context, latestUserText);
+        String currentToolRequest = toolRequest;
+        String promptBeforeContinuation = systemPrompt;
         String creationRequest = continuationCreationRequest(context, latestUserText, llm);
         String suggestedCreation = acceptedCreationSuggestion(context, latestUserText);
         StepIntent stepIntent = stepIntent(creationRequest, suggestedCreation);
@@ -326,6 +328,32 @@ public class AgentRuntime {
                         recentToolRequest(context, latestUserText))) {
             approvalService.supersedeWritePlan(context);
             activeWritePlan = Optional.empty();
+        }
+        String creationWriter = switch (creationTarget) {
+            case ASSIGNMENT -> "createAssignment";
+            case PLAN -> "createTestPlan";
+            case PLAN_WITH_STEPS -> "createTestQuestion";
+            case STEP -> "createTestStep";
+            default -> "";
+        };
+        boolean stepCreationTarget = creationTarget == CreationTarget.STEP;
+        boolean conflictingCurrentWrite = activeWritePlan.isEmpty()
+                && !creationRequest.equals(latestUserText)
+                && !creationWriter.isEmpty()
+                && proposedTools.stream().anyMatch(name -> registry.find(name).map(tool ->
+                        tool.getDefinition().effectType() == EffectType.DOMAIN_WRITE).orElse(false))
+                && proposedTools.stream().noneMatch(name -> name.equals(creationWriter)
+                        || (stepCreationTarget && name.equals("createTestSteps")));
+        if (conflictingCurrentWrite) {
+            log.info("AI runId={} supersededStaleCreationTarget={} selectedTools={}",
+                    context.runId(), creationTarget, proposedTools);
+            creationTarget = CreationTarget.NONE;
+            stepIntent = new StepIntent(false, "");
+            creationRequest = latestUserText;
+            toolRequest = currentToolRequest;
+            systemPrompt = promptBeforeContinuation + "\nƯu tiên yêu cầu hiện tại trong hội thoại. "
+                    + "Không tiếp tục thao tác tạo cũ khi thao tác ghi được chọn cho yêu cầu hiện tại khác với thao tác tạo đó.";
+            promptBeforeCreationTarget = systemPrompt;
         }
         if (activeWritePlan.isEmpty() && approvalService != null) {
             List<String> orderedWriters = proposedTools.stream()
