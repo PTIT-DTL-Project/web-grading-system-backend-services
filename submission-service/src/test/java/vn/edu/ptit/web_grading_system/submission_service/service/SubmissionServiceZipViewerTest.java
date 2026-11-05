@@ -9,6 +9,7 @@ import vn.edu.ptit.web_grading_system.submission_service.dto.internal.Assignment
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.SubmissionZipDownloadResponse;
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.SubmissionZipFileResponse;
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.SubmissionZipTreeResponse;
+import vn.edu.ptit.web_grading_system.submission_service.dto.response.ZipTreeNode;
 import vn.edu.ptit.web_grading_system.submission_service.entity.Submission;
 import vn.edu.ptit.web_grading_system.submission_service.entity.SubmissionStatus;
 import vn.edu.ptit.web_grading_system.submission_service.event.WgsEventsProducer;
@@ -71,6 +72,9 @@ class SubmissionServiceZipViewerTest {
      *   src/Main.java      (text)
      *   images/logo.png     (binary)
      *   folder/             (folder entry)
+     *   pom.xml             (xml text)
+     *   Dockerfile          (extensionless text)
+     *   mvnw                (extensionless shell script)
      */
     private byte[] buildZipBytes() throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -84,6 +88,18 @@ class SubmissionServiceZipViewerTest {
             zos.closeEntry();
 
             zos.putNextEntry(new ZipEntry("folder/"));
+            zos.closeEntry();
+
+            zos.putNextEntry(new ZipEntry("pom.xml"));
+            zos.write("<project><modelVersion>4.0.0</modelVersion></project>".getBytes());
+            zos.closeEntry();
+
+            zos.putNextEntry(new ZipEntry("Dockerfile"));
+            zos.write("FROM eclipse-temurin:21-jre".getBytes());
+            zos.closeEntry();
+
+            zos.putNextEntry(new ZipEntry("mvnw"));
+            zos.write("#!/bin/sh\nexec java -jar .mvn/wrapper.jar".getBytes());
             zos.closeEntry();
         }
         return baos.toByteArray();
@@ -110,6 +126,21 @@ class SubmissionServiceZipViewerTest {
         assertNotNull(tree.getRoot());
         assertEquals("root", tree.getRoot().getName());
         assertEquals("folder", tree.getRoot().getType());
+
+        // Directory zip entries end with "/", so their display name must come from
+        // the stripped path — an empty name left folders untitled in the UI.
+        // Review: 2026-11-05, zip viewer tree folder names.
+        ZipTreeNode explicitFolder = tree.getRoot().getChildren().stream()
+                .filter(node -> "folder".equals(node.getType()) && "folder".equals(node.getName()))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(explicitFolder.getChildren().isEmpty());
+
+        ZipTreeNode implicitFolder = tree.getRoot().getChildren().stream()
+                .filter(node -> "folder".equals(node.getType()) && "src".equals(node.getName()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("Main.java", implicitFolder.getChildren().get(0).getName());
         verify(rustfs).downloadObject("subs/" + SUBMISSION_ID + ".zip");
         verifyNoInteractions(client);
     }
@@ -231,6 +262,68 @@ class SubmissionServiceZipViewerTest {
         assertTrue(resp.getIsBinary());
         assertNull(resp.getContent());
         assertNotNull(resp.getMessage());
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void getZipFileContent_xmlFile_returnsTextContent() throws Exception {
+        SubmissionRepository repo = mock(SubmissionRepository.class);
+        CourseServiceClient client = mock(CourseServiceClient.class);
+        RustFSService rustfs = mock(RustFSService.class);
+
+        Submission sub = submission("subs/" + SUBMISSION_ID + ".zip", STUDENT_ID);
+        when(repo.findById(SUBMISSION_ID)).thenReturn(Optional.of(sub));
+        when(rustfs.downloadObject("subs/" + SUBMISSION_ID + ".zip")).thenReturn(buildZipBytes());
+
+        SubmissionService service = newService(repo, client, rustfs, mock(SubmissionProperties.class));
+
+        SubmissionZipFileResponse resp = service.getZipFileContent(SUBMISSION_ID, "pom.xml", STUDENT_ID);
+
+        // application/xml is not text/* but is still UTF-8 text and must be previewable.
+        assertFalse(resp.getIsBinary());
+        assertEquals("application/xml", resp.getMime());
+        assertTrue(resp.getContent().contains("modelVersion"));
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void getZipFileContent_dockerfile_returnsTextContent() throws Exception {
+        SubmissionRepository repo = mock(SubmissionRepository.class);
+        CourseServiceClient client = mock(CourseServiceClient.class);
+        RustFSService rustfs = mock(RustFSService.class);
+
+        Submission sub = submission("subs/" + SUBMISSION_ID + ".zip", STUDENT_ID);
+        when(repo.findById(SUBMISSION_ID)).thenReturn(Optional.of(sub));
+        when(rustfs.downloadObject("subs/" + SUBMISSION_ID + ".zip")).thenReturn(buildZipBytes());
+
+        SubmissionService service = newService(repo, client, rustfs, mock(SubmissionProperties.class));
+
+        SubmissionZipFileResponse resp = service.getZipFileContent(SUBMISSION_ID, "Dockerfile", STUDENT_ID);
+
+        // No extension: the type comes from the file name.
+        assertFalse(resp.getIsBinary());
+        assertEquals("text/x-dockerfile", resp.getMime());
+        assertTrue(resp.getContent().contains("FROM eclipse-temurin"));
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void getZipFileContent_mavenWrapper_returnsTextContent() throws Exception {
+        SubmissionRepository repo = mock(SubmissionRepository.class);
+        CourseServiceClient client = mock(CourseServiceClient.class);
+        RustFSService rustfs = mock(RustFSService.class);
+
+        Submission sub = submission("subs/" + SUBMISSION_ID + ".zip", STUDENT_ID);
+        when(repo.findById(SUBMISSION_ID)).thenReturn(Optional.of(sub));
+        when(rustfs.downloadObject("subs/" + SUBMISSION_ID + ".zip")).thenReturn(buildZipBytes());
+
+        SubmissionService service = newService(repo, client, rustfs, mock(SubmissionProperties.class));
+
+        SubmissionZipFileResponse resp = service.getZipFileContent(SUBMISSION_ID, "mvnw", STUDENT_ID);
+
+        assertFalse(resp.getIsBinary());
+        assertEquals("text/x-shellscript", resp.getMime());
+        assertTrue(resp.getContent().contains("#!/bin/sh"));
         verifyNoInteractions(client);
     }
 
