@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -65,6 +66,12 @@ public class SubmissionService {
 
     /** Maximum bytes to read for a single file content (2 MB). */
     private static final int MAX_FILE_CONTENT_BYTES = 2 * 1024 * 1024;
+
+    /** Extensionless file names that are always plain text (build files, docs, dotfiles). */
+    private static final Set<String> PLAIN_TEXT_FILE_NAMES = Set.of(
+            "makefile", "gnumakefile", "license", "licence", "readme", "notice",
+            "jenkinsfile", "vagrantfile", "gemfile", "rakefile", "pipfile",
+            ".gitignore", ".dockerignore", ".gitattributes", ".editorconfig");
 
     private long presignedUrlExpiryMinutes() {
         return submissionProperties.presignedUrlExpiryMinutes();
@@ -392,7 +399,9 @@ public class SubmissionService {
                 String nodePath = isDirectory ? stripTrailingSlash(name) : name;
 
                 ZipTreeNode node = ZipTreeNode.builder()
-                        .name(entryName(name))
+                        // Derive the display name from the normalised path: entry.getName()
+                        // for a directory ends with "/" and entryName() would return "".
+                        .name(entryName(nodePath))
                         .type(isDirectory ? "folder" : "file")
                         .path(nodePath)
                         .size(isDirectory ? null : entry.getSize())
@@ -494,6 +503,22 @@ public class SubmissionService {
 
     private String detectMime(String path) {
         String lower = path.toLowerCase();
+        String fileName = entryName(lower);
+
+        // Build tooling often encodes the file type in the name, not an extension.
+        // Dockerfile, Dockerfile.dev and app.dockerfile are all Dockerfiles.
+        if (fileName.equals("dockerfile") || fileName.startsWith("dockerfile.")
+                || fileName.endsWith(".dockerfile")) {
+            return "text/x-dockerfile";
+        }
+        // Maven/Gradle wrapper scripts are POSIX shell scripts.
+        if (fileName.equals("mvnw") || fileName.equals("gradlew")) {
+            return "text/x-shellscript";
+        }
+        if (PLAIN_TEXT_FILE_NAMES.contains(fileName) || fileName.startsWith(".env")) {
+            return "text/plain";
+        }
+
         if (lower.endsWith(".java")) return "text/x-java";
         if (lower.endsWith(".py")) return "text/x-python";
         if (lower.endsWith(".js")) return "text/javascript";
@@ -522,7 +547,19 @@ public class SubmissionService {
         return "application/octet-stream";
     }
 
+    /**
+     * Text content is not limited to text/*: .xml and .json entries are detected as
+     * application/xml and application/json but are still UTF-8 text and must be
+     * readable in the viewer. Structured suffixes (e.g. image/svg+xml) count too.
+     */
     private boolean isTextMime(String mime) {
-        return mime != null && mime.startsWith("text/");
+        if (mime == null) {
+            return false;
+        }
+        return mime.startsWith("text/")
+                || "application/json".equals(mime)
+                || "application/xml".equals(mime)
+                || mime.endsWith("+xml")
+                || mime.endsWith("+json");
     }
 }
