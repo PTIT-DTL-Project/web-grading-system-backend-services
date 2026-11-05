@@ -44,6 +44,8 @@ public class AuthenticationContextFilter implements GlobalFilter, Ordered {
 
     private static final String HEADER_USER_ID = "X-User-Id";
     private static final String HEADER_USER_EMAIL = "X-User-Email";
+    private static final String HEADER_USER_FIRST_NAME = "X-User-FirstName";
+    private static final String HEADER_USER_LAST_NAME = "X-User-LastName";
     private static final String HEADER_USER_ROLES = "X-User-Roles";
     private static final String HEADER_GATEWAY_SECRET = "X-Gateway-Secret";
 
@@ -58,6 +60,8 @@ public class AuthenticationContextFilter implements GlobalFilter, Ordered {
                 .headers(headers -> {
                     headers.remove(HEADER_USER_ID);
                     headers.remove(HEADER_USER_EMAIL);
+                    headers.remove(HEADER_USER_FIRST_NAME);
+                    headers.remove(HEADER_USER_LAST_NAME);
                     headers.remove(HEADER_USER_ROLES);
                     headers.remove(HEADER_GATEWAY_SECRET);
                 })
@@ -91,10 +95,14 @@ public class AuthenticationContextFilter implements GlobalFilter, Ordered {
 
         String userId = jwt.getSubject();
         String email = jwt.getClaimAsString("email");
+        String firstName = jwt.getClaimAsString("firstName");
+        String lastName = jwt.getClaimAsString("lastName");
 
         ServerHttpRequest.Builder requestBuilder = exchange.getRequest().mutate()
                 .header(HEADER_USER_ID, userId != null ? userId : "")
                 .header(HEADER_USER_EMAIL, email != null ? email : "")
+                .header(HEADER_USER_FIRST_NAME, firstName != null ? firstName : "")
+                .header(HEADER_USER_LAST_NAME, lastName != null ? lastName : "")
                 .header(HEADER_GATEWAY_SECRET, secret);
 
         // Omitted rather than sent empty: an absent header means "no roles" downstream.
