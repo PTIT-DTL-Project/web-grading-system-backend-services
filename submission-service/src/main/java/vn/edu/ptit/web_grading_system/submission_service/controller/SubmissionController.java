@@ -10,6 +10,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.PresignedUrlResponse;
 import vn.edu.ptit.web_grading_system.submission_service.dto.response.SubmissionResponse;
+import vn.edu.ptit.web_grading_system.submission_service.dto.response.SubmissionZipDownloadResponse;
+import vn.edu.ptit.web_grading_system.submission_service.dto.response.SubmissionZipFileResponse;
+import vn.edu.ptit.web_grading_system.submission_service.dto.response.SubmissionZipTreeResponse;
 import vn.edu.ptit.web_grading_system.submission_service.exception.ResourceNotFoundException;
 import vn.edu.ptit.web_grading_system.submission_service.service.SubmissionService;
 import vn.edu.ptit.web_grading_system.submission_service.util.annotation.ApiMessage;
@@ -98,6 +101,63 @@ public class SubmissionController {
             throw new ResourceNotFoundException("Submission not found: " + id);
         }
         return ResponseEntity.ok(submission);
+    }
+
+    /**
+     * Build the folder/file tree of the submission zip for read-only preview.
+     * Only the submission owner (student) may view.
+     *
+     * <p>Review: 2026-11-01 — lecturer access requires course-service ownership check
+     * which is not yet available in submission-service. Student ownership is enforced
+     * here; lecturer access goes through course-service grading view.
+     */
+    @GetMapping("/{submissionId}/tree")
+    @ApiMessage("Submission zip tree")
+    public ResponseEntity<SubmissionZipTreeResponse> getTree(
+            @PathVariable UUID submissionId,
+            @RequestHeader("X-User-Id") String callerIdHeader) {
+        UUID callerId = UUID.fromString(callerIdHeader);
+        if (!callerId.toString().equalsIgnoreCase(callerIdHeader)) {
+            throw new IllegalArgumentException("X-User-Id must be a canonical UUID");
+        }
+        SubmissionZipTreeResponse tree = submissionService.getSubmissionTree(submissionId, callerId);
+        return ResponseEntity.ok(tree);
+    }
+
+    /**
+     * Read the content of a single file entry inside the submission zip.
+     * Returns text content for text files, or isBinary=true for binary files.
+     * Used by the read-only editor preview.
+     */
+    @GetMapping("/{submissionId}/file")
+    @ApiMessage("Submission zip file content")
+    public ResponseEntity<SubmissionZipFileResponse> getFile(
+            @PathVariable UUID submissionId,
+            @RequestParam String path,
+            @RequestHeader("X-User-Id") String callerIdHeader) {
+        UUID callerId = UUID.fromString(callerIdHeader);
+        if (!callerId.toString().equalsIgnoreCase(callerIdHeader)) {
+            throw new IllegalArgumentException("X-User-Id must be a canonical UUID");
+        }
+        SubmissionZipFileResponse content = submissionService.getZipFileContent(submissionId, path, callerId);
+        return ResponseEntity.ok(content);
+    }
+
+    /**
+     * Generate a presigned download URL for the submission zip file.
+     * Only the submission owner (student) or the lecturer who owns the assignment's class may download.
+     */
+    @GetMapping("/{submissionId}/download")
+    @ApiMessage("Submission zip download URL")
+    public ResponseEntity<SubmissionZipDownloadResponse> download(
+            @PathVariable UUID submissionId,
+            @RequestHeader("X-User-Id") String callerIdHeader) {
+        UUID callerId = UUID.fromString(callerIdHeader);
+        if (!callerId.toString().equalsIgnoreCase(callerIdHeader)) {
+            throw new IllegalArgumentException("X-User-Id must be a canonical UUID");
+        }
+        SubmissionZipDownloadResponse response = submissionService.getSubmissionDownloadUrl(submissionId, callerId);
+        return ResponseEntity.ok(response);
     }
 
     /**

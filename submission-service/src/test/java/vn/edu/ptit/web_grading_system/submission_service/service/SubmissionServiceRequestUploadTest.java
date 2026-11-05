@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import vn.edu.ptit.web_grading_system.submission_service.client.CourseServiceClient;
 import vn.edu.ptit.web_grading_system.submission_service.config.SubmissionProperties;
 import vn.edu.ptit.web_grading_system.submission_service.entity.Submission;
 import vn.edu.ptit.web_grading_system.submission_service.event.WgsEventsProducer;
@@ -32,7 +33,7 @@ class SubmissionServiceRequestUploadTest {
         SubmissionProperties props = Mockito.mock(SubmissionProperties.class);
         SubmissionService service = new SubmissionService(repo,
                 Mockito.mock(SubmissionMapper.class),
-                rustfs, producer, em, props);
+                rustfs, Mockito.mock(CourseServiceClient.class), producer, em, props);
         return new Fixture(service, repo, producer, em, rustfs, props);
     }
 

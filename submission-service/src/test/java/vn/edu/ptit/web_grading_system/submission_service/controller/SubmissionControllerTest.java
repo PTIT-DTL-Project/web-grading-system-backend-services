@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import vn.edu.ptit.web_grading_system.submission_service.client.CourseServiceClient;
 import vn.edu.ptit.web_grading_system.submission_service.config.SubmissionProperties;
 import vn.edu.ptit.web_grading_system.submission_service.entity.Submission;
 import vn.edu.ptit.web_grading_system.submission_service.event.WgsEventsProducer;
@@ -36,7 +37,7 @@ class SubmissionControllerTest {
     private final EntityManager entityManager = mock(EntityManager.class);
     private final SubmissionRepository repository = mock(SubmissionRepository.class);
     private final SubmissionService service = new SubmissionService(repository,
-            mock(SubmissionMapper.class), mock(RustFSService.class),
+            mock(SubmissionMapper.class), mock(RustFSService.class), mock(CourseServiceClient.class),
             mock(WgsEventsProducer.class), entityManager,
             mock(SubmissionProperties.class));
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new SubmissionController(service))
