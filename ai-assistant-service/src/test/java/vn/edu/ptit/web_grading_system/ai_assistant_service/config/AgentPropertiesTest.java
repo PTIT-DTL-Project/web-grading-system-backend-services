@@ -13,7 +13,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
         "spring.flyway.enabled=false",
         "spring.jpa.hibernate.ddl-auto=none",
         "spring.datasource.url=jdbc:h2:mem:testprops",
-        "spring.datasource.driver-class-name=org.h2.Driver"
+        "spring.datasource.driver-class-name=org.h2.Driver",
+        "agent.limits.max-model-steps=16",
+        "agent.limits.max-tool-calls=24",
+        "agent.limits.active-timeout-seconds=180",
+        "agent.context.history-window-size=30"
 })
 public class AgentPropertiesTest {
 
