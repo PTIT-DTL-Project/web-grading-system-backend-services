@@ -32,6 +32,8 @@ class AuthenticationContextFilterTest {
 	private static final String SECRET = "test-gateway-secret";
 	private static final String USER_ID = "2d93941a-4221-458b-a03d-43bd6315d02e";
 	private static final String EMAIL = "lecturer@ptit.edu.vn";
+	private static final String FIRST_NAME = "Nguyen Van";
+	private static final String LAST_NAME = "A";
 	private static final List<String> ALLOWED_ROLES = List.of("LECTURER", "STUDENT");
 
 	private final GatewayTrustProperties properties = new GatewayTrustProperties(SECRET, ALLOWED_ROLES);
@@ -76,6 +78,8 @@ class AuthenticationContextFilterTest {
 		Map<String, Object> claims = new HashMap<>();
 		claims.put("sub", USER_ID);
 		claims.put("email", EMAIL);
+		claims.put("firstName", FIRST_NAME);
+		claims.put("lastName", LAST_NAME);
 		if (realmRoles != null) {
 			claims.put("realm_access", Map.of("roles", realmRoles));
 		}
@@ -88,6 +92,8 @@ class AuthenticationContextFilterTest {
 		return MockServerHttpRequest.get("/api/v1/classes")
 				.header("X-User-Id", "attacker-chosen-uuid")
 				.header("X-User-Email", "attacker@evil.example")
+				.header("X-User-FirstName", "attacker-first")
+				.header("X-User-LastName", "attacker-last")
 				.header("X-User-Roles", "ROLE_ADMIN")
 				.header("X-Gateway-Secret", "guessed-secret");
 	}
@@ -100,6 +106,8 @@ class AuthenticationContextFilterTest {
 		HttpHeaders headers = chain.forwarded.getRequest().getHeaders();
 		assertThat(headers.containsHeader("X-User-Id")).isFalse();
 		assertThat(headers.containsHeader("X-User-Email")).isFalse();
+		assertThat(headers.containsHeader("X-User-FirstName")).isFalse();
+		assertThat(headers.containsHeader("X-User-LastName")).isFalse();
 		assertThat(headers.containsHeader("X-User-Roles")).isFalse();
 		assertThat(headers.containsHeader("X-Gateway-Secret")).isFalse();
 	}
@@ -111,6 +119,8 @@ class AuthenticationContextFilterTest {
 		HttpHeaders headers = chain.forwarded.getRequest().getHeaders();
 		assertThat(headers.get("X-User-Id")).containsExactly(USER_ID);
 		assertThat(headers.get("X-User-Email")).containsExactly(EMAIL);
+		assertThat(headers.get("X-User-FirstName")).containsExactly(FIRST_NAME);
+		assertThat(headers.get("X-User-LastName")).containsExactly(LAST_NAME);
 		assertThat(headers.get("X-Gateway-Secret")).containsExactly(SECRET);
 		// No realm_access claim on this token, so no roles are asserted — the client's
 		// ROLE_ADMIN must not survive either.
@@ -173,6 +183,8 @@ class AuthenticationContextFilterTest {
 		HttpHeaders headers = chain.forwarded.getRequest().getHeaders();
 		assertThat(headers.containsHeader("X-User-Id")).isFalse();
 		assertThat(headers.containsHeader("X-User-Email")).isFalse();
+		assertThat(headers.containsHeader("X-User-FirstName")).isFalse();
+		assertThat(headers.containsHeader("X-User-LastName")).isFalse();
 		assertThat(headers.containsHeader("X-User-Roles")).isFalse();
 		assertThat(headers.containsHeader("X-Gateway-Secret")).isFalse();
 	}
