@@ -60,6 +60,9 @@ public class SubmissionService {
     /** Maximum number of zip entries allowed in the tree (prevents zip bomb). */
     private static final int MAX_ZIP_ENTRIES = 5000;
 
+    /** Maximum total bytes of a zip archive read into memory (prevents OOM on large zips). */
+    private static final long MAX_ZIP_BYTES = 10L * 1024 * 1024; // 10 MB
+
     /** Maximum bytes to read for a single file content (2 MB). */
     private static final int MAX_FILE_CONTENT_BYTES = 2 * 1024 * 1024;
 
@@ -218,6 +221,9 @@ public class SubmissionService {
     public SubmissionZipTreeResponse getSubmissionTree(UUID submissionId, UUID callerId) {
         Submission submission = requireOwnedSubmission(submissionId, callerId);
         byte[] zipBytes = rustfsService.downloadObject(submission.getRustfsPath());
+        if (zipBytes.length > MAX_ZIP_BYTES) {
+            throw new BadRequestException("Zip too large to preview: " + zipBytes.length + " bytes (max " + MAX_ZIP_BYTES + ")");
+        }
         return buildTree(submissionId, zipBytes);
     }
 
@@ -246,6 +252,9 @@ public class SubmissionService {
         Submission submission = requireOwnedSubmission(submissionId, callerId);
         String sanitizedPath = sanitizeZipPath(path);
         byte[] zipBytes = rustfsService.downloadObject(submission.getRustfsPath());
+        if (zipBytes.length > MAX_ZIP_BYTES) {
+            throw new BadRequestException("Zip too large to preview: " + zipBytes.length + " bytes (max " + MAX_ZIP_BYTES + ")");
+        }
 
         try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
             ZipEntry entry;
@@ -282,11 +291,11 @@ public class SubmissionService {
 
             long size = entrySize;
             boolean truncated;
-            int readBytes;
-            byte[] contentBytes;
             int contentLen;
+            byte[] contentBytes;
             if (size < 0) {
-                // Size unknown (streaming zip entry): read the whole entry into memory.
+                // Size unknown (streaming zip entry): read the whole entry into memory, capped at
+                // MAX_FILE_CONTENT_BYTES so a large entry cannot OOM the service.
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 byte[] buf = new byte[8192];
                 int read;
@@ -296,9 +305,16 @@ public class SubmissionService {
                 contentBytes = bos.toByteArray();
                 contentLen = contentBytes.length;
                 size = contentLen;
+                truncated = contentLen > MAX_FILE_CONTENT_BYTES;
+                if (truncated) {
+                    byte[] truncatedBytes = new byte[MAX_FILE_CONTENT_BYTES];
+                    System.arraycopy(contentBytes, 0, truncatedBytes, 0, MAX_FILE_CONTENT_BYTES);
+                    contentBytes = truncatedBytes;
+                    contentLen = MAX_FILE_CONTENT_BYTES;
+                }
             } else {
                 truncated = size > MAX_FILE_CONTENT_BYTES;
-                readBytes = truncated ? MAX_FILE_CONTENT_BYTES : (int) size;
+                int readBytes = truncated ? MAX_FILE_CONTENT_BYTES : (int) size;
                 contentBytes = new byte[readBytes];
                 contentLen = 0;
                 while (contentLen < readBytes) {
@@ -308,13 +324,6 @@ public class SubmissionService {
                     }
                     contentLen += read;
                 }
-            }
-            truncated = size > MAX_FILE_CONTENT_BYTES;
-            if (truncated) {
-                byte[] truncatedBytes = new byte[MAX_FILE_CONTENT_BYTES];
-                System.arraycopy(contentBytes, 0, truncatedBytes, 0, MAX_FILE_CONTENT_BYTES);
-                contentBytes = truncatedBytes;
-                contentLen = MAX_FILE_CONTENT_BYTES;
             }
 
             String content = new String(contentBytes, 0, contentLen, java.nio.charset.StandardCharsets.UTF_8);

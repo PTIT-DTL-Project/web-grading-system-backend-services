@@ -105,11 +105,9 @@ public class SubmissionController {
 
     /**
      * Build the folder/file tree of the submission zip for read-only preview.
-     * Only the submission owner (student) may view.
-     *
-     * <p>Review: 2026-11-01 — lecturer access requires course-service ownership check
-     * which is not yet available in submission-service. Student ownership is enforced
-     * here; lecturer access goes through course-service grading view.
+     * Student ownership is enforced on submission.studentId; lecturer access is
+     * enforced via course-service assignment owner check in
+     * SubmissionService.requireOwnedSubmission (404 if not the owner).
      */
     @GetMapping("/{submissionId}/tree")
     @ApiMessage("Submission zip tree")
