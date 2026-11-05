@@ -44,6 +44,10 @@ rustfs:
 submission:
   presigned-url-expiry-minutes: ${PRESIGNED_URL_EXPIRY_MINUTES:15}
 
+feign:
+  course-service:
+    url: ${FEIGN_COURSE_SERVICE_URL:http://grading-course-service:8081}
+
 # Shared events topic (single topic for the whole system — Aiven free tier = 5 topics)
 wgs:
   events:

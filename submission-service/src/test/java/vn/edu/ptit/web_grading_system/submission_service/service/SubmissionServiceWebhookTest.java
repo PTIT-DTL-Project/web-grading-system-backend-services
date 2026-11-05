@@ -3,6 +3,7 @@ package vn.edu.ptit.web_grading_system.submission_service.service;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import vn.edu.ptit.web_grading_system.submission_service.client.CourseServiceClient;
 import vn.edu.ptit.web_grading_system.submission_service.config.SubmissionProperties;
 import vn.edu.ptit.web_grading_system.submission_service.entity.Submission;
 import vn.edu.ptit.web_grading_system.submission_service.entity.SubmissionStatus;
@@ -26,7 +27,7 @@ class SubmissionServiceWebhookTest {
         WgsEventsProducer producer = Mockito.mock(WgsEventsProducer.class);
         SubmissionService service = new SubmissionService(repo,
                 Mockito.mock(SubmissionMapper.class),
-                Mockito.mock(RustFSService.class),
+                Mockito.mock(RustFSService.class), Mockito.mock(CourseServiceClient.class),
                 producer,
                 Mockito.mock(EntityManager.class),
                 Mockito.mock(SubmissionProperties.class));

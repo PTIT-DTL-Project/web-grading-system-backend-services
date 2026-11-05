@@ -12,6 +12,7 @@ import tools.jackson.databind.JsonNode;
 import vn.edu.ptit.web_grading_system.course_service.client.ExecutorInternalClient;
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.AssignmentExistsResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.AssignmentGradingConfigDto;
+import vn.edu.ptit.web_grading_system.course_service.dto.internal.AssignmentOwnerResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.DryRunReport;
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.DryRunRequest;
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.InternalPlanDto;
@@ -52,6 +53,15 @@ public class InternalAssignmentController {
     @GetMapping("/{id}/exists")
     public ResponseEntity<AssignmentExistsResponse> exists(@PathVariable UUID id) {
         return ResponseEntity.ok(testPlanService.internalExists(id));
+    }
+
+    /**
+     * Trả về ownerId của assignment, dùng để submission-service kiểm tra lecturer
+     * có quyền xem submission của lớp đó hay không. Internal-only, không qua gateway.
+     */
+    @GetMapping("/{id}/owner")
+    public ResponseEntity<AssignmentOwnerResponse> owner(@PathVariable UUID id) {
+        return ResponseEntity.ok(testPlanService.internalAssignmentOwner(id));
     }
 
     /**

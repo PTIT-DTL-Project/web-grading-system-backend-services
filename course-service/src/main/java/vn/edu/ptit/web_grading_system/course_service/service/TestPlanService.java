@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.AssignmentExistsResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.AssignmentGradingConfigDto;
+import vn.edu.ptit.web_grading_system.course_service.dto.internal.AssignmentOwnerResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.InternalPlanDto;
 import vn.edu.ptit.web_grading_system.course_service.dto.internal.InternalStepDto;
 import vn.edu.ptit.web_grading_system.course_service.dto.request.CreatePlanRequest;
@@ -310,6 +311,12 @@ public class TestPlanService {
     public AssignmentExistsResponse internalExists(UUID assignmentId) {
         boolean exists = assignmentRepository.existsByIdAndPublished(assignmentId, true);
         return new AssignmentExistsResponse(exists);
+    }
+
+    public AssignmentOwnerResponse internalAssignmentOwner(UUID assignmentId) {
+        Assignment a = assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Assignment not found: " + assignmentId));
+        return new AssignmentOwnerResponse(a.getOwnerId());
     }
 
     // ---------- helpers ----------

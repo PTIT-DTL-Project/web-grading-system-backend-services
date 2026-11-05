@@ -79,6 +79,52 @@ public class RustFSService {
         return "submissions/" + submissionId + ".zip";
     }
 
+    /**
+     * Download the zip object bytes from RustFS/MinIO by object name.
+     *
+     * @param objectName full object key (e.g. {@code submissions/<uuid>.zip})
+     * @return the zip file bytes
+     * @throws RuntimeException if the object cannot be read
+     */
+    public byte[] downloadObject(String objectName) {
+        try {
+            ensureBucketExists();
+            try (var stream = minioClient.getObject(
+                    GetObjectArgs.builder()
+                            .bucket(rustFsProperties.bucketName())
+                            .object(objectName)
+                            .build())) {
+                return stream.readAllBytes();
+            }
+        } catch (Exception e) {
+            log.error("Failed to download object {} from RustFS", objectName, e);
+            throw new RuntimeException("Failed to download object from storage", e);
+        }
+    }
+
+    /**
+     * Generate a presigned download URL for a zip object in RustFS/MinIO.
+     *
+     * @param objectName full object key (e.g. {@code submissions/<uuid>.zip})
+     * @return presigned GET URL that allows downloading the object
+     * @throws RuntimeException if the URL cannot be generated
+     */
+    public String generatePresignedDownloadUrl(String objectName) {
+        try {
+            ensureBucketExists();
+            return publicMinioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .method(Method.GET)
+                            .bucket(rustFsProperties.bucketName())
+                            .object(objectName)
+                            .expiry((int) submissionProperties.presignedUrlExpiryMinutes(), TimeUnit.MINUTES)
+                            .build());
+        } catch (Exception e) {
+            log.error("Failed to generate presigned download URL for {}", objectName, e);
+            throw new RuntimeException("Failed to generate presigned download URL", e);
+        }
+    }
+
     private void registerWebhookNotification() {
         try {
             S3Client s3Client = S3Client.builder()
