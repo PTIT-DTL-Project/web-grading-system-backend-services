@@ -385,9 +385,14 @@ X-User-Id: {{ownerLecturer1}}
 X-User-Roles: LECTURER
 ```
 
-Expected `200`: raw `ResultResponse[]` (one row per plan scope) with `steps[]`,
-`assertionDetails`, `actualValue`/`expectedValue`, `requestUrl`/`requestBody`,
-`extractedVars`, `summaryLog`; the FE renders it as the same detail card the student sees.
+Expected `200` (lecturer, deep-link): raw `ResultResponse[]` (one row per plan scope) with
+`steps[]`, `assertionDetails`, `actualValue`/`expectedValue`, `requestUrl`/`requestBody`,
+`extractedVars`, `summaryLog`. The FE renders it as the lecturer detail card. **Students
+calling the same endpoint (or the self-view endpoints) receive a stripped step payload**: safe
+fields like `score`, `maxScore`, `passed`, `skipped`, `weight`, `durationMs`, `responseStatus`,
+`requestUrl`, `requestBody`, `planId` are kept, but `assertionDetails`, `expectedValue`,
+`actualValue`, `errorMessage`, `summaryLog` (row), `dbQueryLogs`, `stackTrace`, `extractedVars`,
+`peakMemoryMb`, `dbQueryCount` are removed to avoid leaking grading answers/internals (PR #83).
 An unowned assignment is unreachable here — the lecturer passes course-service's 404 owner
 check in §5.4 before navigating to this URL, so no additional ownership gate is needed in
 result-service.
