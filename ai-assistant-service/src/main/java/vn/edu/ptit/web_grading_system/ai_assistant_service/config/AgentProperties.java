@@ -15,12 +15,12 @@ public class AgentProperties {
 
     @Data
     public static class Limits {
-        private int maxModelSteps = 8;
-        private int maxToolCalls = 12;
-        private int maxModelAttempts = 16;
+        private int maxModelSteps = 16;
+        private int maxToolCalls = 24;
+        private int maxModelAttempts = 24;
         private int maxValidationRepairs = 3;
-        private int maxLookupRounds = 2;
-        private int activeTimeoutSeconds = 120;
+        private int maxLookupRounds = 3;
+        private int activeTimeoutSeconds = 180;
     }
 
     @Data
@@ -31,13 +31,13 @@ public class AgentProperties {
 
     @Data
     public static class Context {
-        private int maxInputTokens = 26000;
-        private int outputReserve = 4000;
+        private int maxInputTokens = 64000;
+        private int outputReserve = 4096;
         private int safetyMargin = 2000;
-        private int historyWindowSize = 10;
-        private int toolSearchLimit = 5;
-        private int historyMaxTokens = 12000;
-        private int toolMaxTokens = 6000;
+        private int historyWindowSize = 30;
+        private int toolSearchLimit = 10;
+        private int historyMaxTokens = 40000;
+        private int toolMaxTokens = 24000;
         private int storedToolResultTtlMinutes = 60;
     }
 }

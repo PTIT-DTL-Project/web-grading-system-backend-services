@@ -59,7 +59,7 @@ public class ContextPreflight {
             throw new InputTooLargeException("System and tool context exceed input budget");
         }
         int historyBudget = Math.min(limits.getHistoryMaxTokens(), availableOverall - systemTokens - toolTokens);
-        int summaryBudget = Math.min(1000, Math.max(1, historyBudget / 2));
+        int summaryBudget = Math.min(4000, Math.max(1, historyBudget / 4));
         if (estimator.estimateTokens(recent.getLast().getContent()) > historyBudget) {
             throw new InputTooLargeException("Newest message exceeds history budget");
         }

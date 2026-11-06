@@ -19,6 +19,8 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiAgentModelPr
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.AgentTool;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.ToolResult;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.AiExplanationResultDto;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.AgentTool;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.ToolResult;
 
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +32,30 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class LlmClientTest {
+
+    @Test
+    void creationContinuationClassificationUsesRecentConversation() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        when(chatModel.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(new Generation(
+                new AssistantMessage("CONTINUE")))));
+
+        assertTrue(client.classifyCreationContinuation("làm tiếp", "Tạo bước chấm cho Q1",
+                "assistant: Đã tạo câu kiểm tra Q1"));
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel).call(prompt.capture());
+        assertTrue(prompt.getValue().getContents().contains("Đã tạo câu kiểm tra Q1"));
+        assertTrue(prompt.getValue().getContents().contains("làm tiếp"));
+    }
+
+    @Test
+    void creationContinuationClassificationTreatsNewQuestionAsNewTask() {
+        LlmClient client = new LlmClient(liveProperties, chatModel);
+        when(chatModel.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(new Generation(
+                new AssistantMessage("NEW")))));
+
+        assertFalse(client.classifyCreationContinuation("bạn có thể làm gì cho tôi?",
+                "Tạo bước chấm cho Q1", "user: Tạo bước chấm cho Q1"));
+    }
 
     @Mock
     private ChatModel chatModel;

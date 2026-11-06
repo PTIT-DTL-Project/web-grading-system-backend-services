@@ -31,6 +31,11 @@ public class SearchToolsTool {
     }
 
     public ToolCallback callback(AgentContext context, Set<String> discoveredNames) {
+        return callback(context, discoveredNames, null);
+    }
+
+    /** During an ordered plan, discovery may load reads and only the current writer. */
+    public ToolCallback callback(AgentContext context, Set<String> discoveredNames, String activeWriter) {
         return new ToolCallback() {
             @Override public org.springframework.ai.tool.metadata.ToolMetadata getToolMetadata() {
                 return org.springframework.ai.tool.metadata.ToolMetadata.builder().returnDirect(true).build();
@@ -51,19 +56,20 @@ public class SearchToolsTool {
                     if (llm == null) {
                         found = registry.searchAuthorized(query, context.roles(), resultLimit);
                     } else {
-                        // Deterministic registry match first; fall back to LLM only when nothing matches.
-                        found = registry.searchAuthorized(query, context.roles(), resultLimit);
-                        if (found.isEmpty()) {
-                            List<AgentTool> authorized = registry.getToolsForRoles(context.roles());
-                            List<String> names = llm.chooseRelevantTools(query, authorized);
-                            if (names == null) {
-                                found = registry.searchAuthorized(query, context.roles(), resultLimit);
-                            } else {
-                                Set<String> chosen = Set.copyOf(names);
-                                found = authorized.stream().filter(tool -> chosen.contains(tool.getName()))
-                                        .map(AgentTool::getDefinition).toList();
-                            }
+                        List<AgentTool> authorized = registry.getToolsForRoles(context.roles());
+                        List<String> names = llm.chooseRelevantTools(query, authorized);
+                        if (names == null) {
+                            found = registry.searchAuthorized(query, context.roles(), resultLimit);
+                        } else {
+                            Set<String> chosen = Set.copyOf(names);
+                            found = authorized.stream().filter(tool -> chosen.contains(tool.getName()))
+                                    .map(AgentTool::getDefinition).toList();
                         }
+                    }
+                    if (activeWriter != null) {
+                        found = found.stream().filter(definition ->
+                                definition.effectType() != EffectType.DOMAIN_WRITE
+                                        || activeWriter.equals(definition.name())).toList();
                     }
                     found.forEach(definition -> discoveredNames.add(definition.name()));
                     return mapper.writeValueAsString(found.stream().map(definition -> {

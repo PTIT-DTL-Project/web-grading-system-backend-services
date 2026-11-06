@@ -16,10 +16,14 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.GatewayTrustProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.SecurityConfig;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.conversation.Conversation;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.run.Run;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.orchestrator.SseBroadcaster;
+import vn.edu.ptit.web_grading_system.ai_assistant_service.repository.ConversationRepository;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.repository.RunRepository;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.security.HeaderAuthenticationFilter;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.Mockito.when;
@@ -37,6 +41,7 @@ class RunEventsSecurityTest {
     @Autowired private WebApplicationContext webApplicationContext;
     @Autowired private FilterChainProxy securityFilterChain;
     @MockitoBean private RunRepository runRepository;
+    @MockitoBean private ConversationRepository conversationRepository;
     @MockitoBean private SseBroadcaster sseBroadcaster;
 
     private MockMvc mockMvc;
@@ -55,6 +60,12 @@ class RunEventsSecurityTest {
                 .andExpect(status().isUnauthorized());
 
         SseEmitter emitter = new SseEmitter();
+        UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        UUID conversationId = UUID.randomUUID();
+        when(runRepository.findById(runId)).thenReturn(Optional.of(Run.builder()
+                .id(runId).conversationId(conversationId).build()));
+        when(conversationRepository.findByIdAndOwnerId(conversationId, userId)).thenReturn(Optional.of(
+                Conversation.builder().id(conversationId).ownerId(userId).build()));
         when(sseBroadcaster.subscribe(runId)).thenReturn(emitter);
         MvcResult result = mockMvc.perform(get("/api/v1/ai/runs/{id}/events", runId)
                         .header("X-Gateway-Secret", "test-secret")

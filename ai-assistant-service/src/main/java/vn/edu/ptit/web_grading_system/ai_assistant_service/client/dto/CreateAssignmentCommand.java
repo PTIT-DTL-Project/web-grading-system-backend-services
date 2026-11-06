@@ -8,6 +8,8 @@ import java.util.UUID;
 public record CreateAssignmentCommand(
         String title,
         UUID classId,
+        String purpose,
+        String topic,
         String gradingStrategy,
         String description,
         String dockerComposeTemplate,
@@ -15,7 +17,6 @@ public record CreateAssignmentCommand(
         Integer startupTimeoutMs,
         Integer executionTimeoutMs,
         Integer maxMemoryMb,
-        Double maxCpu,
-        String topic
+        Double maxCpu
 ) {
 }

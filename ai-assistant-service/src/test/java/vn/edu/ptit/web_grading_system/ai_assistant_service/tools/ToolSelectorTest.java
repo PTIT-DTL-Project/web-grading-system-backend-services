@@ -16,6 +16,21 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class ToolSelectorTest {
+    @Test
+    void repeatedWriteToolRepresentsTwoOrderedActions() {
+        AgentTool writer = mock(AgentTool.class);
+        when(writer.getName()).thenReturn("createTestPlan");
+        when(writer.getDefinition()).thenReturn(new ToolDefinition("createTestPlan", "", "1", "lecturer",
+                "write", "plan", EffectType.DOMAIN_WRITE, Set.of("ROLE_LECTURER"), Duration.ofSeconds(5), 1000));
+        ToolRegistry registry = new ToolRegistry(List.of(writer), mapper);
+        LlmClient llm = mock(LlmClient.class);
+        when(llm.chooseRelevantTools(anyString(), anyList()))
+                .thenReturn(List.of("createTestPlan", "createTestPlan"));
+
+        assertEquals(List.of("createTestPlan", "createTestPlan"),
+                new ToolSelector(registry).selectFromModel("tạo hai câu", Set.of("ROLE_LECTURER"), llm));
+    }
+
     private final ObjectMapper mapper = new JacksonConfig().objectMapper();
 
     private AgentTool tool(String name, String description, String role) {
@@ -40,10 +55,10 @@ class ToolSelectorTest {
         ), mapper);
         ToolSelector selector = new ToolSelector(registry);
         LlmClient llm = mock(LlmClient.class);
-        // Query khớp đủ 4 tool theo chấm điểm deterministic; LLM không được gọi.
-        assertEquals(List.of("getMyClass", "listMyClasses", "listMySubmissions", "getClassRoster"),
-                selector.selectFromModel("xem lớp học và bài nộp của tôi", Set.of("ROLE_STUDENT"), llm));
-        verifyNoInteractions(llm);
+        when(llm.chooseRelevantTools(anyString(), anyList())).thenReturn(List.of(
+                "getMyClass", "listMyClasses", "getClassRoster", "listMySubmissions", "getMyClass", "invented"));
+        assertEquals(List.of("getMyClass", "listMyClasses", "getClassRoster", "listMySubmissions"),
+                selector.selectFromModel("Xem lớp học của tôi", Set.of("ROLE_STUDENT"), llm));
     }
 
     @Test

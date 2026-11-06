@@ -34,7 +34,7 @@ public class SearchConversationTool {
                 return org.springframework.ai.tool.definition.ToolDefinition.builder()
                         .name("search_conversation")
                         .description("Tìm lại các quyết định và tin nhắn cũ trong chính cuộc hội thoại hiện tại.")
-                        .inputSchema("{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"},\"cursor\":{\"type\":\"string\"}},\"required\":[\"query\"]}")
+                        .inputSchema("{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"},\"cursor\":{\"type\":[\"string\",\"null\"]}},\"required\":[\"query\"]}")
                         .build();
             }
             @Override public String call(String input) { return call(input, null); }
@@ -54,6 +54,20 @@ public class SearchConversationTool {
                     if (before <= 0) return "{\"error\":\"INVALID_CURSOR\"}";
                     Page<Message> found = messages.searchScoped(context.conversationId(), roleScope, query, before,
                             PageRequest.of(0, PAGE_SIZE + 1));
+                    if (found.isEmpty() && query.contains(" ")) {
+                        String[] words = query.split("\\s+");
+                        for (String word : words) {
+                            String cleanWord = word.replaceAll("[^\\p{L}\\p{N}]", "").strip();
+                            if (cleanWord.length() >= 3) {
+                                Page<Message> fallbackFound = messages.searchScoped(context.conversationId(), roleScope, cleanWord, before,
+                                        PageRequest.of(0, PAGE_SIZE + 1));
+                                if (!fallbackFound.isEmpty()) {
+                                    found = fallbackFound;
+                                    break;
+                                }
+                            }
+                        }
+                    }
                     var matches = new ArrayList<Map<String, Object>>();
                     for (Message match : found.getContent().stream().limit(PAGE_SIZE).toList()) {
                         String content = match.getContent() == null ? "" : match.getContent();
@@ -62,8 +76,9 @@ public class SearchConversationTool {
                     }
                     Map<String, Object> result = new LinkedHashMap<>();
                     result.put("matches", matches);
-                    result.put("nextCursor", found.getContent().size() > PAGE_SIZE && !matches.isEmpty()
-                            ? Integer.toString((Integer) matches.getLast().get("sequenceNo")) : null);
+                    if (found.getContent().size() > PAGE_SIZE && !matches.isEmpty()) {
+                        result.put("nextCursor", Integer.toString((Integer) matches.getLast().get("sequenceNo")));
+                    }
                     return mapper.writeValueAsString(result);
                 } catch (NumberFormatException e) {
                     return "{\"error\":\"INVALID_CURSOR\"}";

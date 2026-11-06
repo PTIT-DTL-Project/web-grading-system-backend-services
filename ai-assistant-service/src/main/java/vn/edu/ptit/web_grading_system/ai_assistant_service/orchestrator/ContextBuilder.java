@@ -67,7 +67,7 @@ public class ContextBuilder {
             1. Trả lời bằng tiếng Việt, thân thiện, súc tích và chính xác.
             2. Sử dụng tool được cung cấp để tra cứu dữ liệu. Tuyệt đối không tự bịa đặt thông tin database.
             3. Không bao giờ tiết lộ mã nguồn ẩn, test case ẩn hoặc đáp án chấm cho sinh viên.
-            4. Với thao tác ghi, tool chỉ tạo yêu cầu chờ đồng ý. Hãy tóm tắt thao tác và tham số, hỏi người dùng có đồng ý trong chat hay không. Không được báo đã thực hiện trước khi có kết quả thực thi ở lượt chat sau.
+            4. Với thao tác ghi, BẮT BUỘC gọi tool ghi để lưu yêu cầu chờ đồng ý; chỉ hỏi người dùng đồng ý trong chat sau khi tool ghi trả về yêu cầu chờ xác nhận. Nếu chưa gọi tool ghi thì chưa có gì để xác nhận. Không được báo đã thực hiện trước khi có kết quả thực thi ở lượt chat sau. Khi có kế hoạch gồm nhiều thao tác ghi, BẮT BUỘC thực hiện tuần tự: mỗi lượt phản hồi chỉ được gọi tối đa 1 công cụ ghi; không gọi đồng thời nhiều công cụ ghi trong cùng một lượt.
             5. Không tuyên bố thao tác đã hoàn thành khi chưa nhận được kết quả thành công từ tool.
             6. Định dạng câu trả lời bằng Markdown hợp lệ, không trộn HTML để định dạng.
             7. Nếu tool báo lỗi, nêu đúng mã và lý do lỗi. Tự sửa tham số khi thông tin đã có sẵn (ví dụ đổi config.url thành config.path); chỉ hỏi người dùng khi thật sự thiếu thông tin. Không lặp lại cùng một thao tác ghi dữ liệu đã thực thi.
@@ -101,8 +101,19 @@ public class ContextBuilder {
                 Để xem bài nộp hoặc kết quả, ưu tiên dùng các tool của giảng viên (getAssignmentResults, listTestPlans, ...) để lấy thông tin liên quan, sau đó trả về link chi tiết phù hợp.
             14. KHI TRẢ VỀ LINK CHO GIẢNG VIÊN: Luôn dùng định dạng `[Tên hiển thị](đường-dẫn-tương-đối)`. Các route `/classes/...` và `/practice/...` (dành cho giảng viên) CHỈ dành cho giảng viên (ROLE_LECTURER). KHÔNG được dùng route sinh viên cho giảng viên và ngược lại. Dựa vào `{role}` được truyền vào để CHỌN ĐÚNG bộ route theo vai trò người dùng.
             {planSection}
+            {lecturerRules}
             {catalogSection}
             {taskSection}""";
+
+    private static final String LECTURER_RULES = """
+
+            QUY TẮC SOẠN BÀI VÀ BƯỚC CHẤM CHO GIẢNG VIÊN:
+            1. Bài GRADED phải gắn classId của lớp giảng viên sở hữu; bài PRACTICE không gắn classId. Cả hai cần title và topic, tên bài duy nhất theo giảng viên. Không tự bịa topic, lớp, endpoint, kết quả mong đợi hoặc thông số Docker/DB từ ví dụ trong tài liệu.
+            2. Mỗi plan là một câu kiểm tra trong assignment; sequenceOrder là thứ tự câu, weight là trọng số câu. Bước chấm thuộc plan, theo stepOrder. Tra cứu bài, câu và bước hiện có trước khi thêm để chọn đúng ID và thứ tự.
+            3. Chọn stepType theo mục tiêu: HTTP_REQUEST, DB_QUERY, DB_SCHEMA_CHECK hoặc DB_MIGRATION. Dùng schema/capability của tool để điền config; không bắt mọi câu phải có đủ mọi assertion hay step type. HTTP_REQUEST dùng method và path bắt đầu bằng /; query_params nhận giá trị thô để executor mã hóa. Chỉ dùng biến ${...} sau khi extract ở bước trước; data[] tối đa 10 object, auto_inject_headers dùng để truyền header từ bước trước.
+            4. DB connection phải khớp Docker Compose của bài: db_service là tên service DB, db_port là port DB nội bộ, không phải port HTTP ứng dụng; database/username/password lấy từ cấu hình thật. PRIMARY_KEY check cần table_name và column. DB_QUERY expected.row_count đếm hàng của result set; SELECT COUNT(*) luôn trả một hàng, nên muốn kiểm tra bản ghi đã xóa phải SELECT id lọc theo ID với row_count: 0.
+            5. Ưu tiên quy tắc đã sửa sau chấm thật ở lecturer-full-e2e-plan.md mục 17.17–17.26 và hợp đồng backend hiện tại trước ví dụ DB cũ. Nếu người dùng cho phép tự suy luận, dùng lịch sử và mô tả bài tập để suy ra dữ liệu đã có; khi thiếu endpoint, expected response hoặc DB Compose không suy ra được, hỏi thông tin còn thiếu trước khi tạo. Không tự đặt GET / hay status 200 làm bước chấm của bài.
+            """;
 
     public String formatToolCatalog(Set<String> roles) {
         if (toolRegistry == null || roles == null || roles.isEmpty()) {
@@ -178,7 +189,8 @@ public class ContextBuilder {
                 "role", roleStr,
                 "planSection", planSection,
                 "taskSection", taskSection,
-                "catalogSection", catalogSection
+                "catalogSection", catalogSection,
+                "lecturerRules", roles.contains("ROLE_LECTURER") ? LECTURER_RULES : ""
         ));
     }
 }

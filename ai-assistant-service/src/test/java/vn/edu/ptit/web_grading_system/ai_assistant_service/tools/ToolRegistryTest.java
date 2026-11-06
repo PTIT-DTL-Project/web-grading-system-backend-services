@@ -66,6 +66,32 @@ public class ToolRegistryTest {
     }
 
     @Test
+    void plansAuthorizedIdentifierLookupsInDependencyOrder() {
+        var mapper = new JacksonConfig().objectMapper();
+        var course = org.mockito.Mockito.mock(
+                vn.edu.ptit.web_grading_system.ai_assistant_service.client.CourseServiceClient.class);
+        var http = org.springframework.web.client.RestClient.create();
+        ToolRegistry registry = new ToolRegistry(List.of(
+                new vn.edu.ptit.web_grading_system.ai_assistant_service.tools.common.ListMyClassesTool(course),
+                new vn.edu.ptit.web_grading_system.ai_assistant_service.tools.common.ListVisibleAssignmentsTool(course),
+                new DomainApiTool("listTestPlans", "plans", "ROLE_LECTURER", "GET", "/plans",
+                        new String[]{"assignmentId"}, new String[]{}, false, null, http, mapper),
+                new DomainApiTool("listTestSteps", "steps", "ROLE_LECTURER", "GET", "/steps",
+                        new String[]{"assignmentId", "planId"}, new String[]{}, false, null, http, mapper),
+                new DomainApiTool("listMySubmissions", "submissions", "ROLE_STUDENT", "GET", "/submissions",
+                        new String[]{}, new String[]{}, false, null, http, mapper)), mapper);
+
+        assertEquals(List.of("listVisibleAssignments", "listTestPlans", "listTestSteps"),
+                registry.planReferenceLookups(Set.of("stepId"), Set.of("ROLE_LECTURER"))
+                        .stream().map(AgentTool::getName).toList());
+        assertEquals(List.of("listMyClasses"), registry.planReferenceLookups(
+                Set.of("classId"), Set.of("ROLE_STUDENT")).stream().map(AgentTool::getName).toList());
+        assertEquals(List.of("listMySubmissions"), registry.planReferenceLookups(
+                Set.of("submissionId"), Set.of("ROLE_STUDENT")).stream().map(AgentTool::getName).toList());
+        assertEquals(List.of(), registry.planReferenceLookups(Set.of("stepId"), Set.of("ROLE_STUDENT")));
+    }
+
+    @Test
     void testAgentToolSpringAiCallbackInterface() {
         AgentTool tool = new AgentTool() {
             @Override public String getName() { return "myTool"; }

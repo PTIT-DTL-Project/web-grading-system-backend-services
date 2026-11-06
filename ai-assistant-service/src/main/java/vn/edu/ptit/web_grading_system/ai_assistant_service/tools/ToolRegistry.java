@@ -49,6 +49,44 @@ public class ToolRegistry {
         return new ArrayList<>(toolsByName.values());
     }
 
+    /** Return authorized read tools in prerequisite order for the requested identifiers. */
+    public List<AgentTool> planReferenceLookups(Set<String> identifiers, Set<String> roles) {
+        List<AgentTool> reads = getToolsForRoles(roles).stream()
+                .filter(tool -> tool.getDefinition().effectType() == EffectType.READ)
+                .sorted(Comparator.comparingInt((AgentTool tool) -> tool.lookupPrerequisites().size())
+                        .thenComparing(AgentTool::getName)).toList();
+        LinkedHashSet<AgentTool> planned = new LinkedHashSet<>();
+        Set<String> visiting = new HashSet<>();
+        identifiers.stream().sorted().forEach(id -> planReferenceLookup(id, reads, planned, visiting));
+        return List.copyOf(planned);
+    }
+
+    private boolean planReferenceLookup(String identifier, List<AgentTool> reads,
+                                        LinkedHashSet<AgentTool> planned, Set<String> visiting) {
+        if (!visiting.add(identifier)) return false;
+        try {
+            for (AgentTool tool : reads) {
+                if (!tool.resolvedIdentifiers().contains(identifier)) continue;
+                LinkedHashSet<AgentTool> dependencies = new LinkedHashSet<>();
+                boolean available = true;
+                for (String required : tool.lookupPrerequisites()) {
+                    if (!planReferenceLookup(required, reads, dependencies, visiting)) {
+                        available = false;
+                        break;
+                    }
+                }
+                if (available) {
+                    planned.addAll(dependencies);
+                    planned.add(tool);
+                    return true;
+                }
+            }
+            return false;
+        } finally {
+            visiting.remove(identifier);
+        }
+    }
+
     public List<AgentTool> findReferenceLookupTools(String query, Set<String> roles, int limit) {
         if (limit <= 0 || ToolSelector.terms(query).isEmpty()) return List.of();
         Set<String> terms = new HashSet<>(ToolSelector.terms(query));
