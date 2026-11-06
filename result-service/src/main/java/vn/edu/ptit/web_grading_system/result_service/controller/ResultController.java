@@ -12,10 +12,12 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.AssignmentResultGroupResponse;
 import vn.edu.ptit.web_grading_system.result_service.dto.response.ResultResponse;
+import vn.edu.ptit.web_grading_system.result_service.dto.response.StepResultResponse;
 import vn.edu.ptit.web_grading_system.result_service.service.ResultService;
 import vn.edu.ptit.web_grading_system.result_service.util.annotation.ApiMessage;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -52,6 +54,13 @@ public class ResultController {
         if (!isLecturer && !results.stream().allMatch(r -> callerId.equals(r.getStudentId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not owner of submission");
         }
+        // Strip sensitive step details for students: assertion details reveal the
+        // expected answer (expected_status, json_path, field_equals, contains, etc.),
+        // expectedValue/actualValue reveal the correct output, and stack traces/logs
+        // leak internal debugging information.
+        if (!isLecturer) {
+            results = stripSensitiveStepDetails(results);
+        }
         return ResponseEntity.ok(results);
     }
 
@@ -84,6 +93,67 @@ public class ResultController {
                     .results(List.of())
                     .build());
         }
-        return ResponseEntity.ok(groups.get(0));
+        AssignmentResultGroupResponse group = groups.get(0);
+        // Strip sensitive step details for students (same rule as getBySubmission).
+        List<ResultResponse> sanitized = stripSensitiveStepDetails(group.getResults());
+        return ResponseEntity.ok(AssignmentResultGroupResponse.builder()
+                .studentUserId(group.getStudentUserId())
+                .exerciseScore(group.getExerciseScore())
+                .results(sanitized)
+                .build());
+    }
+
+    /**
+     * Strips sensitive per-step fields from result rows before returning to students.
+     * Keeps score/maxScore/status/passed/skipped/weight which are safe to show,
+     * but removes assertion details, expected/actual values, error messages and
+     * internal debugging logs that would reveal grading answers or internals.
+     */
+    private List<ResultResponse> stripSensitiveStepDetails(List<ResultResponse> results) {
+        List<ResultResponse> sanitized = new ArrayList<>(results.size());
+        for (ResultResponse r : results) {
+            List<StepResultResponse> cleanSteps = null;
+            if (r.getSteps() != null) {
+                cleanSteps = new ArrayList<>(r.getSteps().size());
+                for (StepResultResponse s : r.getSteps()) {
+                    cleanSteps.add(StepResultResponse.builder()
+                            .id(s.getId())
+                            .stepId(s.getStepId())
+                            .stepOrder(s.getStepOrder())
+                            .stepName(s.getStepName())
+                            .stepType(s.getStepType())
+                            .planId(s.getPlanId())
+                            // Students need requestUrl and requestBody to know what endpoint
+                            // to call and what body to send.
+                            .requestUrl(s.getRequestUrl())
+                            .requestBody(s.getRequestBody())
+                            .score(s.getScore())
+                            .passed(s.getPassed())
+                            .skipped(s.getSkipped())
+                            .weight(s.getWeight())
+                            .durationMs(s.getDurationMs())
+                            .responseStatus(s.getResponseStatus())
+                            .build());
+                }
+            }
+            sanitized.add(ResultResponse.builder()
+                    .id(r.getId())
+                    .submissionId(r.getSubmissionId())
+                    .assignmentId(r.getAssignmentId())
+                    .studentId(r.getStudentId())
+                    .planId(r.getPlanId())
+                    .planWeight(r.getPlanWeight())
+                    .scope(r.getScope())
+                    .score(r.getScore())
+                    .maxScore(r.getMaxScore())
+                    .status(r.getStatus())
+                    // summaryLog may contain expected values and error details — stripped for students
+                    .latest(r.getLatest())
+                    .startedAt(r.getStartedAt())
+                    .completedAt(r.getCompletedAt())
+                    .steps(cleanSteps)
+                    .build());
+        }
+        return sanitized;
     }
 }

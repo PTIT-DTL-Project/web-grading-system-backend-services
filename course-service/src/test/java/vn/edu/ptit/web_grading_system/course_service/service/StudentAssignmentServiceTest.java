@@ -62,7 +62,7 @@ class StudentAssignmentServiceTest {
                 .thenReturn(List.of(TestPlan.builder().id(PLAN_ID).name("Basic").sequenceOrder(1).build()));
         TestStep http = TestStep.builder().id(UUID.randomUUID()).planId(PLAN_ID).stepOrder(1).name("hit api")
                 .description("Call the endpoint").stepType(StepType.HTTP_REQUEST)
-                .config("{\"method\":\"GET\",\"path\":\"/x\",\"connection\":{\"password\":\"secret\"},\"extract\":[{\"name\":\"id\"}]}")
+                .config("{\"method\":\"GET\",\"path\":\"/x\",\"connection\":{\"password\":\"secret\"},\"extract\":[{\"name\":\"id\"}],\"assertions\":[{\"kind\":\"status\",\"equals\":201}]}")
                 .build();
         TestStep delay = TestStep.builder().id(UUID.randomUUID()).planId(PLAN_ID).stepOrder(2).name("wait")
                 .stepType(StepType.DELAY).config("{\"duration_ms\":1000}").build();
@@ -83,6 +83,7 @@ class StudentAssignmentServiceTest {
         assertFalse(cfg.has("connection"), "credentials must be stripped");
         assertFalse(cfg.has("extract"), "extract must be stripped");
         assertFalse(cfg.has("expected"), "expected must be stripped");
+        assertFalse(cfg.has("assertions"), "assertions must be stripped — grading answers must not leak to students");
     }
 
     @Test
