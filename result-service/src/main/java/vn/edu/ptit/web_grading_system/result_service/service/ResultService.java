@@ -273,13 +273,15 @@ public class ResultService {
     }
 
     /**
-     * Per-plan subtotals of one run from its step rows, mirroring the
-     * executor's {@code ScoreCalculator} exactly (skipped steps still count
+     * Per-plan subtotals of one run from its step rows — result-service's own
+     * scoring rule (result-service's {@code PlanBests}/{@code maxPerPlanAverage},
+     * not the executor's {@code ScoreCalculator}). Skipped steps still count
      * their weight into the ran denominator but earn 0 passed — a skipped
-     * step drags the plan score down, it is not silently ignored) — a FULL
-     * row's steps are the only per-plan evidence it leaves. Steps without a
-     * planId cannot be attributed and are ignored. Plans with no ran weight
-     * contribute nothing.
+     * step drags the plan score down, it is not silently ignored — unlike the
+     * executor's ScoreCalculator which excludes skipped steps from both
+     * sides. A FULL row's steps are the only per-plan evidence it leaves.
+     * Steps without a planId cannot be attributed and are ignored. Plans with
+     * no ran weight contribute nothing.
      */
     private static Map<UUID, BigDecimal> planSubtotals(List<StepResult> steps) {
         Map<UUID, Integer> ran = new LinkedHashMap<>();
