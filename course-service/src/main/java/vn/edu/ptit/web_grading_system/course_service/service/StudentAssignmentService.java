@@ -135,7 +135,11 @@ public class StudentAssignmentService {
             return node;
         }
         ObjectNode copy = (ObjectNode) node.deepCopy();
-        copy.remove(List.of("connection", "extract", "expected"));
+        // Review: 2026-11-06 — student-facing endpoints must never expose assertion
+        // details (expected_status, json_path, field_equals, contains, etc.) because
+        // they reveal the grading answers. Remove assertions along with connection,
+        // extract and expected which are already stripped.
+        copy.remove(List.of("connection", "extract", "expected", "assertions"));
         return copy;
     }
 
