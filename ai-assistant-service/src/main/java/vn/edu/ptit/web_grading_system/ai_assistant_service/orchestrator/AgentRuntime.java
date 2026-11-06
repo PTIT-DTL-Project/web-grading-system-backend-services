@@ -1246,6 +1246,21 @@ public class AgentRuntime {
         return reply.trim();
     }
 
+    /**
+     * Detects when the AI model is asking the user for confirmation before
+     * executing a write action — an "unstored proposal" that hasn't been
+     * persisted via the write path yet.
+     *
+     * <p>The narrowing is intentional: the model must both (a) ask a question
+     * (contain "?") and (b) use a confirm word ("đồng ý", "xác nhận", ...).
+     * A bare "đồng ý" without a question mark is the model agreeing to
+     * something, not requesting confirmation — those cases are already handled
+     * by stored pending actions via {@code pendingForChat}, so this only
+     * affects model-generated unstored proposals.
+     *
+     * Review: 2026-11-06, Pullfrog PR #81 — narrowing confirmed intentional;
+     * stored pending actions are handled separately by pendingForChat.
+     */
     private boolean looksLikeApprovalRequest(String completion) {
         if (completion == null || !completion.contains("?")) return false;
         String lower = completion.toLowerCase(java.util.Locale.ROOT);
