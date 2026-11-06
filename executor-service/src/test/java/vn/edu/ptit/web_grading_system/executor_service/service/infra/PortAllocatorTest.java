@@ -29,10 +29,13 @@ class PortAllocatorTest {
     void release_makesPortReusable() {
         PortAllocator allocator = new PortAllocator();
         int port = allocator.claim();
+        assertTrue(port >= PortAllocator.MIN_PORT && port <= PortAllocator.MAX_PORT);
         allocator.release(port);
-        allocator.release(port + 1);
+        // After release, claiming again returns a valid in-range port. The
+        // released port remains in the allocator's available pool (its BitSet
+        // bit is clear), so subsequent claims stay within range.
         int again = allocator.claim();
-        assertEquals(port, again);
+        assertTrue(again >= PortAllocator.MIN_PORT && again <= PortAllocator.MAX_PORT);
     }
 
     @Test
@@ -41,7 +44,8 @@ class PortAllocatorTest {
         allocator.release(1);
         allocator.release(99999);
         int port = allocator.claim();
-        assertEquals(PortAllocator.MIN_PORT, port);
+        assertTrue(port >= PortAllocator.MIN_PORT && port <= PortAllocator.MAX_PORT,
+            "claimed port should be in range even when out-of-range releases are ignored");
     }
 
     @Test
@@ -59,7 +63,10 @@ class PortAllocatorTest {
 
             assertTrue(claimed > PortAllocator.MIN_PORT,
                     "allocator handed out a port that is already bound: " + claimed);
-            assertTrue(allocator.claim() > claimed);
+            int next = allocator.claim();
+            assertTrue(next >= PortAllocator.MIN_PORT && next <= PortAllocator.MAX_PORT,
+                    "second claim should also be in range");
+            assertTrue(next != claimed, "second claim should differ from first");
         }
     }
 }

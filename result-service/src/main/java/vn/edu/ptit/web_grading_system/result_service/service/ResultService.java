@@ -274,21 +274,24 @@ public class ResultService {
 
     /**
      * Per-plan subtotals of one run from its step rows, mirroring the
-     * executor's {@code ScoreCalculator} exactly (skipped steps excluded from
-     * both sides, same rounding) — a FULL row's steps are the only per-plan
-     * evidence it leaves. Steps without a planId cannot be attributed and are
-     * ignored. Plans with no ran weight contribute nothing.
+     * executor's {@code ScoreCalculator} exactly (skipped steps still count
+     * their weight into the ran denominator but earn 0 passed — a skipped
+     * step drags the plan score down, it is not silently ignored) — a FULL
+     * row's steps are the only per-plan evidence it leaves. Steps without a
+     * planId cannot be attributed and are ignored. Plans with no ran weight
+     * contribute nothing.
      */
     private static Map<UUID, BigDecimal> planSubtotals(List<StepResult> steps) {
         Map<UUID, Integer> ran = new LinkedHashMap<>();
         Map<UUID, Integer> passed = new LinkedHashMap<>();
         for (StepResult s : steps) {
-            if (s.getPlanId() == null || Boolean.TRUE.equals(s.getSkipped())) {
+            if (s.getPlanId() == null) {
                 continue;
             }
             int w = s.getWeight() != null ? s.getWeight() : 1;
             ran.merge(s.getPlanId(), w, Integer::sum);
-            if (Boolean.TRUE.equals(s.getPassed())) {
+            // Skipped: weight still counts toward ran, but contributes 0 to passed.
+            if (!Boolean.TRUE.equals(s.getSkipped()) && Boolean.TRUE.equals(s.getPassed())) {
                 passed.merge(s.getPlanId(), w, Integer::sum);
             }
         }
