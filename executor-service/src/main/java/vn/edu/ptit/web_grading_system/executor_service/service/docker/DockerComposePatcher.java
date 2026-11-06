@@ -75,7 +75,12 @@ public final class DockerComposePatcher
             throw new IllegalStateException(Constant.Message.NO_SERVICES);
         }
         String appService = identifyAppService(services);
-        int containerPort = dockerComposePort > 0 ? dockerComposePort : 8080;
+        // Read the container port from the compose file's ports section
+        // (e.g. "20000:8080" → container port 8080) so Testcontainers waits on
+        // the port the student's app actually listens on inside the container,
+        // not on a configured value that may not match. Fall back to the
+        // dockerComposePort config, then 8080.
+        int containerPort = resolveContainerPort(services, appService, dockerComposePort);
         for (Map.Entry<String, Object> entry : services.entrySet())
         {
             @SuppressWarnings("unchecked")
@@ -116,6 +121,52 @@ public final class DockerComposePatcher
             new Yaml().dump(compose, writer);
         }
         return new EffectiveCompose(appService, containerPort, composeFile);
+    }
+
+    /**
+     * Resolves the container port the student's app listens on inside the
+     * container. Reads from the compose file's {@code ports} section for the
+     * app service (e.g. {@code "20000:8080"} → 8080). Falls back to
+     * {@code dockerComposePort} config, then 8080.
+     *
+     * <p>Never trust the config value alone: if it says 20000 but the app
+     * listens on 8080 inside the container, Testcontainers waits on a port
+     * that is not exposed and the boot times out.
+     * Review: 2026-11-06, "Target port 20000 is not exposed" incident.
+     */
+    private static int resolveContainerPort(Map<String, Object> services, String appService, int dockerComposePort)
+    {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> app = (Map<String, Object>) services.get(appService);
+        if (app == null)
+        {
+            return dockerComposePort > 0 ? dockerComposePort : 8080;
+        }
+        Object portsObj = app.get(Constant.DockerCompose.PORTS);
+        if (portsObj instanceof List<?> ports)
+        {
+            for (Object p : ports)
+            {
+                if (p == null)
+                {
+                    continue;
+                }
+                String spec = p.toString().trim();
+                int colon = spec.lastIndexOf(':');
+                if (colon > 0 && colon < spec.length() - 1)
+                {
+                    try
+                    {
+                        return Integer.parseInt(spec.substring(colon + 1).trim());
+                    }
+                    catch (NumberFormatException e)
+                    {
+                        // ignore malformed entry, try next
+                    }
+                }
+            }
+        }
+        return dockerComposePort > 0 ? dockerComposePort : 8080;
     }
 
     @SuppressWarnings("unchecked")

@@ -229,7 +229,7 @@ class ResultServiceTest {
     }
 
     @Test
-    void weightedScoreByPlan_skippedExcludedExactly() {
+    void weightedScoreByPlan_skippedCountsIntoDenominator() {
         ScoringFixture f = scoringFixture();
         UUID student = UUID.randomUUID();
         UUID assignment = UUID.randomUUID();
@@ -251,9 +251,9 @@ class ResultServiceTest {
                 step(full.getId(), plan, false, false, 1),
                 step(full.getId(), plan, false, true, 2)));
 
-        // 1 pass + 1 fail over ran weight 2 (skip's weight 2 excluded) = 5.00,
-        // never 10×1/4 = 2.50.
-        assertEquals(new BigDecimal("5.00"),
+        // 1 pass + 1 fail + 1 skip over ran weight 4 (skip's weight 2 counts into ran) = 2.50,
+        // never 10×1/2 = 5.00 — a skipped step still drags the plan score down.
+        assertEquals(new BigDecimal("2.50"),
                 f.service().weightedScoreByPlan(List.of(assignment), student));
     }
 
