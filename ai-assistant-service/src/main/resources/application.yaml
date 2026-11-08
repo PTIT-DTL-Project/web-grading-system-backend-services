@@ -52,18 +52,37 @@ management:
       exposure:
         include: health,info,prometheus
   tracing:
-    enabled: true
     sampling:
       probability: ${OTEL_TRACES_SAMPLING_PROBABILITY:1.0}
-  otlp:
+    # Review: 2026-11-08, Pullfrog PR #87 — this service was the only one with
+    # management.tracing.enabled: true. Boot 4 rejects that key at error level;
+    # its replacement (management.tracing.export.enabled) defaults to true, so
+    # behaviour is unchanged. Kept explicit so all six services declare the same
+    # key set (the reviewer flagged the asymmetry).
+    export:
+      enabled: true
+  # Spring Boot 4.x: management.otlp.tracing.* and management.tracing.enabled
+  # are deprecated at error level. Use the new property names.
+  # Review: 2026-11-08, Pullfrog PR #87 — verified against
+  # spring-boot-micrometer-tracing-opentelemetry-4.1.0 metadata:
+  # management.opentelemetry.tracing.export.otlp.endpoint is the live name, and
+  # all six services already use it (no management.tracing.otlp.* anywhere).
+  opentelemetry:
     tracing:
-      # Send OTLP traces directly to Tempo (no Alloy intermediary).
-      endpoint: ${OTLP_TRACES_ENDPOINT:http://tempo.observability.svc.cluster.local:4318/v1/traces}
-      transport: http
+      export:
+        otlp:
+          # Send OTLP traces directly to Tempo (no Alloy intermediary).
+          endpoint: ${OTLP_TRACES_ENDPOINT:http://tempo.observability.svc.cluster.local:4318/v1/traces}
+  otlp:
+    metrics:
+      # Prometheus pulls /actuator/prometheus; disable the default OTLP push
+      # that would otherwise target localhost:4318 every 60 seconds.
+      export:
+        enabled: false
 
 logging:
   pattern:
-    level: "%5p [${spring.application.name:},%X{trace_id:-},%X{span_id:-}]"
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
   level:
     root: INFO
 

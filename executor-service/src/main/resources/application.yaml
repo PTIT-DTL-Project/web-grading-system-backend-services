@@ -72,7 +72,7 @@ management:
         include: health,info,prometheus
   tracing:
     sampling:
-      probability: 1.0
+      probability: ${OTEL_TRACES_SAMPLING_PROBABILITY:1.0}
     # OTLP push to Tempo — enabled so traces are exported from this service.
     export:
       enabled: true
@@ -83,27 +83,16 @@ management:
           endpoint: ${OTLP_TRACES_ENDPOINT:http://tempo.observability.svc.cluster.local:4318/v1/traces}
   otlp:
     metrics:
-      # OTLP metrics push disabled — set to true to re-enable
+      # Prometheus pulls /actuator/prometheus; do not also push to OTLP.
       export:
         enabled: false
-        url: ${OTLP_METRICS_ENDPOINT:http://tempo.observability.svc.cluster.local:4318/v1/metrics}
-        step: 30s
 
 logging:
   level:
     root: INFO
     vn.edu.ptit.web_grading_system: ${app.log.level:INFO}
   pattern:
-    level: "%5p [${spring.application.name:},%X{trace_id:-},%X{span_id:-}]"
-
-# Pyroscope continuous profiling
-pyroscope:
-  enabled: true
-  endpoint: ${PYROSCOPE_ENDPOINT:http://pyroscope.observability.svc.cluster.local:4100}
-  application-name: ${spring.application.name}
-  labels:
-    region: ${REGION:dev}
-    cluster: ${CLUSTER:dev}
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
 
 # Shared events topic (single topic for the whole system — Aiven free tier = 5 topics)
 wgs:

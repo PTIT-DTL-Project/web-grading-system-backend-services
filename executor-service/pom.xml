@@ -104,12 +104,6 @@
 			<artifactId>okio-jvm</artifactId>
 			<version>3.16.4</version>
 		</dependency>
-		<!-- Pyroscope continuous profiling -->
-		<dependency>
-			<groupId>io.pyroscope</groupId>
-			<artifactId>agent</artifactId>
-			<version>2.1.2</version>
-		</dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>

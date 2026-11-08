@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Logback config for ai-assistant-service.
-  Plain-text console logs carry trace_id/span_id for Tempo correlation.
+  Plain-text console logs carry traceId/spanId for Tempo correlation.
   AI_AGENT_TRACE logger used by AgentTrace.java writes to a size/time-capped
   rolling file so production log growth is bounded.
 -->
@@ -12,7 +12,7 @@
     <!-- Console: plain text with trace context for Tempo correlation -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{trace_id:-},%X{span_id:-}] [%t] %c{1} - %m%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{traceId:-},%X{spanId:-}] [%t] %c{1} - %m%n</pattern>
         </encoder>
     </appender>
 
