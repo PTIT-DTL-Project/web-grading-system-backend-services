@@ -52,18 +52,26 @@ management:
       exposure:
         include: health,info,prometheus
   tracing:
-    enabled: true
     sampling:
       probability: ${OTEL_TRACES_SAMPLING_PROBABILITY:1.0}
-  otlp:
+  # Spring Boot 4.x: management.otlp.tracing.* and management.tracing.enabled
+  # are deprecated at error level. Use the new property names.
+  opentelemetry:
     tracing:
-      # Send OTLP traces directly to Tempo (no Alloy intermediary).
-      endpoint: ${OTLP_TRACES_ENDPOINT:http://tempo.observability.svc.cluster.local:4318/v1/traces}
-      transport: http
+      export:
+        otlp:
+          # Send OTLP traces directly to Tempo (no Alloy intermediary).
+          endpoint: ${OTLP_TRACES_ENDPOINT:http://tempo.observability.svc.cluster.local:4318/v1/traces}
+  otlp:
+    metrics:
+      # Prometheus pulls /actuator/prometheus; disable the default OTLP push
+      # that would otherwise target localhost:4318 every 60 seconds.
+      export:
+        enabled: false
 
 logging:
   pattern:
-    level: "%5p [${spring.application.name:},%X{trace_id:-},%X{span_id:-}]"
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
   level:
     root: INFO
 

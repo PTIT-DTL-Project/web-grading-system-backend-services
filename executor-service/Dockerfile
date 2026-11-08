@@ -13,11 +13,5 @@ WORKDIR /app
 ENV JAVA_HOME=/opt/java/openjdk
 ENV PATH=$JAVA_HOME/bin:$PATH
 COPY --from=builder /build/target/*.jar app.jar
-# Pyroscope agent disabled (no observability) — uncomment to re-enable
-# ADD https://repo1.maven.org/maven2/io/pyroscope/agent/2.1.2/agent-2.1.2.jar /app/pyroscope.jar
-# ENV PYROSCOPE_APPLICATION_NAME=grading-executor-service \
-#     PYROSCOPE_SERVER_ADDRESS=http://pyroscope.observability.svc.cluster.local:4100 \
-#     PYROSCOPE_FORMAT=jfr \
-#     PYROSCOPE_PROFILER_EVENT=itimer
 EXPOSE 8083
 ENTRYPOINT ["java", "-jar", "app.jar"]

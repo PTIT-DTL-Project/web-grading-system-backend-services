@@ -41,7 +41,7 @@ management:
         include: health,info,prometheus
   tracing:
     sampling:
-      probability: 1.0
+      probability: ${OTEL_TRACES_SAMPLING_PROBABILITY:1.0}
     export:
       enabled: false
   opentelemetry:
@@ -53,8 +53,6 @@ management:
     metrics:
       export:
         enabled: false
-        url: ${OTLP_METRICS_ENDPOINT:http://tempo.observability.svc.cluster.local:4318/v1/metrics}
-        step: 30s
 
 logging:
   level:
@@ -63,12 +61,5 @@ logging:
     org.springframework.security: DEBUG
     org.springframework.cloud.gateway: DEBUG
   pattern:
-    level: "%5p [${spring.application.name:},%X{trace_id:-},%X{span_id:-}]"
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
 
-pyroscope:
-  enabled: true
-  endpoint: ${PYROSCOPE_ENDPOINT:http://pyroscope.observability.svc.cluster.local:4100}
-  application-name: ${spring.application.name}
-  labels:
-    region: ${REGION:dev}
-    cluster: ${CLUSTER:dev}

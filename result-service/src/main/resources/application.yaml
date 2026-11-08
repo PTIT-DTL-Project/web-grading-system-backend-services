@@ -41,7 +41,7 @@ management:
         include: health,info,prometheus
   tracing:
     sampling:
-      probability: 1.0
+      probability: ${OTEL_TRACES_SAMPLING_PROBABILITY:1.0}
     # OTLP push to Tempo — enabled so traces are exported from this service.
     export:
       enabled: true
@@ -52,32 +52,21 @@ management:
           endpoint: ${OTLP_TRACES_ENDPOINT:http://tempo.observability.svc.cluster.local:4318/v1/traces}
   otlp:
     metrics:
-      # OTLP metrics push disabled — set to true to re-enable
+      # Prometheus pulls /actuator/prometheus; do not also push to OTLP.
       export:
         enabled: false
-        url: ${OTLP_METRICS_ENDPOINT:http://tempo.observability.svc.cluster.local:4318/v1/metrics}
-        step: 30s
 
 logging:
   level:
     root: INFO
     vn.edu.ptit.web_grading_system: ${app.log.level:INFO}
   pattern:
-    level: "%5p [${spring.application.name:},%X{trace_id:-},%X{span_id:-}]"
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
 
 # Service-to-service endpoints (Feign) — env-overridable for local runs
 feign:
   course-service:
     url: ${COURSE_SERVICE_URI:http://grading-course-service:8081}
-
-# Pyroscope continuous profiling
-pyroscope:
-  enabled: true
-  endpoint: ${PYROSCOPE_ENDPOINT:http://pyroscope.observability.svc.cluster.local:4100}
-  application-name: ${spring.application.name}
-  labels:
-    region: ${REGION:dev}
-    cluster: ${CLUSTER:dev}
 
 # Secret the API Gateway stamps as X-Gateway-Secret on every forwarded request.
 # HeaderAuthenticationFilter only builds a SecurityContext when it matches;
