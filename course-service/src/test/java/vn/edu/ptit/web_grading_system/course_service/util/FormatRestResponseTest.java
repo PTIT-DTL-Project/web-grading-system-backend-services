@@ -3,6 +3,9 @@ package vn.edu.ptit.web_grading_system.course_service.util;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.converter.ByteArrayHttpMessageConverter;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.ApiResponse;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.ResultPaginationDTO;
 
@@ -55,5 +58,17 @@ class FormatRestResponseTest {
         assertTrue(FormatRestResponse.isExcluded("/swagger-ui/index.html"));
         assertFalse(FormatRestResponse.isExcluded("/api/v1/classes"));
         assertFalse(FormatRestResponse.isExcluded("/api/v1/submissions"));
+    }
+
+    @Test
+    void supports_rejectsByteArrayConverter() {
+        FormatRestResponse advice = new FormatRestResponse();
+        assertFalse(advice.supports(null, ByteArrayHttpMessageConverter.class));
+    }
+
+    @Test
+    void supports_acceptsOtherConverters() {
+        FormatRestResponse advice = new FormatRestResponse();
+        assertTrue(advice.supports(null, MappingJackson2HttpMessageConverter.class));
     }
 }
