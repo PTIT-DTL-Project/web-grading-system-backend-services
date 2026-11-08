@@ -54,8 +54,19 @@ management:
   tracing:
     sampling:
       probability: ${OTEL_TRACES_SAMPLING_PROBABILITY:1.0}
+    # Review: 2026-11-08, Pullfrog PR #87 — this service was the only one with
+    # management.tracing.enabled: true. Boot 4 rejects that key at error level;
+    # its replacement (management.tracing.export.enabled) defaults to true, so
+    # behaviour is unchanged. Kept explicit so all six services declare the same
+    # key set (the reviewer flagged the asymmetry).
+    export:
+      enabled: true
   # Spring Boot 4.x: management.otlp.tracing.* and management.tracing.enabled
   # are deprecated at error level. Use the new property names.
+  # Review: 2026-11-08, Pullfrog PR #87 — verified against
+  # spring-boot-micrometer-tracing-opentelemetry-4.1.0 metadata:
+  # management.opentelemetry.tracing.export.otlp.endpoint is the live name, and
+  # all six services already use it (no management.tracing.otlp.* anywhere).
   opentelemetry:
     tracing:
       export:
