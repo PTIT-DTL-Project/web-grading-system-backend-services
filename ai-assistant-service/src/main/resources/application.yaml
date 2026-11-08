@@ -61,6 +61,12 @@ management:
       endpoint: ${OTLP_TRACES_ENDPOINT:http://tempo.observability.svc.cluster.local:4318/v1/traces}
       transport: http
 
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{trace_id:-},%X{span_id:-}]"
+  level:
+    root: INFO
+
 gateway:
   security:
     secret: ${GATEWAY_TRUSTED_SECRET:}

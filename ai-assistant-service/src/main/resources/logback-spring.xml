@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Logback config for ai-assistant-service.
-  Restored after observability stack lite removed Loki: plain-text console logs
-  still carry trace_id/span_id so Grafana Tempo correlation works, and the
-  AI_AGENT_TRACE logger used by AgentTrace.java keeps a dedicated output.
+  Plain-text console logs carry trace_id/span_id for Tempo correlation.
+  AI_AGENT_TRACE logger used by AgentTrace.java writes to a size/time-capped
+  rolling file so production log growth is bounded.
 -->
 <configuration>
 
@@ -12,14 +12,19 @@
     <!-- Console: plain text with trace context for Tempo correlation -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{trace_id:-},%X{span_id:-}] [%t] %c{1.} - %m%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{trace_id:-},%X{span_id:-}] [%t] %c{1} - %m%n</pattern>
         </encoder>
     </appender>
 
-    <!-- Dedicated trace file logger for AgentTrace events -->
-    <appender name="TRACE_FILE" class="ch.qos.logback.core.FileAppender">
+    <!-- Dedicated trace file logger for AgentTrace events, size- and time-capped -->
+    <appender name="TRACE_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>logs/ai-agent-trace.log</file>
-        <append>true</append>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>logs/ai-agent-trace.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
         <encoder>
             <pattern>%m%n</pattern>
         </encoder>

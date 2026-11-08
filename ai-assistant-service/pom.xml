@@ -108,6 +108,13 @@
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- OTel's okhttp-jvm 5.x sender needs Okio.socket() (okio >= 3.13);
+		     okhttp 4.12 pulls okio 3.6 which lacks it. Pin newer okio. -->
+		<dependency>
+			<groupId>com.squareup.okio</groupId>
+			<artifactId>okio-jvm</artifactId>
+			<version>3.16.4</version>
+		</dependency>
 	</dependencies>
 
 	<dependencyManagement>
