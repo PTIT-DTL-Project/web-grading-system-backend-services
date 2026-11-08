@@ -5,6 +5,7 @@ import org.springframework.core.MethodParameter;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -19,8 +20,12 @@ import vn.edu.ptit.web_grading_system.submission_service.util.annotation.ApiMess
 public class FormatRestResponse implements ResponseBodyAdvice<Object> {
 
     @Override
-    public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
-        return true;
+    public boolean supports(MethodParameter returnType,
+            Class<? extends HttpMessageConverter<?>> converterType) {
+        // Không wrap khi Spring chọn ByteArrayHttpMessageConverter (ví dụ client
+        // gửi Accept: application/octet-stream). Converter này chỉ ghi byte[],
+        // ép ApiResponse sang byte[] sẽ ném ClassCastException -> HTTP 500.
+        return converterType != ByteArrayHttpMessageConverter.class;
     }
 
     @Override
