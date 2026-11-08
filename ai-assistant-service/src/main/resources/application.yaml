@@ -54,6 +54,8 @@ management:
   tracing:
     sampling:
       probability: ${OTEL_TRACES_SAMPLING_PROBABILITY:1.0}
+    web:
+      exclude-patterns: /actuator/health,/actuator/prometheus,/actuator/info,/actuator/**
     # Review: 2026-11-08, Pullfrog PR #87 — this service was the only one with
     # management.tracing.enabled: true. Boot 4 rejects that key at error level;
     # its replacement (management.tracing.export.enabled) defaults to true, so
