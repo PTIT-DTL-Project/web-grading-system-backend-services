@@ -32,8 +32,14 @@ public class FormatRestResponse implements ResponseBodyAdvice<Object> {
             return body;
         }
         ApiMessage message = returnType.getMethodAnnotation(ApiMessage.class);
-        return wrap(body, servletResponse.getStatus(),
+        Object wrapped = wrap(body, servletResponse.getStatus(),
                 message != null ? message.value() : "Success");
+        // Force JSON content type so Spring never falls back to ByteArrayHttpMessageConverter
+        // (which would fail casting ApiResponse to byte[] when client sends Accept: application/octet-stream).
+        if (wrapped instanceof ApiResponse<?>) {
+            servletResponse.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        }
+        return wrapped;
     }
 
     static Object wrap(Object body, int status, String message) {

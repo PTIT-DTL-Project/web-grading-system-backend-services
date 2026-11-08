@@ -32,8 +32,12 @@ public class FormatRestResponse implements ResponseBodyAdvice<Object> {
             return body;
         }
         ApiMessage message = returnType.getMethodAnnotation(ApiMessage.class);
-        return wrap(body, servletResponse.getStatus(),
+        Object wrapped = wrap(body, servletResponse.getStatus(),
                 message != null ? message.value() : "Success");
+        if (wrapped instanceof ApiResponse<?>) {
+            servletResponse.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        }
+        return wrapped;
     }
 
     static Object wrap(Object body, int status, String message) {
