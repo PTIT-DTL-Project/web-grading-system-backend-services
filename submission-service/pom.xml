@@ -46,11 +46,6 @@
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>net.logstash.logback</groupId>
-			<artifactId>logstash-logback-encoder</artifactId>
-			<version>8.1</version>
-		</dependency>
 		<!-- OTel's okhttp-jvm 5.x sender needs Okio.socket() (okio >= 3.13);
 		     okhttp 4.12 pulls okio 3.6 which lacks it. Pin newer okio. -->
 		<dependency>
@@ -155,27 +150,6 @@
 	</dependencyManagement>
 
 	<build>
-		<!-- Filter ONLY logback-spring.xml: substitutes @project.basedir@ (Spring Boot
-		     parent disables default ${} delimiters, so @ is required) so file
-		     logs always land in this service's project dir regardless of the JVM
-		     working directory. application.yaml ${...} placeholders must never be
-		     Maven-filtered, hence the include-scoped split. -->
-		<resources>
-			<resource>
-				<directory>src/main/resources</directory>
-				<filtering>false</filtering>
-				<excludes>
-					<exclude>logback-spring.xml</exclude>
-				</excludes>
-			</resource>
-			<resource>
-				<directory>src/main/resources</directory>
-				<filtering>true</filtering>
-				<includes>
-					<include>logback-spring.xml</include>
-				</includes>
-			</resource>
-		</resources>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>

@@ -1,26 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logback config for ai-assistant-service.
+  Plain-text console logs carry trace_id/span_id for Tempo correlation.
+  AI_AGENT_TRACE logger used by AgentTrace.java writes to a size/time-capped
+  rolling file so production log growth is bounded.
+-->
 <configuration>
-    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
-    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
 
-    <appender name="AI_TRACE_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>logs/ai-agent-trace.json</file>
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="ai-assistant-service"/>
+
+    <!-- Console: plain text with trace context for Tempo correlation -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{trace_id:-},%X{span_id:-}] [%t] %c{1} - %m%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Dedicated trace file logger for AgentTrace events, size- and time-capped -->
+    <appender name="TRACE_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/ai-agent-trace.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>logs/ai-agent-trace.%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
+            <fileNamePattern>logs/ai-agent-trace.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
             <maxFileSize>10MB</maxFileSize>
-            <maxHistory>7</maxHistory>
-            <totalSizeCap>100MB</totalSizeCap>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
         </rollingPolicy>
         <encoder>
-            <pattern>%msg%n%n</pattern>
-            <charset>UTF-8</charset>
+            <pattern>%m%n</pattern>
         </encoder>
     </appender>
 
     <logger name="AI_AGENT_TRACE" level="INFO" additivity="false">
-        <appender-ref ref="AI_TRACE_FILE"/>
+        <appender-ref ref="TRACE_FILE"/>
     </logger>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
     </root>
+
 </configuration>
