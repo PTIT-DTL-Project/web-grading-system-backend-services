@@ -31,9 +31,9 @@ management:
   tracing:
     sampling:
       probability: 1.0
-    # OTLP push disabled — set to true to re-enable
+    # OTLP push to Tempo — enabled so traces are exported from this service.
     export:
-      enabled: false
+      enabled: true
   opentelemetry:
     tracing:
       export:

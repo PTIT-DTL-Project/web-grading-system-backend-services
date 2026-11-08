@@ -54,11 +54,11 @@ management:
   tracing:
     enabled: true
     sampling:
-      probability: 1.0  # 1.0 = 100% traces (dev). 0.1-0.3 cho prod
+      probability: ${OTEL_TRACES_SAMPLING_PROBABILITY:1.0}
   otlp:
     tracing:
       # Send OTLP traces directly to Tempo (no Alloy intermediary).
-      endpoint: http://tempo.observability.svc.cluster.local:4318/v1/traces
+      endpoint: ${OTLP_TRACES_ENDPOINT:http://tempo.observability.svc.cluster.local:4318/v1/traces}
       transport: http
 
 gateway:
