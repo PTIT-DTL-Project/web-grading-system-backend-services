@@ -73,6 +73,8 @@ management:
   tracing:
     sampling:
       probability: ${OTEL_TRACES_SAMPLING_PROBABILITY:1.0}
+    web:
+      exclude-patterns: /actuator/health,/actuator/prometheus,/actuator/info,/actuator/**
     # OTLP push to Tempo — enabled so traces are exported from this service.
     export:
       enabled: true
