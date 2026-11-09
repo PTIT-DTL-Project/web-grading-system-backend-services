@@ -52,6 +52,7 @@ class ServiceTraceAspectTest {
         verify(span).name("service." + target.getClass().getSimpleName() + ".submit");
         verify(span).start();
         verify(pjp).proceed();
+        verify(span).end();
         verify(span, never()).error(any());
     }
 
@@ -72,5 +73,6 @@ class ServiceTraceAspectTest {
         assertThrows(RuntimeException.class, () -> aspect.traceService(pjp));
 
         verify(span).error(ex);
+        verify(span).end();
     }
 }
