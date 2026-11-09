@@ -41,6 +41,10 @@ public class ResultService {
     private final CourseServicePlansClient plansClient;
     private final Tracer tracer;
 
+    // Review: 2026-11-09, staging crash fix + PR #93 feedback — @Autowired on the
+    // full (Tracer-taking) ctor so Spring 7/Boot 4 resolves construction unambiguously
+    // AND keeps traceFeign spans active (Tracer is resolvable when tracing is enabled).
+    @org.springframework.beans.factory.annotation.Autowired
     public ResultService(ResultRepository resultRepository,
                          StepResultRepository stepResultRepository,
                          CourseServicePlansClient plansClient,

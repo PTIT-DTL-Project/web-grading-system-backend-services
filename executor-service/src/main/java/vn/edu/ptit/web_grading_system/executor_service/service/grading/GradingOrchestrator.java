@@ -93,6 +93,10 @@ public class GradingOrchestrator
     private final DbDialectRegistry dialectRegistry;
     private final DbSandboxService dbSandbox;
 
+    // Review: 2026-11-09, staging crash fix + PR #93 feedback — @Autowired on the
+    // full (Tracer-taking) ctor so Spring 7/Boot 4 resolves construction unambiguously
+    // AND keeps trace spans active (Tracer is resolvable when tracing is enabled).
+    @org.springframework.beans.factory.annotation.Autowired
     public GradingOrchestrator(GradingJobRepository gradingJobRepository,
                                GradingStepResultRepository stepResultRepository,
                                GradingLogRepository gradingLogRepository,
