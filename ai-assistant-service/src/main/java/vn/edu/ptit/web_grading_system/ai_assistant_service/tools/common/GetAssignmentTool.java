@@ -20,19 +20,18 @@ import java.util.UUID;
 @Slf4j
 @Component
 public class GetAssignmentTool implements AgentTool {
+
+    private final CourseServiceClient courseServiceClient;
+    private final Tracer tracer;
+
     public GetAssignmentTool(CourseServiceClient courseServiceClient, Tracer tracer) {
         this.courseServiceClient = courseServiceClient;
         this.tracer = tracer;
     }
 
     public GetAssignmentTool(CourseServiceClient courseServiceClient) {
-        this.courseServiceClient = courseServiceClient;
-        this.tracer = null;
+        this(courseServiceClient, null);
     }
-
-
-    private final CourseServiceClient courseServiceClient;
-    private final Tracer tracer;
 
     // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
     // so service-to-service calls are visible in Tempo (not blank gaps).

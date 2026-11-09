@@ -20,6 +20,9 @@ import java.util.function.Supplier;
 @Slf4j
 @Component
 public class GetMySubmissionTool implements AgentTool {
+    private final SubmissionServiceClient submissionServiceClient;
+    private final Tracer tracer;
+
     public GetMySubmissionTool(SubmissionServiceClient submissionServiceClient, Tracer tracer) {
         this.submissionServiceClient = submissionServiceClient;
         this.tracer = tracer;
@@ -30,10 +33,12 @@ public class GetMySubmissionTool implements AgentTool {
         this.tracer = null;
     }
 
+    
 
-    private final SubmissionServiceClient submissionServiceClient;
-    private final Tracer tracer;
+    
 
+
+        
     // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
     // so service-to-service calls are visible in Tempo (not blank gaps).
     private <T> T traceFeign(String spanName, Supplier<T> call) {

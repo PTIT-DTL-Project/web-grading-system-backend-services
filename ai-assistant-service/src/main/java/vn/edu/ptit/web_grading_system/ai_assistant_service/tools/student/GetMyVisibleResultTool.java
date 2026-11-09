@@ -22,6 +22,9 @@ import java.util.UUID;
 @Slf4j
 @Component
 public class GetMyVisibleResultTool implements AgentTool {
+    private final ResultServiceClient resultServiceClient;
+    private final Tracer tracer;
+
     public GetMyVisibleResultTool(ResultServiceClient resultServiceClient, Tracer tracer) {
         this.resultServiceClient = resultServiceClient;
         this.tracer = tracer;
@@ -32,10 +35,12 @@ public class GetMyVisibleResultTool implements AgentTool {
         this.tracer = null;
     }
 
+    
 
-    private final ResultServiceClient resultServiceClient;
-    private final Tracer tracer;
+    
 
+
+        
     // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
     // so service-to-service calls are visible in Tempo (not blank gaps).
     private <T> T traceFeign(String spanName, Supplier<T> call) {
