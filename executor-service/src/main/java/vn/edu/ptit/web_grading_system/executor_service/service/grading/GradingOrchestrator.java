@@ -292,7 +292,8 @@ public class GradingOrchestrator
         {
             try
             {
-                workDir = artifactService.fetchWorkDir(submissionId, rustfsPath);
+                workDir = traceFeign("client.artifact.fetchWorkDir",
+                        () -> artifactService.fetchWorkDir(submissionId, rustfsPath));
                 sagaTracker.finishStep(downloadRow, SagaStepStatus.DONE, null);
             }
             catch (Exception e)
@@ -326,16 +327,19 @@ public class GradingOrchestrator
                         appPort, nz(config.getDockerComposePort(), 8080),
                         config.getMaxCpu(), config.getMaxMemoryMb(),
                         dbReq.dbService(), dbPort, dbReq.dbContainerPort());
-                try (DockerComposeRunner.RunningCompose running =
-                        composeRunner.boot(effective, startupTimeoutMs))
+                try (DockerComposeRunner.RunningCompose running = traceFeign("client.compose.boot",
+                        () -> composeRunner.boot(effective, startupTimeoutMs)))
                 {
                     booted = true;
                     sagaTracker.finishStep(bootRow, SagaStepStatus.DONE, null);
                     UUID runRow = sagaTracker.step(sagaId, Constant.Saga.RUN_STEPS, planId, null);
+                    int containerPort = running.port();
+                    final List<InternalPlanDto> runPlans = plans;
+                    final Integer runDbPort = dbPort;
                     try
                     {
-                        runSteps(job, submissionId, assignmentId, studentId, planId, sagaId, plans,
-                                running.port(), dbPort, executionTimeoutMs, dbReq);
+                        traceFeign("service.runSteps", () -> runSteps(job, submissionId, assignmentId, studentId,
+                                planId, sagaId, runPlans, containerPort, runDbPort, executionTimeoutMs, dbReq));
                         sagaTracker.finishStep(runRow, SagaStepStatus.DONE, null);
                     }
                     catch (Exception inner)
