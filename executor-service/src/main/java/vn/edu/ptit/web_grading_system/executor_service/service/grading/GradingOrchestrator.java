@@ -127,6 +127,10 @@ public class GradingOrchestrator
         this.dbSandbox = dbSandbox;
     }
 
+    // Review: 2026-11-09, staging crash fix — explicit @Autowired on the
+    // primary (non-Tracer) ctor so Spring 7/Boot 4 resolves construction
+    // unambiguously (multiple ctors otherwise fell back to no-arg -> "No default constructor found").
+    @org.springframework.beans.factory.annotation.Autowired
     public GradingOrchestrator(GradingJobRepository gradingJobRepository,
                                GradingStepResultRepository stepResultRepository,
                                GradingLogRepository gradingLogRepository,
