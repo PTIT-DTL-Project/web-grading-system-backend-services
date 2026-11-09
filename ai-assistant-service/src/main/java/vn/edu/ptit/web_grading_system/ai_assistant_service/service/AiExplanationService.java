@@ -46,6 +46,7 @@ import java.time.OffsetDateTime;
  */
 @Slf4j
 @Service
+@lombok.RequiredArgsConstructor
 public class AiExplanationService {
 
     private static final String CATEGORY = "FULL_ANALYSIS";
@@ -65,35 +66,6 @@ public class AiExplanationService {
     private final AiModelProperties aiModelProperties;
     private final Tracer tracer;
     private final Gson gson = new Gson();
-
-    public AiExplanationService(AiExplanationRepository explanationRepository,
-                               ResultServiceClient resultServiceClient,
-                               CourseServiceClient courseServiceClient,
-                               PromptBuilder promptBuilder,
-                               ExplanationLlmClient explanationLlmClient,
-                               GatewayTrustProperties gatewayProperties,
-                               AiModelProperties aiModelProperties,
-                               Tracer tracer) {
-        this.explanationRepository = explanationRepository;
-        this.resultServiceClient = resultServiceClient;
-        this.courseServiceClient = courseServiceClient;
-        this.promptBuilder = promptBuilder;
-        this.explanationLlmClient = explanationLlmClient;
-        this.gatewayProperties = gatewayProperties;
-        this.aiModelProperties = aiModelProperties;
-        this.tracer = tracer;
-    }
-
-    public AiExplanationService(AiExplanationRepository explanationRepository,
-                               ResultServiceClient resultServiceClient,
-                               CourseServiceClient courseServiceClient,
-                               PromptBuilder promptBuilder,
-                               ExplanationLlmClient explanationLlmClient,
-                               GatewayTrustProperties gatewayProperties,
-                               AiModelProperties aiModelProperties) {
-        this(explanationRepository, resultServiceClient, courseServiceClient, promptBuilder,
-                explanationLlmClient, gatewayProperties, aiModelProperties, null);
-    }
 
     // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
     // so service-to-service calls are visible in Tempo (not blank gaps).
