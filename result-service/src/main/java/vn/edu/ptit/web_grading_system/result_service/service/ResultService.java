@@ -1,5 +1,7 @@
 package vn.edu.ptit.web_grading_system.result_service.service;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,6 +40,7 @@ public class ResultService {
     private final ResultRepository resultRepository;
     private final StepResultRepository stepResultRepository;
     private final CourseServicePlansClient plansClient;
+    private final Tracer tracer;
 
     /** Plan-weight cache: plans change rarely, transcripts read often. */
     private final ConcurrentHashMap<UUID, CachedPlans> planWeightCache = new ConcurrentHashMap<>();
@@ -333,13 +336,18 @@ public class ResultService {
             }
             try {
                 Map<UUID, Integer> weights = new LinkedHashMap<>();
-                List<CourseServicePlansClient.PlanWeight> plans = plansClient.plans(assignmentId);
-                if (plans != null) {
-                    for (CourseServicePlansClient.PlanWeight p : plans) {
-                        if (p.id() != null) {
-                            weights.put(p.id(), p.weight() != null ? p.weight() : 1);
+                Span span = tracer.nextSpan().name("client.course-service.plans").start();
+                try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+                    List<CourseServicePlansClient.PlanWeight> plans = plansClient.plans(assignmentId);
+                    if (plans != null) {
+                        for (CourseServicePlansClient.PlanWeight p : plans) {
+                            if (p.id() != null) {
+                                weights.put(p.id(), p.weight() != null ? p.weight() : 1);
+                            }
                         }
                     }
+                } finally {
+                    span.end();
                 }
                 planWeightCache.put(assignmentId, new CachedPlans(weights, now));
                 out.put(assignmentId, weights);
