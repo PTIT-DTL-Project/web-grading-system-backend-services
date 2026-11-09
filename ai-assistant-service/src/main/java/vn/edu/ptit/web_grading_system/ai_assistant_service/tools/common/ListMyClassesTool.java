@@ -22,15 +22,21 @@ import java.util.Set;
 public class ListMyClassesTool implements AgentTool {
 
     private final CourseServiceClient courseServiceClient;
-    private final Tracer tracer;
+    private Tracer tracer;
 
     public ListMyClassesTool(CourseServiceClient courseServiceClient, Tracer tracer) {
         this.courseServiceClient = courseServiceClient;
         this.tracer = tracer;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
     public ListMyClassesTool(CourseServiceClient courseServiceClient) {
         this(courseServiceClient, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer;
     }
 
     // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans

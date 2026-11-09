@@ -14,6 +14,7 @@ public class GetToolResultPageTool {
     private final ObjectMapper mapper;
     private final IntSupplier pageTokenBudget;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public GetToolResultPageTool(ToolResultStore store, ObjectMapper mapper, int pageTokenBudget) {
         this(store, mapper, () -> pageTokenBudget);
     }

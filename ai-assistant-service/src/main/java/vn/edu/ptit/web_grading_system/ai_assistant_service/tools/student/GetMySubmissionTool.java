@@ -21,13 +21,14 @@ import java.util.function.Supplier;
 @Component
 public class GetMySubmissionTool implements AgentTool {
     private final SubmissionServiceClient submissionServiceClient;
-    private final Tracer tracer;
+    private Tracer tracer;
 
     public GetMySubmissionTool(SubmissionServiceClient submissionServiceClient, Tracer tracer) {
         this.submissionServiceClient = submissionServiceClient;
         this.tracer = tracer;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
     public GetMySubmissionTool(SubmissionServiceClient submissionServiceClient) {
         this.submissionServiceClient = submissionServiceClient;
         this.tracer = null;
@@ -39,6 +40,11 @@ public class GetMySubmissionTool implements AgentTool {
 
 
         
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer;
+    }
+
     // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
     // so service-to-service calls are visible in Tempo (not blank gaps).
     private <T> T traceFeign(String spanName, Supplier<T> call) {

@@ -5,8 +5,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import feign.FeignException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -46,7 +46,6 @@ import java.time.OffsetDateTime;
  */
 @Slf4j
 @Service
-@lombok.RequiredArgsConstructor
 public class AiExplanationService {
 
     private static final String CATEGORY = "FULL_ANALYSIS";
@@ -66,6 +65,29 @@ public class AiExplanationService {
     private final AiModelProperties aiModelProperties;
     private final Tracer tracer;
     private final Gson gson = new Gson();
+
+    // Review: 2026-11-09, PR #93 follow-up — explicit @Autowired constructor so Spring 7
+    // reliably resolves constructor injection in full @SpringBootTest contexts (avoids
+    // "No default constructor found" when Lombok-generated ctor isn't selected).
+    @Autowired
+    public AiExplanationService(
+            AiExplanationRepository explanationRepository,
+            ResultServiceClient resultServiceClient,
+            CourseServiceClient courseServiceClient,
+            PromptBuilder promptBuilder,
+            ExplanationLlmClient explanationLlmClient,
+            GatewayTrustProperties gatewayProperties,
+            AiModelProperties aiModelProperties,
+            Tracer tracer) {
+        this.explanationRepository = explanationRepository;
+        this.resultServiceClient = resultServiceClient;
+        this.courseServiceClient = courseServiceClient;
+        this.promptBuilder = promptBuilder;
+        this.explanationLlmClient = explanationLlmClient;
+        this.gatewayProperties = gatewayProperties;
+        this.aiModelProperties = aiModelProperties;
+        this.tracer = tracer;
+    }
 
     // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
     // so service-to-service calls are visible in Tempo (not blank gaps).

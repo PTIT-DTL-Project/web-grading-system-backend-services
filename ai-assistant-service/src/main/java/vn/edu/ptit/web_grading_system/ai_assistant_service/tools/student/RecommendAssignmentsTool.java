@@ -22,13 +22,14 @@ import java.util.stream.Collectors;
 @Component
 public class RecommendAssignmentsTool implements AgentTool {
     private final CourseServiceClient courseServiceClient;
-    private final Tracer tracer;
+    private Tracer tracer;
 
     public RecommendAssignmentsTool(CourseServiceClient courseServiceClient, Tracer tracer) {
         this.courseServiceClient = courseServiceClient;
         this.tracer = tracer;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
     public RecommendAssignmentsTool(CourseServiceClient courseServiceClient) {
         this.courseServiceClient = courseServiceClient;
         this.tracer = null;
@@ -40,6 +41,11 @@ public class RecommendAssignmentsTool implements AgentTool {
 
 
         
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer;
+    }
+
     // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
     // so service-to-service calls are visible in Tempo (not blank gaps).
     private <T> T traceFeign(String spanName, Supplier<T> call) {

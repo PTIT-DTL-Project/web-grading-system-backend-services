@@ -19,6 +19,7 @@ public class SearchToolsTool {
     private final int resultLimit;
     private final LlmClient llm;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public SearchToolsTool(ToolRegistry registry, ObjectMapper mapper, int resultLimit) {
         this(registry, mapper, resultLimit, null);
     }
