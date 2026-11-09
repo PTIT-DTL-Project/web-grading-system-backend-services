@@ -52,6 +52,7 @@ class RepositoryTraceAspectTest {
         verify(span).name("repository." + target.getClass().getSimpleName() + ".findByIdAndOwnerId");
         verify(span).start();
         verify(pjp).proceed();
+        verify(span).end();
         verify(span, never()).error(any());
     }
 
@@ -72,5 +73,6 @@ class RepositoryTraceAspectTest {
         assertThrows(RuntimeException.class, () -> aspect.traceRepository(pjp));
 
         verify(span).error(ex);
+        verify(span).end();
     }
 }
