@@ -34,13 +34,28 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ResultService {
 
     private final ResultRepository resultRepository;
     private final StepResultRepository stepResultRepository;
     private final CourseServicePlansClient plansClient;
     private final Tracer tracer;
+
+    public ResultService(ResultRepository resultRepository,
+                         StepResultRepository stepResultRepository,
+                         CourseServicePlansClient plansClient,
+                         Tracer tracer) {
+        this.resultRepository = resultRepository;
+        this.stepResultRepository = stepResultRepository;
+        this.plansClient = plansClient;
+        this.tracer = tracer;
+    }
+
+    public ResultService(ResultRepository resultRepository,
+                         StepResultRepository stepResultRepository,
+                         CourseServicePlansClient plansClient) {
+        this(resultRepository, stepResultRepository, plansClient, null);
+    }
 
     /** Plan-weight cache: plans change rarely, transcripts read often. */
     private final ConcurrentHashMap<UUID, CachedPlans> planWeightCache = new ConcurrentHashMap<>();
@@ -336,8 +351,7 @@ public class ResultService {
             }
             try {
                 Map<UUID, Integer> weights = new LinkedHashMap<>();
-                Span span = tracer.nextSpan().name("client.course-service.plans").start();
-                try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+                if (tracer == null) {
                     List<CourseServicePlansClient.PlanWeight> plans = plansClient.plans(assignmentId);
                     if (plans != null) {
                         for (CourseServicePlansClient.PlanWeight p : plans) {
@@ -346,8 +360,27 @@ public class ResultService {
                             }
                         }
                     }
-                } finally {
-                    span.end();
+                } else {
+                    Span span = tracer.nextSpan().name("client.course-service.plans").start();
+                    try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+                        List<CourseServicePlansClient.PlanWeight> plans = plansClient.plans(assignmentId);
+                        if (plans != null) {
+                            for (CourseServicePlansClient.PlanWeight p : plans) {
+                                if (p.id() != null) {
+                                    weights.put(p.id(), p.weight() != null ? p.weight() : 1);
+                                }
+                            }
+                        }
+                    } catch (Throwable ex) {
+                        if (span != null) {
+                            span.error(ex);
+                        }
+                        throw ex;
+                    } finally {
+                        if (span != null) {
+                            span.end();
+                        }
+                    }
                 }
                 planWeightCache.put(assignmentId, new CachedPlans(weights, now));
                 out.put(assignmentId, weights);

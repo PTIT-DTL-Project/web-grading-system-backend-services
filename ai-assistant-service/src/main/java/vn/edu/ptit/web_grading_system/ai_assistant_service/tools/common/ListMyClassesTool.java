@@ -19,23 +19,38 @@ import java.util.Set;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ListMyClassesTool implements AgentTool {
 
     private final CourseServiceClient courseServiceClient;
     private final Tracer tracer;
 
+    public ListMyClassesTool(CourseServiceClient courseServiceClient, Tracer tracer) {
+        this.courseServiceClient = courseServiceClient;
+        this.tracer = tracer;
+    }
+
+    public ListMyClassesTool(CourseServiceClient courseServiceClient) {
+        this(courseServiceClient, null);
+    }
+
     // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
     // so service-to-service calls are visible in Tempo (not blank gaps).
     private <T> T traceFeign(String spanName, Supplier<T> call) {
+        if (tracer == null) {
+            return call.get();
+        }
         Span span = tracer.nextSpan().name(spanName).start();
         try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
             return call.get();
         } catch (Throwable ex) {
-            span.error(ex);
+            if (span != null) {
+                span.error(ex);
+            }
             throw ex;
         } finally {
-            span.end();
+            if (span != null) {
+                span.end();
+            }
         }
     }
 

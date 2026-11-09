@@ -1,5 +1,7 @@
 package vn.edu.ptit.web_grading_system.submission_service.service;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -43,6 +45,18 @@ class SubmissionServiceZipViewerTest {
     private static final UUID OTHER_ID = UUID.fromString("5e93941a-4221-458b-a03d-43bd6315d02e");
     private static final UUID ASSIGNMENT_ID = UUID.fromString("6e93941a-4221-458b-a03d-43bd6315d02e");
 
+    private static Tracer noopTracer() {
+        Tracer tracer = Mockito.mock(Tracer.class);
+        Span span = Mockito.mock(Span.class);
+        Tracer.SpanInScope scope = Mockito.mock(Tracer.SpanInScope.class);
+        Mockito.when(tracer.nextSpan()).thenReturn(span);
+        Mockito.when(span.name(anyString())).thenReturn(span);
+        Mockito.when(span.start()).thenReturn(span);
+        Mockito.when(span.error(any(Throwable.class))).thenReturn(span);
+        Mockito.when(tracer.withSpan(any(Span.class))).thenReturn(scope);
+        return tracer;
+    }
+
     private SubmissionService newService(SubmissionRepository repo, CourseServiceClient client,
                                          RustFSService rustfs, SubmissionProperties props) {
         return new SubmissionService(
@@ -52,7 +66,8 @@ class SubmissionServiceZipViewerTest {
                 client,
                 Mockito.mock(WgsEventsProducer.class),
                 Mockito.mock(EntityManager.class),
-                props);
+                props,
+                noopTracer());
     }
 
     private Submission submission(String rustfsPath, UUID studentId) {

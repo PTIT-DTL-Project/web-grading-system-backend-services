@@ -44,7 +44,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AssignmentGradingService {
 
     private final AssignmentRepository assignmentRepository;
@@ -53,29 +52,56 @@ public class AssignmentGradingService {
     private final SubmissionInternalClient submissionInternalClient;
     private final Tracer tracer;
 
+    public AssignmentGradingService(AssignmentRepository assignmentRepository,
+                                   ClassStudentRepository classStudentRepository,
+                                   ResultServiceClient resultServiceClient,
+                                   SubmissionInternalClient submissionInternalClient,
+                                   Tracer tracer) {
+        this.assignmentRepository = assignmentRepository;
+        this.classStudentRepository = classStudentRepository;
+        this.resultServiceClient = resultServiceClient;
+        this.submissionInternalClient = submissionInternalClient;
+        this.tracer = tracer;
+    }
+
     // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
     // so service-to-service calls are visible in Tempo (not blank gaps).
     private <T> T traceFeign(String spanName, Supplier<T> call) {
+        if (tracer == null) {
+            return call.get();
+        }
         Span span = tracer.nextSpan().name(spanName).start();
         try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
             return call.get();
         } catch (Throwable ex) {
-            span.error(ex);
+            if (span != null) {
+                span.error(ex);
+            }
             throw ex;
         } finally {
-            span.end();
+            if (span != null) {
+                span.end();
+            }
         }
     }
 
     private void traceFeign(String spanName, Runnable call) {
+        if (tracer == null) {
+            call.run();
+            return;
+        }
         Span span = tracer.nextSpan().name(spanName).start();
         try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
             call.run();
         } catch (Throwable ex) {
-            span.error(ex);
+            if (span != null) {
+                span.error(ex);
+            }
             throw ex;
         } finally {
-            span.end();
+            if (span != null) {
+                span.end();
+            }
         }
     }
 

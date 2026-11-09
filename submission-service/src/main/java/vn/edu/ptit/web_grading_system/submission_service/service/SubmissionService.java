@@ -51,7 +51,6 @@ import java.util.function.Supplier;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class SubmissionService {
 
     private final SubmissionRepository submissionRepository;
@@ -62,6 +61,24 @@ public class SubmissionService {
     private final EntityManager entityManager;
     private final SubmissionProperties submissionProperties;
     private final Tracer tracer;
+
+    public SubmissionService(SubmissionRepository submissionRepository,
+                             SubmissionMapper submissionMapper,
+                             RustFSService rustfsService,
+                             CourseServiceClient courseServiceClient,
+                             WgsEventsProducer wgsEventsProducer,
+                             EntityManager entityManager,
+                             SubmissionProperties submissionProperties,
+                             Tracer tracer) {
+        this.submissionRepository = submissionRepository;
+        this.submissionMapper = submissionMapper;
+        this.rustfsService = rustfsService;
+        this.courseServiceClient = courseServiceClient;
+        this.wgsEventsProducer = wgsEventsProducer;
+        this.entityManager = entityManager;
+        this.submissionProperties = submissionProperties;
+        this.tracer = tracer;
+    }
 
     /** Maximum number of zip entries allowed in the tree (prevents zip bomb). */
     private static final int MAX_ZIP_ENTRIES = 5000;
@@ -79,26 +96,41 @@ public class SubmissionService {
             ".gitignore", ".dockerignore", ".gitattributes", ".editorconfig");
 
     private <T> T traceFeign(String spanName, Supplier<T> call) {
+        if (tracer == null) {
+            return call.get();
+        }
         Span span = tracer.nextSpan().name(spanName).start();
         try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
             return call.get();
         } catch (Throwable ex) {
-            span.error(ex);
+            if (span != null) {
+                span.error(ex);
+            }
             throw ex;
         } finally {
-            span.end();
+            if (span != null) {
+                span.end();
+            }
         }
     }
 
     private void traceFeign(String spanName, Runnable call) {
+        if (tracer == null) {
+            call.run();
+            return;
+        }
         Span span = tracer.nextSpan().name(spanName).start();
         try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
             call.run();
         } catch (Throwable ex) {
-            span.error(ex);
+            if (span != null) {
+                span.error(ex);
+            }
             throw ex;
         } finally {
-            span.end();
+            if (span != null) {
+                span.end();
+            }
         }
     }
 

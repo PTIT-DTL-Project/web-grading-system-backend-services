@@ -72,7 +72,6 @@ import vn.edu.ptit.web_grading_system.executor_service.service.scoring.VariableC
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class GradingOrchestrator
 {
     private static final BigDecimal MAX_SCORE = BigDecimal.TEN;
@@ -94,27 +93,97 @@ public class GradingOrchestrator
     private final DbDialectRegistry dialectRegistry;
     private final DbSandboxService dbSandbox;
 
+    public GradingOrchestrator(GradingJobRepository gradingJobRepository,
+                               GradingStepResultRepository stepResultRepository,
+                               GradingLogRepository gradingLogRepository,
+                               CourseInternalClient courseInternalClient,
+                               SubmissionStatusClient submissionStatusClient,
+                               ResultServiceClient resultServiceClient,
+                               Tracer tracer,
+                               ArtifactService artifactService,
+                               PortAllocator portAllocator,
+                               DockerComposeRunner composeRunner,
+                               StepRegistry stepRegistry,
+                               ObjectMapper objectMapper,
+                               ExecutorProperties executorProperties,
+                               SagaTracker sagaTracker,
+                               DbDialectRegistry dialectRegistry,
+                               DbSandboxService dbSandbox) {
+        this.gradingJobRepository = gradingJobRepository;
+        this.stepResultRepository = stepResultRepository;
+        this.gradingLogRepository = gradingLogRepository;
+        this.courseInternalClient = courseInternalClient;
+        this.submissionStatusClient = submissionStatusClient;
+        this.resultServiceClient = resultServiceClient;
+        this.tracer = tracer;
+        this.artifactService = artifactService;
+        this.portAllocator = portAllocator;
+        this.composeRunner = composeRunner;
+        this.stepRegistry = stepRegistry;
+        this.objectMapper = objectMapper;
+        this.executorProperties = executorProperties;
+        this.sagaTracker = sagaTracker;
+        this.dialectRegistry = dialectRegistry;
+        this.dbSandbox = dbSandbox;
+    }
+
+    public GradingOrchestrator(GradingJobRepository gradingJobRepository,
+                               GradingStepResultRepository stepResultRepository,
+                               GradingLogRepository gradingLogRepository,
+                               CourseInternalClient courseInternalClient,
+                               SubmissionStatusClient submissionStatusClient,
+                               ResultServiceClient resultServiceClient,
+                               ArtifactService artifactService,
+                               PortAllocator portAllocator,
+                               DockerComposeRunner composeRunner,
+                               StepRegistry stepRegistry,
+                               ObjectMapper objectMapper,
+                               ExecutorProperties executorProperties,
+                               SagaTracker sagaTracker,
+                               DbDialectRegistry dialectRegistry,
+                               DbSandboxService dbSandbox) {
+        this(gradingJobRepository, stepResultRepository, gradingLogRepository, courseInternalClient,
+                submissionStatusClient, resultServiceClient, null, artifactService, portAllocator,
+                composeRunner, stepRegistry, objectMapper, executorProperties, sagaTracker, dialectRegistry,
+                dbSandbox);
+    }
+
     private <T> T traceFeign(String spanName, Supplier<T> call) {
+        if (tracer == null) {
+            return call.get();
+        }
         Span span = tracer.nextSpan().name(spanName).start();
         try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
             return call.get();
         } catch (Throwable ex) {
-            span.error(ex);
+            if (span != null) {
+                span.error(ex);
+            }
             throw ex;
         } finally {
-            span.end();
+            if (span != null) {
+                span.end();
+            }
         }
     }
 
     private void traceFeign(String spanName, Runnable call) {
+        if (tracer == null) {
+            call.run();
+            return;
+        }
         Span span = tracer.nextSpan().name(spanName).start();
         try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
             call.run();
         } catch (Throwable ex) {
-            span.error(ex);
+            if (span != null) {
+                span.error(ex);
+            }
             throw ex;
         } finally {
-            span.end();
+            if (span != null) {
+                span.end();
+            }
         }
     }
 

@@ -17,6 +17,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import io.micrometer.tracing.Tracer;
 
 class SubmissionServiceRequestUploadTest {
 
@@ -33,7 +34,8 @@ class SubmissionServiceRequestUploadTest {
         SubmissionProperties props = Mockito.mock(SubmissionProperties.class);
         SubmissionService service = new SubmissionService(repo,
                 Mockito.mock(SubmissionMapper.class),
-                rustfs, Mockito.mock(CourseServiceClient.class), producer, em, props);
+                rustfs, Mockito.mock(CourseServiceClient.class), producer, em, props,
+                Mockito.mock(Tracer.class, Mockito.RETURNS_DEEP_STUBS));
         return new Fixture(service, repo, producer, em, rustfs, props);
     }
 
