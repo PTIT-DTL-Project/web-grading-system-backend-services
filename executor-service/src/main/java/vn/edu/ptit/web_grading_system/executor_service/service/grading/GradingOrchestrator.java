@@ -214,6 +214,18 @@ public class GradingOrchestrator
             log.warn("Grading job not found: id={} (traceId={})", jobId, traceId);
             return;
         }
+        // Review: 2026-11-09 — tạo span cấp cao cho toàn bộ công việc grading chính
+        // để xuất hiện trong Tempo. Spring AOP không intercept internal this.grade()
+        // từ @Async gradeAsync(), nên @Aspect đơn lẻ không đủ; các span client.*
+        // (course-service/result-service/submission-service) bên trong doGrade() sẽ
+        // là child span của span này.
+        traceFeign("service.GradingOrchestrator.grade",
+                () -> doGrade(job, jobId, submissionId, assignmentId, studentId, planId, rustfsPath, traceId));
+    }
+
+    private void doGrade(GradingJob job, UUID jobId, UUID submissionId, UUID assignmentId, UUID studentId,
+            UUID planId, String rustfsPath, String traceId)
+    {
         patchSubmission(submissionId, Constant.GradingLog.STEP_GRADING);
         job.setStatus(GradingJobStatus.FETCHING);
         job.setStartedAt(OffsetDateTime.now());
