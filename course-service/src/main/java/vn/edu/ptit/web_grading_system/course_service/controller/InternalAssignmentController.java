@@ -20,8 +20,12 @@ import vn.edu.ptit.web_grading_system.course_service.entity.StepType;
 import vn.edu.ptit.web_grading_system.course_service.service.StepConfigValidator;
 import vn.edu.ptit.web_grading_system.course_service.service.TestPlanService;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * Internal contracts for executor-service (config + plans) and submission-service
@@ -33,11 +37,28 @@ public class InternalAssignmentController {
 
     private final TestPlanService testPlanService;
     private final ExecutorInternalClient executorInternalClient;
+    private final Tracer tracer;
 
     public InternalAssignmentController(TestPlanService testPlanService,
-            ExecutorInternalClient executorInternalClient) {
+            ExecutorInternalClient executorInternalClient,
+            Tracer tracer) {
         this.testPlanService = testPlanService;
         this.executorInternalClient = executorInternalClient;
+        this.tracer = tracer;
+    }
+
+    // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
+    // so service-to-service calls are visible in Tempo (not blank gaps).
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            span.error(ex);
+            throw ex;
+        } finally {
+            span.end();
+        }
     }
 
     @GetMapping("/{id}")
@@ -78,7 +99,8 @@ public class InternalAssignmentController {
                 .referenceCodeZipUrl(request.getReferenceCodeZipUrl())
                 .plans(request.getPlans())
                 .build();
-        return executorInternalClient.dryRun(normalized);
+        return traceFeign("client.executor-service.dryRun",
+                () -> executorInternalClient.dryRun(normalized));
     }
 
     /**

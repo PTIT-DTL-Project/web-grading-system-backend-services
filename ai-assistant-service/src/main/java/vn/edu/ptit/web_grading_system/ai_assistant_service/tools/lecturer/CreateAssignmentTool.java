@@ -3,6 +3,8 @@ package vn.edu.ptit.web_grading_system.ai_assistant_service.tools.lecturer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.FeignException;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -14,6 +16,8 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.operation.Oper
 import vn.edu.ptit.web_grading_system.ai_assistant_service.domain.operation.OperationStatus;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.service.OperationService;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.*;
+
+import java.util.function.Supplier;
 
 import java.time.Duration;
 import java.util.Optional;
@@ -28,6 +32,21 @@ public class CreateAssignmentTool implements AgentTool {
     private final CourseServiceClient courseServiceClient;
     private final OperationService operationService;
     private final ObjectMapper objectMapper;
+    private final Tracer tracer;
+
+    // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
+    // so service-to-service calls are visible in Tempo (not blank gaps).
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            span.error(ex);
+            throw ex;
+        } finally {
+            span.end();
+        }
+    }
 
     @Override
     public String getName() {
@@ -162,12 +181,13 @@ public class CreateAssignmentTool implements AgentTool {
 
             operationService.recordOperation(null, idempotencyKey, "CREATE_ASSIGNMENT", objectMapper.writeValueAsString(command));
 
-            ApiEnvelope<AssignmentSummaryDto> response = courseServiceClient.createAssignment(
-                    context.userId().toString(),
-                    "ROLE_LECTURER",
-                    command,
-                    context.gatewaySecret()
-            );
+            ApiEnvelope<AssignmentSummaryDto> response = traceFeign("client.course-service.createAssignment",
+                    () -> courseServiceClient.createAssignment(
+                            context.userId().toString(),
+                            "ROLE_LECTURER",
+                            command,
+                            context.gatewaySecret()
+                    ));
             AssignmentSummaryDto created = response != null ? response.getData() : null;
             if (created == null || created.getId() == null) {
                 throw new IllegalStateException("Course service không trả về ID bài tập đã tạo");

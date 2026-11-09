@@ -1,6 +1,8 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.tools.student;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -8,6 +10,8 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.client.ResultServiceC
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ApiEnvelope;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ResultDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.*;
+
+import java.util.function.Supplier;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -21,6 +25,21 @@ import java.util.UUID;
 public class GetMyVisibleResultTool implements AgentTool {
 
     private final ResultServiceClient resultServiceClient;
+    private final Tracer tracer;
+
+    // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
+    // so service-to-service calls are visible in Tempo (not blank gaps).
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            span.error(ex);
+            throw ex;
+        } finally {
+            span.end();
+        }
+    }
 
     @Override
     public String getName() {
@@ -60,11 +79,12 @@ public class GetMyVisibleResultTool implements AgentTool {
 
         try {
             UUID submissionId = UUID.fromString(arguments.get("submissionId").asText());
-            ApiEnvelope<List<ResultDto>> envelope = resultServiceClient.getBySubmissionId(
-                    submissionId,
-                    context.userId().toString(),
-                    context.gatewaySecret()
-            );
+            ApiEnvelope<List<ResultDto>> envelope = traceFeign("client.result-service.getBySubmissionId",
+                    () -> resultServiceClient.getBySubmissionId(
+                            submissionId,
+                            context.userId().toString(),
+                            context.gatewaySecret()
+                    ));
 
             List<ResultDto> results = (envelope != null && envelope.getData() != null)
                     ? envelope.getData()

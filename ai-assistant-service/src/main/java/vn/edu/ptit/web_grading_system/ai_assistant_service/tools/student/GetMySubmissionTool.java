@@ -1,6 +1,8 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.tools.student;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -13,6 +15,7 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Slf4j
 @Component
@@ -20,6 +23,21 @@ import java.util.UUID;
 public class GetMySubmissionTool implements AgentTool {
 
     private final SubmissionServiceClient submissionServiceClient;
+    private final Tracer tracer;
+
+    // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
+    // so service-to-service calls are visible in Tempo (not blank gaps).
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            span.error(ex);
+            throw ex;
+        } finally {
+            span.end();
+        }
+    }
 
     @Override
     public String getName() {
@@ -58,11 +76,12 @@ public class GetMySubmissionTool implements AgentTool {
                 String subIdStr = arguments.get("submissionId").asText();
                 if (!subIdStr.isBlank()) {
                     UUID subId = UUID.fromString(subIdStr);
-                    SubmissionSummaryDto submission = submissionServiceClient.getSubmission(
-                            subId,
-                            context.userId().toString(),
-                            context.gatewaySecret()
-                    );
+                    SubmissionSummaryDto submission = traceFeign("client.submission-service.getSubmission",
+                            () -> submissionServiceClient.getSubmission(
+                                    subId,
+                                    context.userId().toString(),
+                                    context.gatewaySecret()
+                            ));
                     if (submission == null) {
                         return ToolResult.error("NOT_FOUND", "Không tìm thấy bài nộp với id " + subId, false);
                     }
@@ -73,12 +92,13 @@ public class GetMySubmissionTool implements AgentTool {
             int page = (arguments != null && arguments.has("page")) ? arguments.get("page").asInt(0) : 0;
             int size = (arguments != null && arguments.has("size")) ? arguments.get("size").asInt(10) : 10;
 
-            PageDto<SubmissionSummaryDto> pageDto = submissionServiceClient.listMySubmissions(
-                    context.userId().toString(),
-                    page,
-                    size,
-                    context.gatewaySecret()
-            );
+            PageDto<SubmissionSummaryDto> pageDto = traceFeign("client.submission-service.listMySubmissions",
+                    () -> submissionServiceClient.listMySubmissions(
+                            context.userId().toString(),
+                            page,
+                            size,
+                            context.gatewaySecret()
+                    ));
 
             return ToolResult.ok(pageDto != null ? pageDto.getContent() : Collections.emptyList());
         } catch (IllegalArgumentException e) {

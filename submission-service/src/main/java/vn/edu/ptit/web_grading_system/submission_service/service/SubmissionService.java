@@ -45,6 +45,10 @@ import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+import java.util.function.Supplier;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -57,6 +61,7 @@ public class SubmissionService {
     private final WgsEventsProducer wgsEventsProducer;
     private final EntityManager entityManager;
     private final SubmissionProperties submissionProperties;
+    private final Tracer tracer;
 
     /** Maximum number of zip entries allowed in the tree (prevents zip bomb). */
     private static final int MAX_ZIP_ENTRIES = 5000;
@@ -72,6 +77,30 @@ public class SubmissionService {
             "makefile", "gnumakefile", "license", "licence", "readme", "notice",
             "jenkinsfile", "vagrantfile", "gemfile", "rakefile", "pipfile",
             ".gitignore", ".dockerignore", ".gitattributes", ".editorconfig");
+
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            span.error(ex);
+            throw ex;
+        } finally {
+            span.end();
+        }
+    }
+
+    private void traceFeign(String spanName, Runnable call) {
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            call.run();
+        } catch (Throwable ex) {
+            span.error(ex);
+            throw ex;
+        } finally {
+            span.end();
+        }
+    }
 
     private long presignedUrlExpiryMinutes() {
         return submissionProperties.presignedUrlExpiryMinutes();
@@ -362,7 +391,8 @@ public class SubmissionService {
             return submission;
         }
         // Lecturer access: verify callerId is the owner (giảng viên) of the assignment's class.
-        UUID ownerId = courseServiceClient.getAssignmentOwner(submission.getAssignmentId()).ownerId();
+        UUID ownerId = traceFeign("client.course-service.getAssignmentOwner",
+                () -> courseServiceClient.getAssignmentOwner(submission.getAssignmentId())).ownerId();
         if (!ownerId.equals(callerId)) {
             throw new ResourceNotFoundException("Submission not found: " + submissionId);
         }

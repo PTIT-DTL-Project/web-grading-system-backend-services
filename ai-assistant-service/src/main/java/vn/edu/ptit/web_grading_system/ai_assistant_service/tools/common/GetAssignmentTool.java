@@ -1,6 +1,8 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.tools.common;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -8,6 +10,8 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.client.CourseServiceC
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ApiEnvelope;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.AssignmentDetailDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.*;
+
+import java.util.function.Supplier;
 
 import java.time.Duration;
 import java.util.Set;
@@ -19,6 +23,21 @@ import java.util.UUID;
 public class GetAssignmentTool implements AgentTool {
 
     private final CourseServiceClient courseServiceClient;
+    private final Tracer tracer;
+
+    // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
+    // so service-to-service calls are visible in Tempo (not blank gaps).
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            span.error(ex);
+            throw ex;
+        } finally {
+            span.end();
+        }
+    }
 
     @Override
     public String getName() {
@@ -57,18 +76,20 @@ public class GetAssignmentTool implements AgentTool {
             ApiEnvelope<AssignmentDetailDto> envelope;
 
             if (context.roles() != null && context.roles().contains("ROLE_LECTURER")) {
-                envelope = courseServiceClient.getOwnedAssignment(
-                        assignmentId,
-                        context.userId().toString(),
-                        "ROLE_LECTURER",
-                        context.gatewaySecret()
-                );
+                envelope = traceFeign("client.course-service.getOwnedAssignment",
+                        () -> courseServiceClient.getOwnedAssignment(
+                                assignmentId,
+                                context.userId().toString(),
+                                "ROLE_LECTURER",
+                                context.gatewaySecret()
+                        ));
             } else {
-                envelope = courseServiceClient.getAssignment(
-                        assignmentId,
-                        context.userId().toString(),
-                        context.gatewaySecret()
-                );
+                envelope = traceFeign("client.course-service.getAssignment",
+                        () -> courseServiceClient.getAssignment(
+                                assignmentId,
+                                context.userId().toString(),
+                                context.gatewaySecret()
+                        ));
             }
 
             if (envelope == null || envelope.getData() == null) {

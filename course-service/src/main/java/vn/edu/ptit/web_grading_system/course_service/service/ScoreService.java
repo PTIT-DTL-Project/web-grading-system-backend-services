@@ -16,9 +16,13 @@ import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundE
 import vn.edu.ptit.web_grading_system.course_service.mapper.ScoreComponentMapper;
 import vn.edu.ptit.web_grading_system.course_service.repository.*;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,6 +41,33 @@ public class ScoreService {
     private final ClassStudentRepository classStudentRepository;
     private final AssignmentRepository assignmentRepository;
     private final ResultServiceClient resultServiceClient;
+    private final Tracer tracer;
+
+    // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
+    // so service-to-service calls are visible in Tempo (not blank gaps).
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            span.error(ex);
+            throw ex;
+        } finally {
+            span.end();
+        }
+    }
+
+    private void traceFeign(String spanName, Runnable call) {
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            call.run();
+        } catch (Throwable ex) {
+            span.error(ex);
+            throw ex;
+        } finally {
+            span.end();
+        }
+    }
 
     private String requireStudentInClass(UUID classId, UUID ownerId, String studentCode) {
         requireOwnedClass(classId, ownerId);
@@ -215,7 +246,8 @@ public class ScoreService {
             return null;
         }
         try {
-            return resultServiceClient.weighted(new ResultServiceClient.AverageRequest(assignmentIds, studentUserId))
+            return traceFeign("client.result-service.weighted",
+                    () -> resultServiceClient.weighted(new ResultServiceClient.AverageRequest(assignmentIds, studentUserId)))
                     .get("average");
         } catch (Exception e) {
             // grading data unavailable (service down, no results yet) — degrade to null,
@@ -309,8 +341,9 @@ public class ScoreService {
             return Map.of();
         }
         try {
-            return resultServiceClient.weightedBatch(
-                    new ResultServiceClient.BatchAverageRequest(assignmentIds, studentUserIds));
+            return traceFeign("client.result-service.weightedBatch",
+                    () -> resultServiceClient.weightedBatch(
+                            new ResultServiceClient.BatchAverageRequest(assignmentIds, studentUserIds)));
         } catch (Exception e) {
             log.warn("Exercise score unavailable: {}", e.toString());
             return Map.of();

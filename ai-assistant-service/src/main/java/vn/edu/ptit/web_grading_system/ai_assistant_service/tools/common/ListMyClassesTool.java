@@ -1,6 +1,8 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.tools.common;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -8,6 +10,8 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.client.CourseServiceC
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ClassSummaryDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.PageDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.*;
+
+import java.util.function.Supplier;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -19,6 +23,21 @@ import java.util.Set;
 public class ListMyClassesTool implements AgentTool {
 
     private final CourseServiceClient courseServiceClient;
+    private final Tracer tracer;
+
+    // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
+    // so service-to-service calls are visible in Tempo (not blank gaps).
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            span.error(ex);
+            throw ex;
+        } finally {
+            span.end();
+        }
+    }
 
     @Override
     public String getName() {
@@ -72,30 +91,31 @@ public class ListMyClassesTool implements AgentTool {
         try {
             int page = (arguments != null && arguments.has("page")) ? arguments.get("page").asInt(0) : 0;
             int size = (arguments != null && arguments.has("size")) ? arguments.get("size").asInt(20) : 20;
-            size = Math.max(1, Math.min(50, size));
-            String search = arguments != null ? arguments.path("search").asText("").trim() : "";
-            if (search.isBlank()) search = null;
-            else search = "name:" + search;
+            final int safeSize = Math.max(1, Math.min(50, size));
+            String rawSearch = arguments != null ? arguments.path("search").asText("").trim() : "";
+            final String search = rawSearch.isBlank() ? null : "name:" + rawSearch;
 
             PageDto<ClassSummaryDto> result;
             if (context.roles() != null && context.roles().contains("ROLE_LECTURER")) {
-                result = courseServiceClient.listLecturerClasses(
-                        context.userId().toString(),
-                        "ROLE_LECTURER",
-                        search,
-                        page,
-                        size,
-                        context.gatewaySecret()
-                );
+                result = traceFeign("client.course-service.listLecturerClasses",
+                        () -> courseServiceClient.listLecturerClasses(
+                                context.userId().toString(),
+                                "ROLE_LECTURER",
+                                search,
+                                page,
+                                safeSize,
+                                context.gatewaySecret()
+                        ));
             } else {
-                result = courseServiceClient.listStudentClasses(
-                        context.userId().toString(),
-                        context.email(),
-                        search,
-                        page,
-                        size,
-                        context.gatewaySecret()
-                );
+                result = traceFeign("client.course-service.listStudentClasses",
+                        () -> courseServiceClient.listStudentClasses(
+                                context.userId().toString(),
+                                context.email(),
+                                search,
+                                page,
+                                safeSize,
+                                context.gatewaySecret()
+                        ));
             }
             return ToolResult.ok(java.util.Map.of(
                     "items", result != null ? result.getContent() : Collections.emptyList(),
