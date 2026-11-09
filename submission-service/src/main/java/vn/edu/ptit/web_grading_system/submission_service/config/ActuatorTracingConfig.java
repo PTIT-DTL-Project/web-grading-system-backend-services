@@ -13,7 +13,7 @@ import org.springframework.http.server.observation.ServerRequestObservationConte
  * khai báo cũ chỉ là no-op và /actuator/health vẫn sinh span. ObservationPredicate
  * chạy trước khi observation/span được tạo, nên chặn được từ gốc.
  *
- * Review: 2026-11-09, actuator vẫn xuất hiện trong Tempo.
+ * Review: 2026-11-09, predicate đã khắc phục — actuator không còn sinh span (Pullfrog PR #92).
  */
 @Configuration
 public class ActuatorTracingConfig {

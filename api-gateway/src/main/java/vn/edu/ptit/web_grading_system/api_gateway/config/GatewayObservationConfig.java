@@ -32,7 +32,7 @@ import java.util.Map;
  * contextual name đã set trong onStart. Đăng ký ObservationHandler chỉ đổi
  * được tên tạm thời, span vẫn mang tên mặc định.
  *
- * Review: 2026-11-09, api-gateway span name vẫn là "http get".
+ * Review: 2026-11-09, span name đã đổi qua convention (Pullfrog PR #92).
  */
 @Configuration
 public class GatewayObservationConfig {
