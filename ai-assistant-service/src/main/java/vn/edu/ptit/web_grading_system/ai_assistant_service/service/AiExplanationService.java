@@ -5,8 +5,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import feign.FeignException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -18,6 +18,10 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ApiEnvelop
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.AssignmentDetailDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ResultDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.AiModelProperties;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+
+import java.util.function.Supplier;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.config.GatewayTrustProperties;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.AiExplanationResponse;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.dto.AiExplanationResultDto;
@@ -42,7 +46,6 @@ import java.time.OffsetDateTime;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AiExplanationService {
 
     private static final String CATEGORY = "FULL_ANALYSIS";
@@ -60,7 +63,52 @@ public class AiExplanationService {
     private final ExplanationLlmClient explanationLlmClient;
     private final GatewayTrustProperties gatewayProperties;
     private final AiModelProperties aiModelProperties;
+    private final Tracer tracer;
     private final Gson gson = new Gson();
+
+    // Review: 2026-11-09, PR #93 follow-up — explicit @Autowired constructor so Spring 7
+    // reliably resolves constructor injection in full @SpringBootTest contexts (avoids
+    // "No default constructor found" when Lombok-generated ctor isn't selected).
+    @Autowired
+    public AiExplanationService(
+            AiExplanationRepository explanationRepository,
+            ResultServiceClient resultServiceClient,
+            CourseServiceClient courseServiceClient,
+            PromptBuilder promptBuilder,
+            ExplanationLlmClient explanationLlmClient,
+            GatewayTrustProperties gatewayProperties,
+            AiModelProperties aiModelProperties,
+            Tracer tracer) {
+        this.explanationRepository = explanationRepository;
+        this.resultServiceClient = resultServiceClient;
+        this.courseServiceClient = courseServiceClient;
+        this.promptBuilder = promptBuilder;
+        this.explanationLlmClient = explanationLlmClient;
+        this.gatewayProperties = gatewayProperties;
+        this.aiModelProperties = aiModelProperties;
+        this.tracer = tracer;
+    }
+
+    // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
+    // so service-to-service calls are visible in Tempo (not blank gaps).
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        if (tracer == null) {
+            return call.get();
+        }
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            if (span != null) {
+                span.error(ex);
+            }
+            throw ex;
+        } finally {
+            if (span != null) {
+                span.end();
+            }
+        }
+    }
     private final org.springframework.ai.converter.BeanOutputConverter<AiExplanationResultDto> outputConverter =
             new org.springframework.ai.converter.BeanOutputConverter<>(AiExplanationResultDto.class);
 
@@ -174,8 +222,9 @@ public class AiExplanationService {
             // The endpoint is @PreAuthorize("hasRole('LECTURER')") + owner-scoped, so a 404 here
             // IS the negative authorization answer, and LECTURER_AUTHORITY is what lets the call
             // through at all.
-            ApiEnvelope<AssignmentDetailDto> envelope = courseServiceClient.getOwnedAssignment(
-                    assignmentId, lecturerId.toString(), LECTURER_AUTHORITY, gatewayProperties.secret());
+            ApiEnvelope<AssignmentDetailDto> envelope = traceFeign("client.course-service.getOwnedAssignment",
+                    () -> courseServiceClient.getOwnedAssignment(
+                            assignmentId, lecturerId.toString(), LECTURER_AUTHORITY, gatewayProperties.secret()));
             assignment = envelope != null ? envelope.getData() : null;
         } catch (FeignException.NotFound e) {
             // 404, never 403: an assignment outside the caller's classes must stay
@@ -191,7 +240,8 @@ public class AiExplanationService {
         // The internal route is identity-free by design: reaching it already means the check above
         // passed, and these rows are what reveal the submission's owner.
         List<ResultDto> results = readGradingResults(submissionId,
-                () -> resultServiceClient.getBySubmissionIdInternal(submissionId));
+                () -> traceFeign("client.result-service.getBySubmissionIdInternal",
+                        () -> resultServiceClient.getBySubmissionIdInternal(submissionId)));
         ResultDto first = results.get(0);
         if (!assignmentId.equals(first.getAssignmentId())) {
             // Guards the id pair: the caller's own assignmentId combined with a submission id from
@@ -214,8 +264,9 @@ public class AiExplanationService {
         // Review: 2026-10-17, Pullfrog follow-up — result-service wraps its body
         // in ApiResponse{status,message,data}; bind the envelope and take .data.
         return readGradingResults(submissionId, () -> {
-            ApiEnvelope<List<ResultDto>> resultsEnvelope = resultServiceClient.getBySubmissionId(
-                    submissionId, studentId.toString(), gatewayProperties.secret());
+            ApiEnvelope<List<ResultDto>> resultsEnvelope = traceFeign("client.result-service.getBySubmissionId",
+                    () -> resultServiceClient.getBySubmissionId(
+                            submissionId, studentId.toString(), gatewayProperties.secret()));
             return resultsEnvelope != null ? resultsEnvelope.getData() : null;
         });
     }
@@ -253,8 +304,9 @@ public class AiExplanationService {
             // Review: 2026-10-17, Pullfrog follow-up — unwrap the ApiResponse
             // envelope; the previous raw binding silently failed and left
             // `assignment` null on every request.
-            ApiEnvelope<AssignmentDetailDto> assignmentEnvelope = courseServiceClient.getAssignment(
-                    assignmentId, studentId.toString(), gatewayProperties.secret());
+            ApiEnvelope<AssignmentDetailDto> assignmentEnvelope = traceFeign("client.course-service.getAssignment",
+                    () -> courseServiceClient.getAssignment(
+                            assignmentId, studentId.toString(), gatewayProperties.secret()));
             return assignmentEnvelope != null ? assignmentEnvelope.getData() : null;
         } catch (Exception e) {
             log.warn("Could not fetch assignment details for id {}: {}", assignmentId, e.getMessage());

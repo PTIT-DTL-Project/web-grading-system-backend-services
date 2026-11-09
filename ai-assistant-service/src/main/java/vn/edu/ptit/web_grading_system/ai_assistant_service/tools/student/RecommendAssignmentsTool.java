@@ -1,6 +1,8 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.tools.student;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -9,6 +11,8 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.Assignment
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.PageDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.*;
 
+import java.util.function.Supplier;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -16,10 +20,46 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class RecommendAssignmentsTool implements AgentTool {
-
     private final CourseServiceClient courseServiceClient;
+    private Tracer tracer;
+
+    public RecommendAssignmentsTool(CourseServiceClient courseServiceClient, Tracer tracer) {
+        this.courseServiceClient = courseServiceClient;
+        this.tracer = tracer;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public RecommendAssignmentsTool(CourseServiceClient courseServiceClient) {
+        this.courseServiceClient = courseServiceClient;
+        this.tracer = null;
+    }
+
+    
+
+    
+
+
+        
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer;
+    }
+
+    // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
+    // so service-to-service calls are visible in Tempo (not blank gaps).
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        if (tracer == null) { return call.get(); }
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            if (span != null) { span.error(ex); }
+            throw ex;
+        } finally {
+            if (span != null) { span.end(); }
+        }
+    }
 
     @Override
     public String getName() {
@@ -54,15 +94,16 @@ public class RecommendAssignmentsTool implements AgentTool {
         }
 
         try {
-            PageDto<AssignmentSummaryDto> page = courseServiceClient.listStudentAssignments(
-                    context.userId().toString(),
-                    context.email(),
-                    null,
-                    null,
-                    0,
-                    20,
-                    context.gatewaySecret()
-            );
+            PageDto<AssignmentSummaryDto> page = traceFeign("client.course-service.listStudentAssignments",
+                    () -> courseServiceClient.listStudentAssignments(
+                            context.userId().toString(),
+                            context.email(),
+                            null,
+                            null,
+                            0,
+                            20,
+                            context.gatewaySecret()
+                    ));
 
             List<AssignmentSummaryDto> list = (page != null && page.getContent() != null)
                     ? new ArrayList<>(page.getContent())

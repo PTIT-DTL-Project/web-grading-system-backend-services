@@ -101,6 +101,35 @@
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
 		</dependency>
+		<!-- JDBC/database call spans for Tempo (datasource-micrometer 2.3.x targets Boot 4.1.x).
+		     Exclude Boot modules to keep versions managed by spring-boot-starter-parent 4.1.0. -->
+		<dependency>
+			<groupId>net.ttddyy.observation</groupId>
+			<artifactId>datasource-micrometer-spring-boot</artifactId>
+			<version>2.3.0</version>
+			<exclusions>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-autoconfigure</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-jdbc</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-micrometer-observation</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-micrometer-tracing</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-micrometer-metrics</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
 		<!-- OTel's okhttp-jvm 5.x sender needs Okio.socket() (okio >= 3.13);
 		     okhttp 4.12 pulls okio 3.6 which lacks it. Pin newer okio. -->
 		<dependency>

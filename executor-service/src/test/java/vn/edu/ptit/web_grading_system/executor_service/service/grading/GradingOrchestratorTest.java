@@ -56,7 +56,10 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import vn.edu.ptit.web_grading_system.executor_service.Constant;
+import static org.mockito.ArgumentMatchers.anyString;
 
 import feign.FeignException;
 import vn.edu.ptit.web_grading_system.executor_service.service.docker.DockerComposePatcher;
@@ -69,6 +72,18 @@ class GradingOrchestratorTest {
 
     @TempDir
     Path tempDir;
+
+    private static Tracer noopTracer() {
+        Tracer tracer = Mockito.mock(Tracer.class);
+        Span span = Mockito.mock(Span.class);
+        Tracer.SpanInScope scope = Mockito.mock(Tracer.SpanInScope.class);
+        Mockito.when(tracer.nextSpan()).thenReturn(span);
+        Mockito.when(span.name(Mockito.anyString())).thenReturn(span);
+        Mockito.when(span.start()).thenReturn(span);
+        Mockito.when(span.error(Mockito.any(Throwable.class))).thenReturn(span);
+        Mockito.when(tracer.withSpan(Mockito.any(Span.class))).thenReturn(scope);
+        return tracer;
+    }
 
     record Fixture(GradingOrchestrator orchestrator, GradingJob job, AtomicInteger executions,
                    GradingStepResultRepository stepRepo, ResultServiceClient resultClient,
@@ -186,7 +201,7 @@ class GradingOrchestratorTest {
                 .maven(new ExecutorProperties.Maven(null))
                 .build();
         GradingOrchestrator orchestrator = new GradingOrchestrator(jobRepo, stepRepo, logRepo,
-                course, submission, result, artifacts, ports, runner,
+                course, submission, result, noopTracer(), artifacts, ports, runner,
                 new StepRegistry(List.of(stub, dbStub)), new ObjectMapper(), props,
                 Mockito.mock(SagaTracker.class),
                 new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())),
@@ -554,8 +569,8 @@ class GradingOrchestratorTest {
     // ─── autoInjectExtracts tests ───
 
     private GradingOrchestrator rawOrchestrator() {
-        return new GradingOrchestrator(null, null, null, null, null, null, null,
-                null, null, null, new ObjectMapper(), null, null, null,
+        return new GradingOrchestrator(null, null, null, null, null, null, noopTracer(),
+                null, null, null, null, new ObjectMapper(), null, null, null,
                 Mockito.mock(DbSandboxService.class));
     }
 
@@ -1000,7 +1015,7 @@ class GradingOrchestratorTest {
 
     private static GradingOrchestrator.DbRequirements invokeScan(List<InternalPlanDto> plans)
             throws Exception {
-        GradingOrchestrator orch = new GradingOrchestrator(null, null, null, null, null, null,
+        GradingOrchestrator orch = new GradingOrchestrator(null, null, null, null, null, null, noopTracer(),
                 null, null, null, null, new ObjectMapper(), null, null,
                 new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())),
                 Mockito.mock(DbSandboxService.class));
@@ -1158,7 +1173,7 @@ class GradingOrchestratorTest {
     }
 
     private static GradingOrchestrator orchestratorWithRegistry() {
-        return new GradingOrchestrator(null, null, null, null, null, null,
+        return new GradingOrchestrator(null, null, null, null, null, null, noopTracer(),
                 null, null, null, null, new ObjectMapper(), null, null,
                 new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())),
                 Mockito.mock(DbSandboxService.class));
@@ -1171,8 +1186,8 @@ class GradingOrchestratorTest {
     // ─── dryRunSteps tests ───
 
     private GradingOrchestrator dryRunOrchestrator(StepExecutor stubExecutor) {
-        return new GradingOrchestrator(null, null, null, null, null, null, null,
-                null, null, new StepRegistry(List.of(stubExecutor)),
+        return new GradingOrchestrator(null, null, null, null, null, null, noopTracer(),
+                null, null, null, new StepRegistry(List.of(stubExecutor)),
                 new ObjectMapper(), null, null,
                 new DbDialectRegistry(List.of(new PostgresDialect(), new MysqlDialect())),
                 Mockito.mock(DbSandboxService.class));

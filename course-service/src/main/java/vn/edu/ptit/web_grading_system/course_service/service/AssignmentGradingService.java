@@ -16,6 +16,9 @@ import vn.edu.ptit.web_grading_system.course_service.exception.ResourceNotFoundE
 import vn.edu.ptit.web_grading_system.course_service.repository.AssignmentRepository;
 import vn.edu.ptit.web_grading_system.course_service.repository.ClassStudentRepository;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Comparator;
@@ -25,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -40,13 +44,66 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AssignmentGradingService {
 
     private final AssignmentRepository assignmentRepository;
     private final ClassStudentRepository classStudentRepository;
     private final ResultServiceClient resultServiceClient;
     private final SubmissionInternalClient submissionInternalClient;
+    private final Tracer tracer;
+
+    public AssignmentGradingService(AssignmentRepository assignmentRepository,
+                                   ClassStudentRepository classStudentRepository,
+                                   ResultServiceClient resultServiceClient,
+                                   SubmissionInternalClient submissionInternalClient,
+                                   Tracer tracer) {
+        this.assignmentRepository = assignmentRepository;
+        this.classStudentRepository = classStudentRepository;
+        this.resultServiceClient = resultServiceClient;
+        this.submissionInternalClient = submissionInternalClient;
+        this.tracer = tracer;
+    }
+
+    // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
+    // so service-to-service calls are visible in Tempo (not blank gaps).
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        if (tracer == null) {
+            return call.get();
+        }
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            if (span != null) {
+                span.error(ex);
+            }
+            throw ex;
+        } finally {
+            if (span != null) {
+                span.end();
+            }
+        }
+    }
+
+    private void traceFeign(String spanName, Runnable call) {
+        if (tracer == null) {
+            call.run();
+            return;
+        }
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            call.run();
+        } catch (Throwable ex) {
+            if (span != null) {
+                span.error(ex);
+            }
+            throw ex;
+        } finally {
+            if (span != null) {
+                span.end();
+            }
+        }
+    }
 
     /**
      * An assignment outside the caller's own classes is a 404, never a 403 — an existing id
@@ -134,8 +191,8 @@ public class AssignmentGradingService {
         // Deliberately NOT swallowed by try/catch (the "degrade gracefully" rule in skill §10
         // does not fit here): an empty list would read as "nobody has submitted yet" and could
         // send a lecturer to the wrong grading decision. A failed dependency must be a 500.
-        List<StudentResultResponse> groups =
-                resultServiceClient.assignmentResults(assignmentId, studentUserId, includeSteps);
+        List<StudentResultResponse> groups = traceFeign("client.result-service.assignmentResults",
+                () -> resultServiceClient.assignmentResults(assignmentId, studentUserId, includeSteps));
 
         // Practice assignments have classId == NULL, so no class roster exists: enrich student
         // code/name from class_students by student_user_id (students who have taken at least one
@@ -225,8 +282,8 @@ public class AssignmentGradingService {
         UUID studentUserId = wantedId.orElse(null);
         // Roster read first, Feign second: same no-connection-across-HTTP rule as above.
         // Forward page/size to submission-service for true server-side paging.
-        Page<SubmissionResponse> fetched = submissionInternalClient.listByAssignment(
-                assignmentId, page, size);
+        Page<SubmissionResponse> fetched = traceFeign("client.submission-service.listByAssignment",
+                () -> submissionInternalClient.listByAssignment(assignmentId, page, size));
         List<SubmissionResponse> rows = fetched.getContent();
         // Practice assignments have classId == NULL, so no class roster exists: enrich code/name from
         // class_students by student_user_id of the submissions.

@@ -1,6 +1,8 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.tools.student;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -13,15 +15,54 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.*;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ListMyPendingAssignmentsTool implements AgentTool {
-
     private final CourseServiceClient courseServiceClient;
     private final SubmissionServiceClient submissionServiceClient;
+    private Tracer tracer;
+
+    public ListMyPendingAssignmentsTool(CourseServiceClient courseServiceClient, SubmissionServiceClient submissionServiceClient, Tracer tracer) {
+        this.courseServiceClient = courseServiceClient;
+        this.submissionServiceClient = submissionServiceClient;
+        this.tracer = tracer;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ListMyPendingAssignmentsTool(CourseServiceClient courseServiceClient, SubmissionServiceClient submissionServiceClient) {
+        this.courseServiceClient = courseServiceClient;
+        this.submissionServiceClient = submissionServiceClient;
+        this.tracer = null;
+    }
+
+    
+
+    
+
+
+            
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer;
+    }
+
+    // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
+    // so service-to-service calls are visible in Tempo (not blank gaps).
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        if (tracer == null) { return call.get(); }
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            if (span != null) { span.error(ex); }
+            throw ex;
+        } finally {
+            if (span != null) { span.end(); }
+        }
+    }
 
     @Override
     public String getName() {
@@ -56,22 +97,24 @@ public class ListMyPendingAssignmentsTool implements AgentTool {
         }
 
         try {
-            PageDto<AssignmentSummaryDto> assPage = courseServiceClient.listStudentAssignments(
-                    context.userId().toString(),
-                    context.email(),
-                    null,
-                    null,
-                    0,
-                    50,
-                    context.gatewaySecret()
-            );
+            PageDto<AssignmentSummaryDto> assPage = traceFeign("client.course-service.listStudentAssignments",
+                    () -> courseServiceClient.listStudentAssignments(
+                            context.userId().toString(),
+                            context.email(),
+                            null,
+                            null,
+                            0,
+                            50,
+                            context.gatewaySecret()
+                    ));
 
-            PageDto<SubmissionSummaryDto> subPage = submissionServiceClient.listMySubmissions(
-                    context.userId().toString(),
-                    0,
-                    100,
-                    context.gatewaySecret()
-            );
+            PageDto<SubmissionSummaryDto> subPage = traceFeign("client.submission-service.listMySubmissions",
+                    () -> submissionServiceClient.listMySubmissions(
+                            context.userId().toString(),
+                            0,
+                            100,
+                            context.gatewaySecret()
+                    ));
 
             Set<UUID> completedAssignmentIds = new HashSet<>();
             if (subPage != null && subPage.getContent() != null) {

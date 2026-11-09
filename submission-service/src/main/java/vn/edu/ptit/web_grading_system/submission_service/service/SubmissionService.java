@@ -45,9 +45,12 @@ import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+import java.util.function.Supplier;
+
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class SubmissionService {
 
     private final SubmissionRepository submissionRepository;
@@ -57,6 +60,25 @@ public class SubmissionService {
     private final WgsEventsProducer wgsEventsProducer;
     private final EntityManager entityManager;
     private final SubmissionProperties submissionProperties;
+    private final Tracer tracer;
+
+    public SubmissionService(SubmissionRepository submissionRepository,
+                             SubmissionMapper submissionMapper,
+                             RustFSService rustfsService,
+                             CourseServiceClient courseServiceClient,
+                             WgsEventsProducer wgsEventsProducer,
+                             EntityManager entityManager,
+                             SubmissionProperties submissionProperties,
+                             Tracer tracer) {
+        this.submissionRepository = submissionRepository;
+        this.submissionMapper = submissionMapper;
+        this.rustfsService = rustfsService;
+        this.courseServiceClient = courseServiceClient;
+        this.wgsEventsProducer = wgsEventsProducer;
+        this.entityManager = entityManager;
+        this.submissionProperties = submissionProperties;
+        this.tracer = tracer;
+    }
 
     /** Maximum number of zip entries allowed in the tree (prevents zip bomb). */
     private static final int MAX_ZIP_ENTRIES = 5000;
@@ -72,6 +94,45 @@ public class SubmissionService {
             "makefile", "gnumakefile", "license", "licence", "readme", "notice",
             "jenkinsfile", "vagrantfile", "gemfile", "rakefile", "pipfile",
             ".gitignore", ".dockerignore", ".gitattributes", ".editorconfig");
+
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        if (tracer == null) {
+            return call.get();
+        }
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            if (span != null) {
+                span.error(ex);
+            }
+            throw ex;
+        } finally {
+            if (span != null) {
+                span.end();
+            }
+        }
+    }
+
+    private void traceFeign(String spanName, Runnable call) {
+        if (tracer == null) {
+            call.run();
+            return;
+        }
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            call.run();
+        } catch (Throwable ex) {
+            if (span != null) {
+                span.error(ex);
+            }
+            throw ex;
+        } finally {
+            if (span != null) {
+                span.end();
+            }
+        }
+    }
 
     private long presignedUrlExpiryMinutes() {
         return submissionProperties.presignedUrlExpiryMinutes();
@@ -362,7 +423,8 @@ public class SubmissionService {
             return submission;
         }
         // Lecturer access: verify callerId is the owner (giảng viên) of the assignment's class.
-        UUID ownerId = courseServiceClient.getAssignmentOwner(submission.getAssignmentId()).ownerId();
+        UUID ownerId = traceFeign("client.course-service.getAssignmentOwner",
+                () -> courseServiceClient.getAssignmentOwner(submission.getAssignmentId())).ownerId();
         if (!ownerId.equals(callerId)) {
             throw new ResourceNotFoundException("Submission not found: " + submissionId);
         }

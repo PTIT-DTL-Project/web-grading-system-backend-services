@@ -29,6 +29,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import io.micrometer.tracing.Tracer;
 
 class SubmissionControllerTest {
 
@@ -39,7 +40,7 @@ class SubmissionControllerTest {
     private final SubmissionService service = new SubmissionService(repository,
             mock(SubmissionMapper.class), mock(RustFSService.class), mock(CourseServiceClient.class),
             mock(WgsEventsProducer.class), entityManager,
-            mock(SubmissionProperties.class));
+            mock(SubmissionProperties.class), mock(Tracer.class, RETURNS_DEEP_STUBS));
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new SubmissionController(service))
             .setControllerAdvice(new GlobalExceptionHandler()).build();
 

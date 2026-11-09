@@ -1,6 +1,8 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.tools.common;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -9,6 +11,8 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.Assignment
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.PageDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.*;
 
+import java.util.function.Supplier;
+
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Set;
@@ -16,10 +20,46 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ListVisibleAssignmentsTool implements AgentTool {
-
     private final CourseServiceClient courseServiceClient;
+    private Tracer tracer;
+
+    public ListVisibleAssignmentsTool(CourseServiceClient courseServiceClient, Tracer tracer) {
+        this.courseServiceClient = courseServiceClient;
+        this.tracer = tracer;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ListVisibleAssignmentsTool(CourseServiceClient courseServiceClient) {
+        this.courseServiceClient = courseServiceClient;
+        this.tracer = null;
+    }
+
+    
+
+    
+
+
+        
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer;
+    }
+
+    // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
+    // so service-to-service calls are visible in Tempo (not blank gaps).
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        if (tracer == null) { return call.get(); }
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            if (span != null) { span.error(ex); }
+            throw ex;
+        } finally {
+            if (span != null) { span.end(); }
+        }
+    }
 
     @Override
     public String getName() {
@@ -74,41 +114,44 @@ public class ListVisibleAssignmentsTool implements AgentTool {
     @Override
     public ToolResult execute(JsonNode arguments, AgentContext context) {
         try {
-            UUID classId = null;
+            UUID parsedClassId = null;
             if (arguments != null && arguments.has("classId") && !arguments.get("classId").isNull()) {
                 String classIdStr = arguments.get("classId").asText();
                 if (!classIdStr.isBlank()) {
-                    classId = UUID.fromString(classIdStr);
+                    parsedClassId = UUID.fromString(classIdStr);
                 }
             }
+            final UUID classId = parsedClassId;
 
             int page = (arguments != null && arguments.has("page")) ? arguments.get("page").asInt(0) : 0;
             int size = (arguments != null && arguments.has("size")) ? arguments.get("size").asInt(20) : 20;
-            size = Math.max(1, Math.min(50, size));
-            String search = arguments != null ? arguments.path("search").asText("").trim() : "";
-            if (search.isBlank()) search = null;
+            final int safeSize = Math.max(1, Math.min(50, size));
+            String rawSearch = arguments != null ? arguments.path("search").asText("").trim() : "";
+            final String search = rawSearch.isBlank() ? null : rawSearch;
 
             PageDto<AssignmentSummaryDto> result;
             if (context.roles() != null && context.roles().contains("ROLE_LECTURER")) {
-                result = courseServiceClient.listLecturerAssignments(
-                        context.userId().toString(),
-                        "ROLE_LECTURER",
-                        classId,
-                        search,
-                        page,
-                        size,
-                        context.gatewaySecret()
-                );
+                result = traceFeign("client.course-service.listLecturerAssignments",
+                        () -> courseServiceClient.listLecturerAssignments(
+                                context.userId().toString(),
+                                "ROLE_LECTURER",
+                                classId,
+                                search,
+                                page,
+                                safeSize,
+                                context.gatewaySecret()
+                        ));
             } else {
-                result = courseServiceClient.listStudentAssignments(
-                        context.userId().toString(),
-                        context.email(),
-                        classId,
-                        search,
-                        page,
-                        size,
-                        context.gatewaySecret()
-                );
+                result = traceFeign("client.course-service.listStudentAssignments",
+                        () -> courseServiceClient.listStudentAssignments(
+                                context.userId().toString(),
+                                context.email(),
+                                classId,
+                                search,
+                                page,
+                                safeSize,
+                                context.gatewaySecret()
+                        ));
             }
             return ToolResult.ok(java.util.Map.of(
                     "items", result != null ? result.getContent() : Collections.emptyList(),

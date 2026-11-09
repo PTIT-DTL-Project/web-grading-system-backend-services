@@ -1,12 +1,16 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.tools.lecturer;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.CourseServiceClient;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.PageDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.*;
+
+import java.util.function.Supplier;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -15,10 +19,46 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ListClassStudentsTool implements AgentTool {
-
     private final CourseServiceClient courseServiceClient;
+    private Tracer tracer;
+
+    public ListClassStudentsTool(CourseServiceClient courseServiceClient, Tracer tracer) {
+        this.courseServiceClient = courseServiceClient;
+        this.tracer = tracer;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ListClassStudentsTool(CourseServiceClient courseServiceClient) {
+        this.courseServiceClient = courseServiceClient;
+        this.tracer = null;
+    }
+
+    
+
+    
+
+
+        
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer;
+    }
+
+    // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
+    // so service-to-service calls are visible in Tempo (not blank gaps).
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        if (tracer == null) { return call.get(); }
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            if (span != null) { span.error(ex); }
+            throw ex;
+        } finally {
+            if (span != null) { span.end(); }
+        }
+    }
 
     @Override
     public String getName() {
@@ -61,14 +101,15 @@ public class ListClassStudentsTool implements AgentTool {
             int page = arguments.has("page") ? arguments.get("page").asInt(0) : 0;
             int size = arguments.has("size") ? arguments.get("size").asInt(50) : 50;
 
-            PageDto<Object> result = courseServiceClient.listClassStudents(
-                    classId,
-                    context.userId().toString(),
-                    "ROLE_LECTURER",
-                    page,
-                    size,
-                    context.gatewaySecret()
-            );
+            PageDto<Object> result = traceFeign("client.course-service.listClassStudents",
+                    () -> courseServiceClient.listClassStudents(
+                            classId,
+                            context.userId().toString(),
+                            "ROLE_LECTURER",
+                            page,
+                            size,
+                            context.gatewaySecret()
+                    ));
 
             return ToolResult.ok(result != null ? result.getContent() : Collections.emptyList());
         } catch (IllegalArgumentException e) {

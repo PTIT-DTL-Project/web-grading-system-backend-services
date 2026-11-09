@@ -1,5 +1,6 @@
 package vn.edu.ptit.web_grading_system.submission_service.service;
 
+import io.micrometer.tracing.Tracer;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -30,7 +31,8 @@ class SubmissionServiceWebhookTest {
                 Mockito.mock(RustFSService.class), Mockito.mock(CourseServiceClient.class),
                 producer,
                 Mockito.mock(EntityManager.class),
-                Mockito.mock(SubmissionProperties.class));
+                Mockito.mock(SubmissionProperties.class),
+                Mockito.mock(Tracer.class, Mockito.RETURNS_DEEP_STUBS));
         return new Fixture(service, repo, producer);
     }
 

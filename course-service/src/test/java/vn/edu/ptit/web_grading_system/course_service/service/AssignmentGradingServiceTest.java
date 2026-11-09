@@ -1,5 +1,7 @@
 package vn.edu.ptit.web_grading_system.course_service.service;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import vn.edu.ptit.web_grading_system.course_service.client.ResultServiceClient;
@@ -26,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -51,11 +54,18 @@ class AssignmentGradingServiceTest {
     private final ResultServiceClient resultServiceClient = Mockito.mock(ResultServiceClient.class);
     private final SubmissionInternalClient submissionInternalClient =
             Mockito.mock(SubmissionInternalClient.class);
+    private final Tracer tracer = Mockito.mock(Tracer.class);
+    private final Span span = Mockito.mock(Span.class);
+    private final Tracer.SpanInScope spanInScope = Mockito.mock(Tracer.SpanInScope.class);
 
     private AssignmentGradingService service() {
+        when(tracer.nextSpan()).thenReturn(span);
+        when(span.name(any(String.class))).thenReturn(span);
+        when(span.start()).thenReturn(span);
+        when(tracer.withSpan(any(Span.class))).thenReturn(spanInScope);
         return new AssignmentGradingService(
                 assignmentRepository, classStudentRepository,
-                resultServiceClient, submissionInternalClient);
+                resultServiceClient, submissionInternalClient, tracer);
     }
 
     private static Assignment ownedAssignment() {

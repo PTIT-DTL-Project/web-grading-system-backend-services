@@ -1,6 +1,8 @@
 package vn.edu.ptit.web_grading_system.ai_assistant_service.tools.common;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -9,16 +11,48 @@ import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.ApiEnvelop
 import vn.edu.ptit.web_grading_system.ai_assistant_service.client.dto.AssignmentDetailDto;
 import vn.edu.ptit.web_grading_system.ai_assistant_service.tools.*;
 
+import java.util.function.Supplier;
+
 import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class GetAssignmentTool implements AgentTool {
 
     private final CourseServiceClient courseServiceClient;
+    private Tracer tracer;
+
+    public GetAssignmentTool(CourseServiceClient courseServiceClient, Tracer tracer) {
+        this.courseServiceClient = courseServiceClient;
+        this.tracer = tracer;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public GetAssignmentTool(CourseServiceClient courseServiceClient) {
+        this(courseServiceClient, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer;
+    }
+
+    // Review: 2026-11-09, PR #93 follow-up — wrap internal Feign calls in explicit spans
+    // so service-to-service calls are visible in Tempo (not blank gaps).
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        if (tracer == null) { return call.get(); }
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            if (span != null) { span.error(ex); }
+            throw ex;
+        } finally {
+            if (span != null) { span.end(); }
+        }
+    }
 
     @Override
     public String getName() {
@@ -57,18 +91,20 @@ public class GetAssignmentTool implements AgentTool {
             ApiEnvelope<AssignmentDetailDto> envelope;
 
             if (context.roles() != null && context.roles().contains("ROLE_LECTURER")) {
-                envelope = courseServiceClient.getOwnedAssignment(
-                        assignmentId,
-                        context.userId().toString(),
-                        "ROLE_LECTURER",
-                        context.gatewaySecret()
-                );
+                envelope = traceFeign("client.course-service.getOwnedAssignment",
+                        () -> courseServiceClient.getOwnedAssignment(
+                                assignmentId,
+                                context.userId().toString(),
+                                "ROLE_LECTURER",
+                                context.gatewaySecret()
+                        ));
             } else {
-                envelope = courseServiceClient.getAssignment(
-                        assignmentId,
-                        context.userId().toString(),
-                        context.gatewaySecret()
-                );
+                envelope = traceFeign("client.course-service.getAssignment",
+                        () -> courseServiceClient.getAssignment(
+                                assignmentId,
+                                context.userId().toString(),
+                                context.gatewaySecret()
+                        ));
             }
 
             if (envelope == null || envelope.getData() == null) {

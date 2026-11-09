@@ -52,6 +52,11 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.function.Supplier;
+
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+
 import vn.edu.ptit.web_grading_system.executor_service.service.docker.DockerComposePatcher;
 import vn.edu.ptit.web_grading_system.executor_service.service.docker.DockerComposeRunner;
 import vn.edu.ptit.web_grading_system.executor_service.service.infra.ArtifactService;
@@ -67,7 +72,6 @@ import vn.edu.ptit.web_grading_system.executor_service.service.scoring.VariableC
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class GradingOrchestrator
 {
     private static final BigDecimal MAX_SCORE = BigDecimal.TEN;
@@ -78,6 +82,7 @@ public class GradingOrchestrator
     private final CourseInternalClient courseInternalClient;
     private final SubmissionStatusClient submissionStatusClient;
     private final ResultServiceClient resultServiceClient;
+    private final Tracer tracer;
     private final ArtifactService artifactService;
     private final PortAllocator portAllocator;
     private final DockerComposeRunner composeRunner;
@@ -87,6 +92,100 @@ public class GradingOrchestrator
     private final SagaTracker sagaTracker;
     private final DbDialectRegistry dialectRegistry;
     private final DbSandboxService dbSandbox;
+
+    public GradingOrchestrator(GradingJobRepository gradingJobRepository,
+                               GradingStepResultRepository stepResultRepository,
+                               GradingLogRepository gradingLogRepository,
+                               CourseInternalClient courseInternalClient,
+                               SubmissionStatusClient submissionStatusClient,
+                               ResultServiceClient resultServiceClient,
+                               Tracer tracer,
+                               ArtifactService artifactService,
+                               PortAllocator portAllocator,
+                               DockerComposeRunner composeRunner,
+                               StepRegistry stepRegistry,
+                               ObjectMapper objectMapper,
+                               ExecutorProperties executorProperties,
+                               SagaTracker sagaTracker,
+                               DbDialectRegistry dialectRegistry,
+                               DbSandboxService dbSandbox) {
+        this.gradingJobRepository = gradingJobRepository;
+        this.stepResultRepository = stepResultRepository;
+        this.gradingLogRepository = gradingLogRepository;
+        this.courseInternalClient = courseInternalClient;
+        this.submissionStatusClient = submissionStatusClient;
+        this.resultServiceClient = resultServiceClient;
+        this.tracer = tracer;
+        this.artifactService = artifactService;
+        this.portAllocator = portAllocator;
+        this.composeRunner = composeRunner;
+        this.stepRegistry = stepRegistry;
+        this.objectMapper = objectMapper;
+        this.executorProperties = executorProperties;
+        this.sagaTracker = sagaTracker;
+        this.dialectRegistry = dialectRegistry;
+        this.dbSandbox = dbSandbox;
+    }
+
+    public GradingOrchestrator(GradingJobRepository gradingJobRepository,
+                               GradingStepResultRepository stepResultRepository,
+                               GradingLogRepository gradingLogRepository,
+                               CourseInternalClient courseInternalClient,
+                               SubmissionStatusClient submissionStatusClient,
+                               ResultServiceClient resultServiceClient,
+                               ArtifactService artifactService,
+                               PortAllocator portAllocator,
+                               DockerComposeRunner composeRunner,
+                               StepRegistry stepRegistry,
+                               ObjectMapper objectMapper,
+                               ExecutorProperties executorProperties,
+                               SagaTracker sagaTracker,
+                               DbDialectRegistry dialectRegistry,
+                               DbSandboxService dbSandbox) {
+        this(gradingJobRepository, stepResultRepository, gradingLogRepository, courseInternalClient,
+                submissionStatusClient, resultServiceClient, null, artifactService, portAllocator,
+                composeRunner, stepRegistry, objectMapper, executorProperties, sagaTracker, dialectRegistry,
+                dbSandbox);
+    }
+
+    private <T> T traceFeign(String spanName, Supplier<T> call) {
+        if (tracer == null) {
+            return call.get();
+        }
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            return call.get();
+        } catch (Throwable ex) {
+            if (span != null) {
+                span.error(ex);
+            }
+            throw ex;
+        } finally {
+            if (span != null) {
+                span.end();
+            }
+        }
+    }
+
+    private void traceFeign(String spanName, Runnable call) {
+        if (tracer == null) {
+            call.run();
+            return;
+        }
+        Span span = tracer.nextSpan().name(spanName).start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            call.run();
+        } catch (Throwable ex) {
+            if (span != null) {
+                span.error(ex);
+            }
+            throw ex;
+        } finally {
+            if (span != null) {
+                span.end();
+            }
+        }
+    }
 
     @Async("gradingTaskExecutor")
     public void gradeAsync(UUID jobId, UUID submissionId, UUID assignmentId, UUID studentId,
@@ -123,8 +222,8 @@ public class GradingOrchestrator
         UUID fetchRow = sagaTracker.step(sagaId, Constant.Saga.FETCH_CONFIG, planId, null);
         try
         {
-            config = courseInternalClient.gradingConfig(assignmentId);
-            plans = new ArrayList<>(courseInternalClient.plans(assignmentId));
+            config = traceFeign("client.course-service.gradingConfig", () -> courseInternalClient.gradingConfig(assignmentId));
+            plans = new ArrayList<>(traceFeign("client.course-service.plans", () -> courseInternalClient.plans(assignmentId)));
             sagaTracker.finishStep(fetchRow, SagaStepStatus.DONE, null);
         }
         catch (Exception e)
@@ -1106,7 +1205,7 @@ public class GradingOrchestrator
                 .build();
         for (int attempt = 1; attempt <= 3; attempt++) {
             try {
-                resultServiceClient.create(request);
+                traceFeign("client.result-service.create", () -> resultServiceClient.create(request));
                 return;
             } catch (Exception e) {
                 if (isValidationError(e)) {
@@ -1144,8 +1243,8 @@ public class GradingOrchestrator
     {
         try
         {
-            submissionStatusClient.updateStatus(submissionId,
-                    new SubmissionStatusClient.UpdateStatusRequest(status));
+            traceFeign("client.submission-service.updateStatus", () -> submissionStatusClient.updateStatus(submissionId,
+                    new SubmissionStatusClient.UpdateStatusRequest(status)));
         }
         catch (Exception e)
         {

@@ -71,6 +71,10 @@ public class KafkaConfig
         factory.getContainerProperties().setAckMode(
                 ContainerProperties.AckMode.valueOf(
                         props.ackMode() != null ? props.ackMode() : "RECORD"));
+        // Review: 2026-11-09 — enable Micrometer Observation for @KafkaListener processing
+        // so consumer spans appear in Tempo (Spring Kafka 4.x Micrometer Observation).
+        // Trace propagation uses Kafka record headers (e.g. W3C traceparent) when present.
+        factory.getContainerProperties().setObservationEnabled(true);
         return factory;
     }
 }
