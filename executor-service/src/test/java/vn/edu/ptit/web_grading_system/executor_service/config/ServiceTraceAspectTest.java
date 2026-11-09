@@ -75,4 +75,30 @@ class ServiceTraceAspectTest {
         verify(span).error(ex);
         verify(span).end();
     }
+
+    @Test
+    void traceService_shouldUseRealClassNameForSpan() throws Throwable {
+        class FakeGradingService {}
+        Object target = new FakeGradingService();
+        ProceedingJoinPoint pjp = mock(ProceedingJoinPoint.class);
+        when(pjp.getTarget()).thenReturn(target);
+        when(pjp.getSignature()).thenReturn(signature);
+        when(signature.getName()).thenReturn("grade");
+        when(pjp.proceed()).thenReturn("result");
+
+        when(tracer.nextSpan()).thenReturn(span);
+        when(span.name(anyString())).thenReturn(span);
+        when(span.start()).thenReturn(span);
+
+        Object result = aspect.traceService(pjp);
+
+        assertEquals("result", result);
+        // Review: 2026-11-09 — aspect bây giờ cũng bao GradingOrchestrator, nên span
+        // phải mang tên class thực (không để trống như anonymous class trước kia).
+        verify(span).name("service.FakeGradingService.grade");
+        verify(span).start();
+        verify(pjp).proceed();
+        verify(span).end();
+        verify(span, never()).error(any());
+    }
 }

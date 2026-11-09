@@ -24,7 +24,9 @@ public class ServiceTraceAspect {
 
     private final Tracer tracer;
 
-    @Around("execution(public * vn.edu.ptit.web_grading_system.executor_service..service..*.*(..))")
+    @Around("execution(* vn.edu.ptit.web_grading_system.executor_service.service.grading.GradingOrchestrator.*(..)) "
+            + "|| execution(public * vn.edu.ptit.web_grading_system.executor_service..service..*.*(..) "
+            + "&& !within(vn.edu.ptit.web_grading_system.executor_service.service.grading.GradingOrchestrator))")
     public Object traceService(ProceedingJoinPoint pjp) throws Throwable {
         String className = pjp.getTarget().getClass().getSimpleName();
         String methodName = pjp.getSignature().getName();

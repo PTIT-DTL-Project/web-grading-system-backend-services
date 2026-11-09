@@ -8,6 +8,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -18,6 +19,7 @@ import java.util.concurrent.Executor;
 @EnableAsync
 @EnableScheduling
 @EnableKafka
+@EnableAspectJAutoProxy // bật AOP để @Aspect (ServiceTraceAspect/RepositoryTraceAspect) tạo span trong Tempo
 @ConfigurationPropertiesScan
 @SpringBootApplication
 @EnableFeignClients
