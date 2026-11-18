@@ -61,6 +61,27 @@ class DomainApiToolTest {
         }
     }
 
+    /**
+     * `required` belongs to the step, never to its config: course-service
+     * PlanCorpusTest rejects config.required, and advertising it in the schema made the
+     * model emit it. The step-level flag must stay but explain its cascade semantics.
+     * Review: 2026-11-12, lecturer report that the agent read it as "question mandatory".
+     */
+    @Test
+    void stepSchemaKeepsRequiredAtStepLevelOnly() throws Exception {
+        for (DomainApiTool tool : java.util.List.of(createQuestion, createStep, createSteps)) {
+            var schema = mapper.readTree(tool.getToolDefinition().inputSchema());
+            var payload = schema.path("properties").path("payload");
+            var step = (tool == createQuestion || tool == createSteps)
+                    ? payload.path("properties").path("steps").path("items") : payload;
+            assertFalse(step.path("properties").path("config").path("properties").has("required"),
+                    tool.getName() + " still advertises config.required");
+            String description = step.path("properties").path("required").path("description").asText();
+            assertTrue(description.contains("SKIPPED"), tool.getName() + ": " + description);
+            assertTrue(description.contains("KHÔNG"), tool.getName() + ": " + description);
+        }
+    }
+
     @Test
     void bothCreationRoutesRejectInvalidHttpAndDbConfig() throws Exception {
         String[] invalid = {
