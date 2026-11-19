@@ -87,12 +87,14 @@ class StudentAssignmentServiceTest {
     }
 
     /**
-     * The student payload must not carry `is_required`: it is executor cascade semantics
-     * (a failing required step SKIPs the rest), and both students and the AI assistant
-     * tools read it as "this question is mandatory". Review: 2026-11-12.
+     * Both fields {@code StudentStepResponse} drops must stay absent from the wire payload:
+     * `is_required` is executor cascade semantics (a failing required step SKIPs the rest) that
+     * students and the AI assistant's plan tool read as "this question is mandatory", and
+     * `expectedResult` is the grader's answer key. Review: 2026-11-12 (expectedResult per
+     * Pullfrog review of PR #97).
      */
     @Test
-    void listPlans_neverSerializesRequiredFlag() throws Exception {
+    void listPlans_neverSerializesRequiredOrExpectedResult() throws Exception {
         stubVisible();
         Mockito.when(planRepo.findAllByAssignmentIdOrderBySequenceOrderAsc(ASSIGNMENT_ID))
                 .thenReturn(List.of(TestPlan.builder().id(PLAN_ID).name("Basic").sequenceOrder(1).build()));
@@ -100,12 +102,14 @@ class StudentAssignmentServiceTest {
                 .thenReturn(List.of(TestStep.builder().id(UUID.randomUUID()).planId(PLAN_ID).stepOrder(1)
                         .name("hit api").stepType(StepType.HTTP_REQUEST)
                         .config("{\"method\":\"GET\",\"path\":\"/x\"}")
+                        .expectedResult("{\"status\":201}")
                         .required(false).build()));
 
         String json = tools.jackson.databind.json.JsonMapper.builder().build()
                 .writeValueAsString(service.listPlans(STUDENT, EMAIL, ASSIGNMENT_ID));
 
         assertFalse(json.contains("required"), json);
+        assertFalse(json.contains("expectedResult"), json);
     }
 
     @Test
