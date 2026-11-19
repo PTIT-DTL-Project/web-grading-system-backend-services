@@ -642,7 +642,14 @@ public class DomainApiTool implements AgentTool {
                 "stepOrder", integer, "name", text, "description", text,
                 "stepType", Map.of("type", "string", "enum", List.of("HTTP_REQUEST", "DB_QUERY", "DB_SCHEMA_CHECK", "DB_MIGRATION")),
                 "config", stepConfigSchema(), "weight", integer, "timeoutMs", integer,
-                "required", Map.of("type", "boolean"), "expectedResult", Map.of("type", "object")),
+                // `required` is executor cascade semantics (a failing required step makes the
+                // rest of the plan SKIPPED). It is NOT "the student must answer this question",
+                // so the description must say that explicitly or the model misreads it.
+                // Review: 2026-11-12, lecturer report of the agent calling steps mandatory.
+                "required", Map.of("type", "boolean", "description",
+                        "Bước phụ thuộc chuỗi chấm: nếu bước này fail thì các bước sau bị SKIPPED. "
+                                + "KHÔNG mang nghĩa 'sinh viên bắt buộc phải làm câu hỏi này'; mặc định true."),
+                "expectedResult", Map.of("type", "object")),
                 "required", List.of("stepOrder", "name", "stepType", "config"));
         return switch (name) {
             case "createTestPlan" -> plan;
@@ -693,7 +700,10 @@ public class DomainApiTool implements AgentTool {
                 "required", List.of("name", "from", "expression"))));
         properties.put("data", Map.of("type", "array", "minItems", 1, "maxItems", 10, "items", object));
         properties.put("auto_inject_headers", object);
-        properties.put("required", Map.of("type", "boolean"));
+        // No `required` here: config has no such key (StepConfigValidator never reads it).
+        // The boolean that used to sit in this map leaked into the model's view of a step
+        // config and made the agent emit/invent config.required. The step-level flag is
+        // declared in payloadSchema().step. Review: 2026-11-12.
         properties.put("timeoutMs", Map.of("type", "integer", "minimum", 1));
         properties.put("connection", Map.of("type", "object", "description", "db_type postgres/mysql/mariadb; db_service là tên service Compose; db_port là port DB nội bộ; database/username/password phải khớp Compose"));
         properties.put("query", text);

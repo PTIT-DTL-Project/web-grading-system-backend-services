@@ -7,7 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResponse;
-import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
+import vn.edu.ptit.web_grading_system.course_service.dto.response.StudentPlanResponse;
 import vn.edu.ptit.web_grading_system.course_service.entity.AssignmentPurpose;
 import vn.edu.ptit.web_grading_system.course_service.service.StudentAssignmentService;
 
@@ -55,7 +55,7 @@ public class StudentAssignmentController {
     }
 
     @GetMapping("/{id}/plans")
-    public ResponseEntity<List<PlanResponse>> plans(
+    public ResponseEntity<List<StudentPlanResponse>> plans(
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String studentId,
             @RequestHeader(value = "X-User-Email", defaultValue = "") String email,
             @PathVariable UUID id) {

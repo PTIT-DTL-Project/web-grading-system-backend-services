@@ -3,7 +3,7 @@ package vn.edu.ptit.web_grading_system.course_service.service;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import tools.jackson.databind.ObjectMapper;
-import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
+import vn.edu.ptit.web_grading_system.course_service.dto.response.StudentPlanResponse;
 import vn.edu.ptit.web_grading_system.course_service.entity.Assignment;
 import vn.edu.ptit.web_grading_system.course_service.entity.ClassStudent;
 import vn.edu.ptit.web_grading_system.course_service.entity.StepType;
@@ -73,7 +73,7 @@ class StudentAssignmentServiceTest {
         Mockito.when(stepRepo.findAllByPlanIdInOrderByStepOrderAsc(List.of(PLAN_ID)))
                 .thenReturn(List.of(http, delay, db));
 
-        List<PlanResponse> plans = service.listPlans(STUDENT, EMAIL, ASSIGNMENT_ID);
+        List<StudentPlanResponse> plans = service.listPlans(STUDENT, EMAIL, ASSIGNMENT_ID);
 
         assertEquals(1, plans.size());
         assertEquals(2, plans.get(0).getSteps().size()); // DELAY dropped
@@ -84,6 +84,32 @@ class StudentAssignmentServiceTest {
         assertFalse(cfg.has("extract"), "extract must be stripped");
         assertFalse(cfg.has("expected"), "expected must be stripped");
         assertFalse(cfg.has("assertions"), "assertions must be stripped — grading answers must not leak to students");
+    }
+
+    /**
+     * Both fields {@code StudentStepResponse} drops must stay absent from the wire payload:
+     * `is_required` is executor cascade semantics (a failing required step SKIPs the rest) that
+     * students and the AI assistant's plan tool read as "this question is mandatory", and
+     * `expectedResult` is the grader's answer key. Review: 2026-11-12 (expectedResult per
+     * Pullfrog review of PR #97).
+     */
+    @Test
+    void listPlans_neverSerializesRequiredOrExpectedResult() throws Exception {
+        stubVisible();
+        Mockito.when(planRepo.findAllByAssignmentIdOrderBySequenceOrderAsc(ASSIGNMENT_ID))
+                .thenReturn(List.of(TestPlan.builder().id(PLAN_ID).name("Basic").sequenceOrder(1).build()));
+        Mockito.when(stepRepo.findAllByPlanIdInOrderByStepOrderAsc(List.of(PLAN_ID)))
+                .thenReturn(List.of(TestStep.builder().id(UUID.randomUUID()).planId(PLAN_ID).stepOrder(1)
+                        .name("hit api").stepType(StepType.HTTP_REQUEST)
+                        .config("{\"method\":\"GET\",\"path\":\"/x\"}")
+                        .expectedResult("{\"status\":201}")
+                        .required(false).build()));
+
+        String json = tools.jackson.databind.json.JsonMapper.builder().build()
+                .writeValueAsString(service.listPlans(STUDENT, EMAIL, ASSIGNMENT_ID));
+
+        assertFalse(json.contains("required"), json);
+        assertFalse(json.contains("expectedResult"), json);
     }
 
     @Test

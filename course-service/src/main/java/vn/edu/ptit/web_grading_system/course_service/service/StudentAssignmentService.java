@@ -11,8 +11,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.AssignmentResponse;
-import vn.edu.ptit.web_grading_system.course_service.dto.response.PlanResponse;
-import vn.edu.ptit.web_grading_system.course_service.dto.response.StepResponse;
+import vn.edu.ptit.web_grading_system.course_service.dto.response.StudentPlanResponse;
+import vn.edu.ptit.web_grading_system.course_service.dto.response.StudentStepResponse;
 import vn.edu.ptit.web_grading_system.course_service.entity.Assignment;
 import vn.edu.ptit.web_grading_system.course_service.entity.AssignmentPurpose;
 import vn.edu.ptit.web_grading_system.course_service.entity.ClassStudent;
@@ -91,7 +91,7 @@ public class StudentAssignmentService {
     }
 
     @Transactional(readOnly = true)
-    public List<PlanResponse> listPlans(UUID studentId, String email, UUID assignmentId) {
+    public List<StudentPlanResponse> listPlans(UUID studentId, String email, UUID assignmentId) {
         studentIdentityService.linkStudent(studentId, email);
         requireVisible(studentId, assignmentId);
         List<TestPlan> plans = testPlanRepository
@@ -99,7 +99,7 @@ public class StudentAssignmentService {
         List<TestStep> steps = testStepRepository
                 .findAllByPlanIdInOrderByStepOrderAsc(plans.stream().map(TestPlan::getId).toList());
         return plans.stream()
-                .map(plan -> PlanResponse.builder()
+                .map(plan -> StudentPlanResponse.builder()
                         .id(plan.getId())
                         .name(plan.getName())
                         .description(plan.getDescription())
@@ -115,8 +115,11 @@ public class StudentAssignmentService {
                 .toList();
     }
 
-    private StepResponse toSanitizedStep(TestStep step) {
-        return StepResponse.builder()
+    private StudentStepResponse toSanitizedStep(TestStep step) {
+        // No `required` on purpose: it drives executor cascade-skip behaviour, and
+        // students (and the AI assistant tools that forward this JSON to the model)
+        // read it as "this question is mandatory". Review: 2026-11-12.
+        return StudentStepResponse.builder()
                 .id(step.getId())
                 .stepOrder(step.getStepOrder())
                 .name(step.getName())
@@ -125,7 +128,6 @@ public class StudentAssignmentService {
                 .config(sanitizeConfig(step.getConfig()))
                 .weight(step.getWeight())
                 .timeoutMs(step.getTimeoutMs())
-                .required(step.getRequired())
                 .build();
     }
 
