@@ -301,11 +301,34 @@ public class ScoreService {
         return failed ? LetterGrade.F : LetterGrade.fromTotal(finalTotal);
     }
 
-    public Page<TranscriptEntryResponse> transcript(UUID classId, UUID ownerId, Pageable pageable) {
+    /**
+     * Lowercases and wraps a raw search term in a contains pattern, escaping the LIKE
+     * wildcards so a typed {@code %} or {@code _} stays literal. Blank input returns
+     * {@code null}, which the repository treats as "no filter".
+     */
+    private static String likePattern(String search) {
+        if (search == null || search.isBlank()) return null;
+        String escaped = search.trim().toLowerCase(java.util.Locale.ROOT)
+                // Backslash first, otherwise the escapes added below get re-escaped.
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
+        return "%" + escaped + "%";
+    }
+
+    /**
+     * Class transcript, one row per roster student, paginated.
+     *
+     * <p>{@code search} narrows the roster by student code or name (contains, case-
+     * insensitive): a class easily holds 100+ students, and paging alone made a
+     * lecturer hunt for a code across pages. Blank/null means "no filter".
+     */
+    public Page<TranscriptEntryResponse> transcript(UUID classId, UUID ownerId, String search, Pageable pageable) {
         requireOwnedClass(classId, ownerId);
         List<ScoreComponent> components = scoreComponentRepository.findAllByClassId(classId);
 
-        Page<ClassStudent> rosterPage = classStudentRepository.findAllByClassId(classId, pageable);
+        Page<ClassStudent> rosterPage = classStudentRepository.findByClassIdFiltered(
+                classId, likePattern(search), pageable);
         List<ClassStudent> roster = rosterPage.getContent();
         if (roster.isEmpty()) {
             return Page.empty(pageable);
