@@ -19,6 +19,24 @@ public interface ClassStudentRepository extends JpaRepository<ClassStudent, UUID
 
     Page<ClassStudent> findAllByClassId(UUID classId, Pageable pageable);
 
+    /**
+     * Transcript roster page with an optional student filter.
+     *
+     * <p>{@code searchPattern} is a pre-lowercased contains pattern with LIKE wildcards
+     * escaped ({@code %nguyen%}); {@code null} disables the filter. Matches the roster
+     * code or the student name, so a 100-student class can be narrowed by either.
+     */
+    @Query("""
+            select s from ClassStudent s
+            where s.classId = :classId
+              and (:searchPattern is null
+                   or lower(s.studentCode) like :searchPattern escape '\\'
+                   or lower(coalesce(s.studentName, '')) like :searchPattern escape '\\')
+            """)
+    Page<ClassStudent> findByClassIdFiltered(@Param("classId") UUID classId,
+                                             @Param("searchPattern") String searchPattern,
+                                             Pageable pageable);
+
     List<ClassStudent> findAllByClassId(UUID classId);
 
     Optional<ClassStudent> findByClassIdAndStudentCode(UUID classId, String studentCode);

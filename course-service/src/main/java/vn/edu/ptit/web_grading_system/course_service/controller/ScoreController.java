@@ -64,12 +64,18 @@ public class ScoreController {
         return ResponseEntity.ok(scoreService.getStudentScores(id, UUID.fromString(ownerId), studentCode));
     }
 
+    /**
+     * Paged class transcript. {@code search} is optional and narrows the roster by
+     * student code or name (contains, case-insensitive) — paging alone is unusable on a
+     * 100-student class. Review: 2026-11-12, lecturer request.
+     */
     @PreAuthorize("hasRole('LECTURER')")
     @GetMapping("/{id}/transcript")
     public ResponseEntity<Page<TranscriptEntryResponse>> transcript(
             @PathVariable UUID id,
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String ownerId,
+            @RequestParam(required = false) String search,
             Pageable pageable) {
-        return ResponseEntity.ok(scoreService.transcript(id, UUID.fromString(ownerId), pageable));
+        return ResponseEntity.ok(scoreService.transcript(id, UUID.fromString(ownerId), search, pageable));
     }
 }
