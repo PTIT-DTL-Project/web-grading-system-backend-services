@@ -292,8 +292,9 @@ public class ScoreService {
             // number, so the total can be computed. Review: 2026-11-22, user request.
             return average != null ? average : BigDecimal.ZERO;
         } catch (Exception e) {
-            // grading data unavailable (service down, no results yet) — degrade to null,
-            // never fail scores/transcript because of it
+            // result-service unreachable: keep the component unknown (null) so the total is
+            // left blank instead of grading the class 0 on an outage, and never fail
+            // scores/transcript because of it.
             log.warn("Exercise score unavailable for student {} in class {}: {}",
                     studentCode, classId, e.toString());
             return null;
