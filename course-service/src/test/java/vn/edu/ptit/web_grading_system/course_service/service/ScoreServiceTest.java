@@ -7,6 +7,8 @@ import org.mockito.Mockito;
 import vn.edu.ptit.web_grading_system.course_service.client.ResultServiceClient;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.StudentScoresResponse;
 import vn.edu.ptit.web_grading_system.course_service.entity.ClassStatus;
+import vn.edu.ptit.web_grading_system.course_service.entity.Assignment;
+import vn.edu.ptit.web_grading_system.course_service.entity.AssignmentPurpose;
 import vn.edu.ptit.web_grading_system.course_service.entity.ClassStudent;
 import vn.edu.ptit.web_grading_system.course_service.entity.CourseClass;
 import vn.edu.ptit.web_grading_system.course_service.entity.ScoreComponent;
@@ -34,6 +36,10 @@ import static org.mockito.Mockito.when;
 class ScoreServiceTest {
 
     private static final String CODE = "B22DCCN001";
+    private static final java.util.UUID OWNER = java.util.UUID.randomUUID();
+    private static final java.util.UUID ATTENDANCE_ID = java.util.UUID.randomUUID();
+    private static final java.util.UUID EXERCISE_ID = java.util.UUID.randomUUID();
+    private static final java.util.UUID FINAL_EXAM_ID = java.util.UUID.randomUUID();
 
     private final CourseClassRepository classRepo = Mockito.mock(CourseClassRepository.class);
     private final ScoreComponentMapper componentMapper = Mockito.mock(ScoreComponentMapper.class);
@@ -176,6 +182,74 @@ class ScoreServiceTest {
         assertNull(res.getTotal());
         assertNull(res.getLetterGrade());
         assertNull(res.getGpa());
+    }
+
+    // Review: 2026-11-22, user request — a student who never submitted still has an
+    // exercise score of 0, so a lecturer who already entered the other components must
+    // still see a total instead of a blank cell.
+    private void stubComponentsIncludingExercise(UUID classId) {
+        CourseClass cls = CourseClass.builder().ownerId(OWNER).status(ClassStatus.ACTIVE).build();
+        Mockito.when(classRepo.findByIdAndOwnerId(classId, OWNER)).thenReturn(Optional.of(cls));
+        Mockito.when(componentRepo.findAllByClassId(classId)).thenReturn(List.of(
+                ScoreComponent.builder().id(ATTENDANCE_ID).type(ScoreComponentType.ATTENDANCE)
+                        .weight(new BigDecimal("0.3")).build(),
+                ScoreComponent.builder().id(EXERCISE_ID).type(ScoreComponentType.EXERCISE)
+                        .weight(new BigDecimal("0.2")).build(),
+                ScoreComponent.builder().id(FINAL_EXAM_ID).type(ScoreComponentType.FINAL_EXAM)
+                        .weight(new BigDecimal("0.5")).build()));
+        Mockito.when(scoreRepo.findAllByClassIdAndStudentCode(classId, CODE)).thenReturn(List.of(
+                StudentScore.builder().componentId(ATTENDANCE_ID).score(new BigDecimal("8.00")).build(),
+                StudentScore.builder().componentId(FINAL_EXAM_ID).score(new BigDecimal("7.00")).build()));
+    }
+
+    @Test
+    void getStudentScores_unlinkedRosterRow_countsExerciseAsZero() {
+        UUID classId = UUID.randomUUID();
+        stubComponentsIncludingExercise(classId);
+        // imported from CSV without the UUID column: never linked, so never submitted
+        Mockito.when(studentRepo.findByClassIdAndStudentCode(classId, CODE))
+                .thenReturn(Optional.of(ClassStudent.builder().studentCode(CODE).build()));
+
+        StudentScoresResponse res = service.getStudentScores(classId, OWNER, CODE);
+
+        assertEquals(new BigDecimal("5.90"), res.getTotal()); // 8*0.3 + 0*0.2 + 7*0.5
+        assertEquals("F", res.getLetterGrade());              // the 0 exercise still fails the course
+        assertEquals(BigDecimal.ZERO, res.getGpa());
+        Mockito.verifyNoInteractions(resultServiceClient);
+    }
+
+    @Test
+    void getStudentScores_resultServiceDown_leavesTotalNull() {
+        UUID classId = UUID.randomUUID();
+        stubComponentsIncludingExercise(classId);
+        UUID studentUserId = UUID.randomUUID();
+        Mockito.when(studentRepo.findByClassIdAndStudentCode(classId, CODE))
+                .thenReturn(Optional.of(ClassStudent.builder().studentCode(CODE).studentUserId(studentUserId).build()));
+        Mockito.when(assignmentRepo.findAllByClassIdAndPurposeAndPublished(classId, AssignmentPurpose.GRADED, true))
+                .thenReturn(List.of(Assignment.builder().id(UUID.randomUUID()).build()));
+        Mockito.when(resultServiceClient.weighted(Mockito.any())).thenThrow(new RuntimeException("result-service down"));
+
+        StudentScoresResponse res = service.getStudentScores(classId, OWNER, CODE);
+
+        // an outage must not fabricate a 0 exercise score: leave the total incomplete
+        assertNull(res.getTotal());
+        assertNull(res.getLetterGrade());
+    }
+
+    @Test
+    void getStudentScores_noPublishedAssignment_leavesTotalNull() {
+        UUID classId = UUID.randomUUID();
+        stubComponentsIncludingExercise(classId);
+        Mockito.when(studentRepo.findByClassIdAndStudentCode(classId, CODE))
+                .thenReturn(Optional.of(ClassStudent.builder().studentCode(CODE)
+                        .studentUserId(UUID.randomUUID()).build()));
+        Mockito.when(assignmentRepo.findAllByClassIdAndPurposeAndPublished(classId, AssignmentPurpose.GRADED, true))
+                .thenReturn(List.of());
+
+        StudentScoresResponse res = service.getStudentScores(classId, OWNER, CODE);
+
+        assertNull(res.getTotal());
+        Mockito.verifyNoInteractions(resultServiceClient);
     }
 
     @Test

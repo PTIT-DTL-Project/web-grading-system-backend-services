@@ -263,7 +263,11 @@ public class ScoreService {
                 .findByClassIdAndStudentCode(classId, studentCode)
                 .map(ClassStudent::getStudentUserId).orElse(null);
         if (studentUserId == null) {
-            return null; // no user mapping yet — auto grading unavailable
+            // Roster row without a linked account cannot have submitted anything, so the
+            // auto-graded component is a real 0, not "unknown". Returning null here left
+            // the total blank for students whose manual components were already entered.
+            // Review: 2026-11-22, user request (unsubmitted exercise must still total).
+            return BigDecimal.ZERO;
         }
         // Review: 2026-10-26, practice-exercises feature
         // Practice assignments (purpose=PRACTICE) never feed the class EXERCISE score component:
@@ -275,15 +279,22 @@ public class ScoreService {
                 .map(Assignment::getId)
                 .toList();
         if (assignmentIds.isEmpty()) {
+            // Nothing published to grade: the component is genuinely undefined, so the
+            // total stays incomplete instead of grading the whole class 0.
             return null;
         }
         try {
-            return traceFeign("client.result-service.weighted",
+            BigDecimal average = traceFeign("client.result-service.weighted",
                     () -> resultServiceClient.weighted(new ResultServiceClient.AverageRequest(assignmentIds, studentUserId)))
                     .get("average");
+            // result-service reads "no submission" as 0.00 and only leaves the average empty
+            // for a failed stepless attempt; either way the exercise component has earned a
+            // number, so the total can be computed. Review: 2026-11-22, user request.
+            return average != null ? average : BigDecimal.ZERO;
         } catch (Exception e) {
-            // grading data unavailable (service down, no results yet) — degrade to null,
-            // never fail scores/transcript because of it
+            // result-service unreachable: keep the component unknown (null) so the total is
+            // left blank instead of grading the class 0 on an outage, and never fail
+            // scores/transcript because of it.
             log.warn("Exercise score unavailable for student {} in class {}: {}",
                     studentCode, classId, e.toString());
             return null;
@@ -352,7 +363,7 @@ public class ScoreService {
                 .filter(Objects::nonNull)
                 .toList();
 
-        final Map<UUID, BigDecimal> exerciseByStudent = fetchBatchExerciseScores(assignmentIds, studentUserIds);
+        final BatchExercise batchExercise = fetchBatchExerciseScores(assignmentIds, studentUserIds);
 
         List<TranscriptEntryResponse> entries = roster.stream().map(student -> {
             Map<UUID, BigDecimal> manual = Optional.ofNullable(scoresByStudent.get(student.getStudentCode()))
@@ -360,7 +371,19 @@ public class ScoreService {
                     .collect(Collectors.toMap(StudentScore::getComponentId, StudentScore::getScore));
 
             final UUID studentUserId = student.getStudentUserId();
-            BigDecimal exercise = studentUserId != null ? exerciseByStudent.get(studentUserId) : null;
+            // Auto score never stays blank just because the student has not submitted:
+            // an unlinked roster row cannot submit at all, and result-service already reads
+            // "no attempt" as 0.00. Only "nothing published to grade" or a failed batch call
+            // leaves the component unknown, so a lecturer who already entered the other
+            // components still gets a total. Review: 2026-11-22, user request.
+            final BigDecimal exercise;
+            if (studentUserId == null) {
+                exercise = BigDecimal.ZERO;
+            } else if (!batchExercise.usable()) {
+                exercise = null;
+            } else {
+                exercise = batchExercise.scores().getOrDefault(studentUserId, BigDecimal.ZERO);
+            }
 
             List<StudentScoreEntryResponse> entryList = new ArrayList<>();
             BigDecimal total = BigDecimal.ZERO;
@@ -390,18 +413,39 @@ public class ScoreService {
         return new PageImpl<>(entries, pageable, rosterPage.getTotalElements());
     }
 
-    private Map<UUID, BigDecimal> fetchBatchExerciseScores(List<UUID> assignmentIds, List<UUID> studentUserIds) {
-        if (assignmentIds == null || assignmentIds.isEmpty()
-                || studentUserIds == null || studentUserIds.isEmpty()) {
-            return Map.of();
+    /**
+     * Batch auto-graded scores plus whether the call yielded usable data. {@code usable}
+     * is false only when there is nothing published to grade or result-service failed; a
+     * student missing from {@code scores} after a successful call has no attempt and scores
+     * 0.00, which is what result-service itself reports for a single read.
+     */
+    private record BatchExercise(Map<UUID, BigDecimal> scores, boolean usable) {
+
+        static BatchExercise ungradable() {
+            return new BatchExercise(Map.of(), false);
+        }
+
+        static BatchExercise of(Map<UUID, BigDecimal> scores) {
+            return new BatchExercise(scores != null ? scores : Map.of(), true);
+        }
+    }
+
+    private BatchExercise fetchBatchExerciseScores(List<UUID> assignmentIds, List<UUID> studentUserIds) {
+        if (assignmentIds == null || assignmentIds.isEmpty()) {
+            return BatchExercise.ungradable();
+        }
+        if (studentUserIds == null || studentUserIds.isEmpty()) {
+            // Roster rows without a linked account are handled per student (score 0);
+            // there is nobody to query, and the component is gradable.
+            return BatchExercise.of(Map.of());
         }
         try {
-            return traceFeign("client.result-service.weightedBatch",
+            return BatchExercise.of(traceFeign("client.result-service.weightedBatch",
                     () -> resultServiceClient.weightedBatch(
-                            new ResultServiceClient.BatchAverageRequest(assignmentIds, studentUserIds)));
+                            new ResultServiceClient.BatchAverageRequest(assignmentIds, studentUserIds))));
         } catch (Exception e) {
             log.warn("Exercise score unavailable: {}", e.toString());
-            return Map.of();
+            return BatchExercise.ungradable();
         }
     }
 }
