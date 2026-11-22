@@ -2,7 +2,23 @@
 
 > There are now **two** Postman collections:
 > - `Web grading service.postman_collection.json` — **mode A** (direct to service, `{{baseUrl}}` = service host, `X-Gateway-Secret` required). Use for internal/endpoint debugging and executor testing.
-> - `Web grading service - gateway.postman_collection.json` — **mode B** (through api-gateway, `{{api-gateway}}` = gateway host, Bearer token). Use for production-like regression testing — this is the FE's path.
+> - `Web grading service - gateway.postman_collection.json` — **mode B** (through api-gateway, everything under `{{gatewayUrl}}`, Bearer token). Use for production-like regression testing — this is the FE's path.
+>
+> **Rebuilt 2026-11-22:** the gateway collection is now self-contained and needs no Postman
+> Environment. Auth is `Authorization: Bearer {{accessToken}}` at collection level; folder
+> **`00 · Token (Keycloak)`** mints the lecturer / student / admin token by password grant and
+> writes `accessToken`, `refreshToken`, `tokenExpiresAt` into collection variables, so no manual
+> copy-paste is needed. Tokens live ~5 minutes — run `Refresh token` when requests start answering
+> 401. The collection sends **no** `X-User-Id` / `X-Gateway-Secret` / `X-User-Roles`:
+> the gateway derives identity from the JWT and stamps those headers itself (anything you send is
+> stripped). Create-requests auto-capture `classId`, `assignmentId`, `planId`, `stepId`,
+> `submissionId`, `uploadUrl`, `conversationId`, `runId` into collection variables.
+> `/api/v1/internal/**` stays in folder `99 · Internal` and calls the service ports directly,
+> because the gateway does not route it — that is by design, not a bug.
+>
+> The request walkthroughs below (§1–§8) still use mode-A syntax (`{{baseUrl}}` plus identity
+> headers) because they document the controllers themselves; for the UI's actual path use the
+> gateway collection.
 >
 > ---
 >

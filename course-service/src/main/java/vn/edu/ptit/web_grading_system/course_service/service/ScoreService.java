@@ -382,7 +382,15 @@ public class ScoreService {
             } else if (!batchExercise.usable()) {
                 exercise = null;
             } else {
-                exercise = batchExercise.scores().getOrDefault(studentUserId, BigDecimal.ZERO);
+                // getOrDefault is not enough: a student whose only attempt was a
+                // stepless FAILED FULL run is present in the map with a null value
+                // (result-service's maxPerPlanAverage returns null), and Map
+                // .getOrDefault would hand that null straight through — leaving the
+                // transcript blank while the single-student read shows a total.
+                // A usable batch means "nothing to grade" is a real 0, exactly like
+                // computeExercise. Review: 2026-11-22, transcript/single-read parity.
+                BigDecimal scored = batchExercise.scores().get(studentUserId);
+                exercise = scored != null ? scored : BigDecimal.ZERO;
             }
 
             List<StudentScoreEntryResponse> entryList = new ArrayList<>();
