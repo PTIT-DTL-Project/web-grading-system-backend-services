@@ -4,8 +4,12 @@ import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import vn.edu.ptit.web_grading_system.course_service.client.ResultServiceClient;
 import vn.edu.ptit.web_grading_system.course_service.dto.response.StudentScoresResponse;
+import vn.edu.ptit.web_grading_system.course_service.dto.response.TranscriptEntryResponse;
 import vn.edu.ptit.web_grading_system.course_service.entity.ClassStatus;
 import vn.edu.ptit.web_grading_system.course_service.entity.Assignment;
 import vn.edu.ptit.web_grading_system.course_service.entity.AssignmentPurpose;
@@ -23,7 +27,9 @@ import vn.edu.ptit.web_grading_system.course_service.repository.ScoreComponentRe
 import vn.edu.ptit.web_grading_system.course_service.repository.StudentScoreRepository;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,6 +46,7 @@ class ScoreServiceTest {
     private static final java.util.UUID ATTENDANCE_ID = java.util.UUID.randomUUID();
     private static final java.util.UUID EXERCISE_ID = java.util.UUID.randomUUID();
     private static final java.util.UUID FINAL_EXAM_ID = java.util.UUID.randomUUID();
+    private static final java.util.UUID STUDENT_USER_ID = java.util.UUID.randomUUID();
 
     private final CourseClassRepository classRepo = Mockito.mock(CourseClassRepository.class);
     private final ScoreComponentMapper componentMapper = Mockito.mock(ScoreComponentMapper.class);
@@ -274,5 +281,58 @@ class ScoreServiceTest {
         StudentScoresResponse res = service.getStudentScores(classId, ownerId, " " + CODE + " ");
         assertEquals(CODE, res.getStudentCode());
         Mockito.verify(studentRepo, Mockito.atLeastOnce()).findByClassIdAndStudentCode(classId, CODE);
+    }
+
+    // Review: 2026-11-22 — transcript must agree with the single-student read: result-service
+    // reports a null average for a stepless FAILED FULL run, and a present-but-null map value
+    // made Map.getOrDefault return null, leaving the transcript total blank while
+    // GET .../students/{code}/scores showed 5.90. Both now normalise to 0.
+    @Test
+    void transcript_nullBatchValue_countsExerciseAsZeroLikeSingleRead() {
+        UUID classId = UUID.randomUUID();
+        stubComponentsIncludingExercise(classId);
+        ClassStudent row = ClassStudent.builder()
+                .studentCode(CODE).studentName("Nguyen Van An").studentUserId(STUDENT_USER_ID).build();
+        Mockito.when(studentRepo.findByClassIdFiltered(Mockito.eq(classId), Mockito.any(), Mockito.any()))
+                .thenReturn(new PageImpl<>(List.of(row)));
+        Mockito.when(scoreRepo.findAllByClassId(classId)).thenReturn(List.of(
+                StudentScore.builder().studentCode(CODE).componentId(ATTENDANCE_ID)
+                        .score(new BigDecimal("8.00")).build(),
+                StudentScore.builder().studentCode(CODE).componentId(FINAL_EXAM_ID)
+                        .score(new BigDecimal("7.00")).build()));
+        Mockito.when(assignmentRepo.findAllByClassIdAndPurposeAndPublished(classId, AssignmentPurpose.GRADED, true))
+                .thenReturn(List.of(Assignment.builder().id(UUID.randomUUID()).build()));
+        Map<UUID, BigDecimal> batch = new HashMap<>();
+        batch.put(STUDENT_USER_ID, null); // failed stepless FULL run -> "missing"
+        Mockito.when(resultServiceClient.weightedBatch(Mockito.any())).thenReturn(batch);
+
+        Page<TranscriptEntryResponse> page = service.transcript(classId, OWNER, null, PageRequest.of(0, 20));
+
+        TranscriptEntryResponse entry = page.getContent().get(0);
+        assertEquals(new BigDecimal("5.90"), entry.getTotal()); // 8*0.3 + 0*0.2 + 7*0.5
+        assertEquals("F", entry.getLetterGrade());
+        assertEquals(BigDecimal.ZERO, entry.getGpa());
+    }
+
+    @Test
+    void transcript_batchUnusable_leavesTotalNull() {
+        UUID classId = UUID.randomUUID();
+        stubComponentsIncludingExercise(classId);
+        ClassStudent row = ClassStudent.builder()
+                .studentCode(CODE).studentName("Nguyen Van An").studentUserId(STUDENT_USER_ID).build();
+        Mockito.when(studentRepo.findByClassIdFiltered(Mockito.eq(classId), Mockito.any(), Mockito.any()))
+                .thenReturn(new PageImpl<>(List.of(row)));
+        Mockito.when(scoreRepo.findAllByClassId(classId)).thenReturn(List.of(
+                StudentScore.builder().studentCode(CODE).componentId(ATTENDANCE_ID)
+                        .score(new BigDecimal("8.00")).build()));
+        Mockito.when(assignmentRepo.findAllByClassIdAndPurposeAndPublished(classId, AssignmentPurpose.GRADED, true))
+                .thenReturn(List.of(Assignment.builder().id(UUID.randomUUID()).build()));
+        Mockito.when(resultServiceClient.weightedBatch(Mockito.any()))
+                .thenThrow(new RuntimeException("result-service down"));
+
+        Page<TranscriptEntryResponse> page = service.transcript(classId, OWNER, null, PageRequest.of(0, 20));
+
+        assertNull(page.getContent().get(0).getTotal());
+        assertNull(page.getContent().get(0).getLetterGrade());
     }
 }
