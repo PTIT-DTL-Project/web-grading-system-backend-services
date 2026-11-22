@@ -370,10 +370,11 @@ class ResultServiceTest {
                         result(student, fullAssignment, fullPlan, "10.00", "10.00", 1),
                         result(student, partialAssignment, partialPlanA, "10.00", "10.00", 1)));
 
-        // Bài 1 nộp đủ 1 câu @10.00; bài 2 mới nộp 1/3 câu @10.00. Hai câu chưa nộp
-        // vẫn cộng weight và ăn 0 điểm: (10 + 10 + 0 + 0) / 4 = 5.00 — không phải
-        // 10.00 (chỉ tính phần đã nộp) cũng không phải 6.67 (chia đều theo bài).
-        assertEquals(new BigDecimal("5.00"),
+        // Trọng số câu chỉ có nghĩa TRONG một bài (Review: 2026-11-21, option A):
+        // bài 1 = 10/10 = 10.00; bài 2 = (10 + 0 + 0)/3 = 3.3333; điểm bài tập của lớp
+        // = trung bình cộng hai bài = 6.6667 → 6.67. Không phải 5.00 (gộp weight thô
+        // của 4 câu ở hai bài khác nhau) cũng không phải 10.00 (chỉ tính phần đã nộp).
+        assertEquals(new BigDecimal("6.67"),
                 f.service().weightedScoreByPlan(List.of(fullAssignment, partialAssignment), student));
     }
 
@@ -400,13 +401,13 @@ class ResultServiceTest {
                         result(student, partialAssignment, partialPlanA, "10.00", "10.00", 1)));
         Mockito.when(steps.findByResultIdIn(Mockito.anyList())).thenReturn(List.of());
 
-        // Transcript đọc cùng công thức: 2 bài / 3 câu, 1 câu chưa nộp ăn 0 điểm
-        // → (10 + 10 + 0) / 3 = 6.67; sinh viên chưa nộp gì = 0.00.
+        // Transcript đọc cùng công thức: bài 1 = 10.00, bài 2 = (10 + 0)/2 = 5.00
+        // → điểm bài tập = (10.00 + 5.00)/2 = 7.50; sinh viên chưa nộp gì = 0.00.
         Map<UUID, BigDecimal> out = new ResultService(repo, steps, plans).weightedScoreByPlanBatch(
                 List.of(fullAssignment, partialAssignment),
                 List.of(student, studentWithoutSubmission));
 
-        assertEquals(new BigDecimal("6.67"), out.get(student));
+        assertEquals(new BigDecimal("7.50"), out.get(student));
         assertEquals(BigDecimal.ZERO, out.get(studentWithoutSubmission));
     }
 
@@ -426,11 +427,47 @@ class ResultServiceTest {
                         result(student, partialAssignment, partialPlanA, "10.00", "10.00", 1)));
 
         // KNOWN GAP (chưa xử lý): khi course-service không trả được danh sách câu,
-        // các câu CHƯA nộp của bài 2 trở nên vô hình nên điểm bị thổi lên 10.00
-        // thay vì 5.00. Test này khoá hành vi HIỆN TẠI; bản sửa fail-closed
-        // (trả null thay vì số sai) phải cập nhật test này một cách có chủ đích.
+        // các câu CHƯA nộp của bài 2 trở nên vô hình nên bài 2 đọc 10.00 thay vì 5.00,
+        // kéo điểm bài tập của lớp lên 10.00 thay vì 7.50. Test này khoá hành vi HIỆN
+        // TẠI; bản sửa fail-closed (trả null thay vì số sai) phải cập nhật nó một cách
+        // có chủ đích. Review: 2026-11-21, option A giữ nguyên gap này.
         assertEquals(new BigDecimal("10.00"),
                 f.service().weightedScoreByPlan(List.of(fullAssignment, partialAssignment), student));
+    }
+
+    @Test
+    void weightedScoreByPlan_planWeightsStayInsideTheirAssignment() {
+        // Số thật của một lớp thật (Review: 2026-11-21, option A):
+        //   bài A: 4 câu, mỗi câu weight 100 → 10 / 10 / 9 / 0  ⇒ 7.25
+        //   bài B: 1 câu, weight 10 → 10.00
+        // Gộp weight thô của mọi câu (hành vi cũ) cho (1000+1000+900+0+100)/410 = 7.32,
+        // tức bài B chỉ nặng 10/410. Đúng phải là (7.25 + 10.00)/2 = 8.63.
+        ScoringFixture f = scoringFixture();
+        UUID student = UUID.randomUUID();
+        UUID assignmentA = UUID.randomUUID();
+        UUID assignmentB = UUID.randomUUID();
+        UUID planA1 = UUID.randomUUID();
+        UUID planA2 = UUID.randomUUID();
+        UUID planA3 = UUID.randomUUID();
+        UUID planA4 = UUID.randomUUID();
+        UUID planB1 = UUID.randomUUID();
+        Mockito.when(f.plans().plans(assignmentA)).thenReturn(List.of(
+                new CourseServicePlansClient.PlanWeight(planA1, 100),
+                new CourseServicePlansClient.PlanWeight(planA2, 100),
+                new CourseServicePlansClient.PlanWeight(planA3, 100),
+                new CourseServicePlansClient.PlanWeight(planA4, 100)));
+        Mockito.when(f.plans().plans(assignmentB)).thenReturn(List.of(
+                new CourseServicePlansClient.PlanWeight(planB1, 10)));
+        Mockito.when(f.repo().findByAssignmentIdInAndStudentId(Mockito.any(), Mockito.eq(student)))
+                .thenReturn(List.of(
+                        result(student, assignmentA, planA1, "10.00", "10.00", 100),
+                        result(student, assignmentA, planA2, "10.00", "10.00", 100),
+                        result(student, assignmentA, planA3, "9.00", "10.00", 100),
+                        result(student, assignmentA, planA4, "0.00", "10.00", 100),
+                        result(student, assignmentB, planB1, "10.00", "10.00", 10)));
+
+        assertEquals(new BigDecimal("8.63"),
+                f.service().weightedScoreByPlan(List.of(assignmentA, assignmentB), student));
     }
 
     private Result result(UUID student, UUID assignment, UUID plan, String score, String maxScore,

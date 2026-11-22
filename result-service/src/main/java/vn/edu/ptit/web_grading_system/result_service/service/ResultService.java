@@ -73,11 +73,18 @@ public class ResultService {
     }
 
     /**
-     * Assignment exercise score = weight-weighted average of per-plan BEST
-     * scores (max over every attempt, not the latest): a student who scored 10
-     * then resubmitted a broken zip for 0 keeps the 10. Unsubmitted plans now
-     * count as 0 and still add their weight to the denominator, so 4/5
-     * submitted @10 with equal weights yields 8.00 instead of 10.00.
+     * Class exercise score = plain average of the per-assignment scores, where each
+     * assignment is a weight-weighted average of its per-plan BEST scores (max over
+     * every attempt, not the latest): a student who scored 10 then resubmitted a
+     * broken zip for 0 keeps the 10. Unsubmitted plans count as 0 and still add
+     * their weight to the assignment denominator, so 4/5 submitted @10 with equal
+     * weights yields 8.00 for that assignment, not 10.00.
+     *
+     * <p>Plan weights are relative to their own assignment, so the cross-assignment
+     * step is arithmetic, not weighted: 7.25 from a 4-plan assignment and 10.00 from
+     * a 1-plan assignment read 8.63. Review: 2026-11-21 (was one weighted sum over
+     * every plan of every assignment, which let a 4×100 assignment outweigh a 1×10
+     * assignment by 40:1).
      *
      * <p>A student who has not submitted anything at all reads {@code 0.00}
      * (every plan unsubmitted counts weight × 0), not missing — an unsubmitted
@@ -176,40 +183,67 @@ public class ResultService {
             return null;
         }
 
-        // Enumerate every plan that should contribute: all plans known to course-service,
-        // plus any plan that has a result (fallback when course-service is down).
-        Set<PlanKey> allPlanKeys = new LinkedHashSet<>();
+        // Enumerate every plan that should contribute, grouped BY ASSIGNMENT: all plans
+        // known to course-service, plus any plan that has a result (fallback when
+        // course-service is down). Grouping is what keeps plan weights inside the
+        // assignment that defined them — see the class-level averaging below.
+        // Review: 2026-11-21 — plan weights were summed across assignments.
+        Map<UUID, Map<UUID, Integer>> plansByAssignment = new LinkedHashMap<>();
         for (UUID assignmentId : assignmentIds) {
             Map<UUID, Integer> weights = allPlanWeights.get(assignmentId);
-            if (weights != null) {
-                for (UUID planId : weights.keySet()) {
-                    allPlanKeys.add(new PlanKey(assignmentId, planId));
-                }
+            if (weights != null && !weights.isEmpty()) {
+                plansByAssignment.put(assignmentId, new LinkedHashMap<>(weights));
             }
         }
         for (PlanKey key : best.keySet()) {
-            allPlanKeys.add(key);
+            // putIfAbsent: a weight from course-service always beats the carried one.
+            plansByAssignment.computeIfAbsent(key.assignmentId(), id -> new LinkedHashMap<>())
+                    .putIfAbsent(key.planId(), carried.getOrDefault(key, 1));
         }
 
-        if (allPlanKeys.isEmpty()) {
+        if (plansByAssignment.isEmpty()) {
             return null;
         }
 
-        BigDecimal weightedSum = BigDecimal.ZERO;
-        BigDecimal weightTotal = BigDecimal.ZERO;
-        for (PlanKey key : allPlanKeys) {
-            int weight = allPlanWeights.getOrDefault(key.assignmentId(), Map.of())
-                    .getOrDefault(key.planId(), carried.getOrDefault(key, 1));
-            BigDecimal weightBd = BigDecimal.valueOf(weight);
-            // Unsubmitted plan (no result row) scores 0 but still counts its weight.
-            BigDecimal score = best.containsKey(key) ? best.get(key).score() : BigDecimal.ZERO;
-            weightedSum = weightedSum.add(score.multiply(weightBd));
-            weightTotal = weightTotal.add(weightBd);
+        // Two levels, deliberately:
+        //   1) inside one assignment, a weight-weighted average over its plans
+        //      (unsubmitted plan = 0 and still counts its weight);
+        //   2) across assignments, a plain average — one assignment, one vote.
+        // Plan weights are relative within an assignment (4 plans × weight 100 is
+        // legal, as is 1 plan × weight 10), so they must never compare across
+        // assignments: 7.25 (4 plans @100) plus 10.00 (1 plan @10) has to read 8.63,
+        // not 7.32. Review: 2026-11-21, option A.
+        BigDecimal assignmentSum = BigDecimal.ZERO;
+        int scoredAssignments = 0;
+        for (Map.Entry<UUID, Map<UUID, Integer>> entry : plansByAssignment.entrySet()) {
+            UUID assignmentId = entry.getKey();
+            BigDecimal weightedSum = BigDecimal.ZERO;
+            BigDecimal weightTotal = BigDecimal.ZERO;
+            for (Map.Entry<UUID, Integer> plan : entry.getValue().entrySet()) {
+                int weight = plan.getValue();
+                BigDecimal weightBd = BigDecimal.valueOf(weight);
+                // Unsubmitted plan (no result row) scores 0 but still counts its weight.
+                BigDecimal score = best.containsKey(new PlanKey(assignmentId, plan.getKey()))
+                        ? best.get(new PlanKey(assignmentId, plan.getKey())).score()
+                        : BigDecimal.ZERO;
+                weightedSum = weightedSum.add(score.multiply(weightBd));
+                weightTotal = weightTotal.add(weightBd);
+            }
+            if (weightTotal.signum() == 0) {
+                continue;
+            }
+            // Working precision, not display precision: rounding each assignment to 2
+            // decimals before averaging shifts the class grade by a hundredth in ~25% of
+            // cases. 3 plans scoring 10 / 10 / 9 are 9.666667 per assignment; the class
+            // grade is 9.83 averaged exactly and 9.84 when the inner value was already
+            // rounded to 9.67. The single scale-2 rounding happens at the end.
+            assignmentSum = assignmentSum.add(weightedSum.divide(weightTotal, 6, RoundingMode.HALF_UP));
+            scoredAssignments++;
         }
-        if (weightTotal.signum() == 0) {
+        if (scoredAssignments == 0) {
             return null;
         }
-        return weightedSum.divide(weightTotal, 2, RoundingMode.HALF_UP);
+        return assignmentSum.divide(BigDecimal.valueOf(scoredAssignments), 2, RoundingMode.HALF_UP);
     }
 
     /** One plan's best score in one assignment, with the attempt row that earned it. */
